@@ -24,6 +24,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 git2 = "0.21.0"
 thiserror = "2.0.21"
+keyring = "4.2.0"
+reqwest = { version = "0.13.5", features = ["json", "form"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

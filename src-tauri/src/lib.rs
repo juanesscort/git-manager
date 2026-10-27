@@ -7,6 +7,10 @@ use ipc::git_commands::{
     commit_changes_cmd, get_commits_cmd, get_diff_cmd, get_repo_info, get_repo_status,
     stage_all_cmd, stage_file_cmd, unstage_all_cmd, unstage_file_cmd,
 };
+use ipc::github_commands::{
+    check_github_session, get_github_repositories, logout_github_session, poll_github_device_token,
+    start_github_device_flow,
+};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -29,6 +33,11 @@ pub fn run() {
             get_diff_cmd,
             commit_changes_cmd,
             get_commits_cmd,
+            start_github_device_flow,
+            poll_github_device_token,
+            check_github_session,
+            logout_github_session,
+            get_github_repositories,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

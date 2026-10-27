@@ -38,3 +38,33 @@ export interface DiffDelta {
   lines_added: number;
   lines_deleted: number;
 }
+
+export interface DeviceAuthResponse {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  expires_in: number;
+  interval: number;
+}
+
+export interface GitHubUser {
+  login: string;
+  name?: string | null;
+  avatar_url: string;
+  html_url: string;
+  public_repos: number;
+  total_private_repos?: number | null;
+}
+
+export interface RemoteRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  html_url: string;
+  clone_url: string;
+  ssh_url: string;
+  default_branch: string;
+  description?: string | null;
+  updated_at: string;
+}
