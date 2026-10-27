@@ -1,5 +1,7 @@
 //! Estructuras de datos (DTOs) compartidas para serialización/deserialización IPC.
 
+pub mod git_models;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

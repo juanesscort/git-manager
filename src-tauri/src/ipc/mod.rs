@@ -1,5 +1,7 @@
 //! Capa delgada de comandos Tauri IPC.
 
+pub mod git_commands;
+
 use crate::models::AppStatus;
 
 #[tauri::command]
