@@ -12,10 +12,15 @@ pub struct DeviceAuthResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubUser {
     pub login: String,
+    #[serde(default)]
     pub name: Option<String>,
+    #[serde(default)]
     pub avatar_url: String,
+    #[serde(default)]
     pub html_url: String,
+    #[serde(default)]
     pub public_repos: u64,
+    #[serde(default)]
     pub total_private_repos: Option<u64>,
 }
 
@@ -29,6 +34,8 @@ pub struct RemoteRepo {
     pub clone_url: String,
     pub ssh_url: String,
     pub default_branch: String,
+    #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
     pub updated_at: String,
 }

@@ -27,7 +27,10 @@ export const App: React.FC = () => {
     reposModalOpen,
     repositories,
     reposLoading,
+    error: githubError,
+    checking: githubChecking,
     startDeviceAuth,
+    checkAuthorizationNow,
     logout: logoutGitHub,
     fetchRepositories,
     closeAuthModal,
@@ -290,6 +293,9 @@ export const App: React.FC = () => {
         isOpen={authModalOpen}
         deviceAuth={deviceAuth}
         user={githubUser}
+        error={githubError}
+        checking={githubChecking}
+        onCheckNow={checkAuthorizationNow}
         onClose={closeAuthModal}
       />
 

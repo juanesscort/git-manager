@@ -8,10 +8,21 @@ pub const GITHUB_CLIENT_ID: &str = "Ov23liDtG8r2vmM9qFdG";
 const KEYRING_SERVICE: &str = "git-manager";
 const KEYRING_USER: &str = "github_token";
 
-#[derive(Deserialize)]
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
 struct TokenResponse {
+    #[serde(default)]
     access_token: Option<String>,
+    #[serde(default)]
+    token_type: Option<String>,
+    #[serde(default)]
+    scope: Option<String>,
+    #[serde(default)]
     error: Option<String>,
+    #[serde(default)]
+    error_description: Option<String>,
+    #[serde(default)]
+    interval: Option<u64>,
 }
 
 pub async fn request_device_code(client_id: &str) -> Result<DeviceAuthResponse, GitHubError> {
@@ -52,9 +63,12 @@ pub async fn poll_access_token(
         .send()
         .await?;
 
-    let token_res: TokenResponse = res.json().await?;
+    let text = res.text().await?;
+    println!("[GitHub Auth] Poll response: {}", text);
 
-    if let Some(token) = token_res.access_token {
+    let token_res: TokenResponse = serde_json::from_str(&text)?;
+
+    if let Some(token) = token_res.access_token.filter(|t| !t.is_empty()) {
         save_token(&token)?;
         return Ok(Some(token));
     }
@@ -64,7 +78,14 @@ pub async fn poll_access_token(
             "authorization_pending" => Ok(None),
             "slow_down" => Ok(None),
             "expired_token" => Err(GitHubError::AuthExpired),
-            _ => Err(GitHubError::AuthFailed(err)),
+            "access_denied" => Err(GitHubError::AuthFailed(
+                "Acceso denegado en GitHub".to_string(),
+            )),
+            _ => Err(GitHubError::AuthFailed(format!(
+                "{}: {}",
+                err,
+                token_res.error_description.unwrap_or_default()
+            ))),
         }
     } else {
         Ok(None)

@@ -5,6 +5,7 @@ import { DeviceAuthResponse, GitHubUser, RemoteRepo } from "../../../types/git";
 export function useGitHub() {
   const [user, setUser] = useState<GitHubUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [checking, setChecking] = useState<boolean>(false);
   const [deviceAuth, setDeviceAuth] = useState<DeviceAuthResponse | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [reposModalOpen, setReposModalOpen] = useState<boolean>(false);
@@ -34,6 +35,34 @@ export function useGitHub() {
     }
   }, []);
 
+  const checkAuthorizationNow = async () => {
+    if (!deviceAuth?.device_code) return false;
+    setChecking(true);
+    setError(null);
+    try {
+      const authUser = await invoke<GitHubUser | null>("poll_github_device_token", {
+        deviceCode: deviceAuth.device_code,
+      });
+
+      if (authUser) {
+        setUser(authUser);
+        stopPolling();
+        setTimeout(() => {
+          setAuthModalOpen(false);
+          setDeviceAuth(null);
+        }, 1200);
+        return true;
+      }
+      return false;
+    } catch (err: unknown) {
+      const errMsg = typeof err === "string" ? err : JSON.stringify(err);
+      setError(errMsg);
+      return false;
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const startDeviceAuth = async () => {
     stopPolling();
     setError(null);
@@ -60,8 +89,14 @@ export function useGitHub() {
             }, 1200);
           }
         } catch (pollErr: unknown) {
-          stopPolling();
-          setError(typeof pollErr === "string" ? pollErr : JSON.stringify(pollErr));
+          const errMsg = typeof pollErr === "string" ? pollErr : JSON.stringify(pollErr);
+          // Only stop polling if code expired or access was explicitly denied
+          if (errMsg.includes("expirado") || errMsg.includes("denegado")) {
+            stopPolling();
+            setError(errMsg);
+          } else {
+            console.warn("GitHub poll warning (continuing to poll):", pollErr);
+          }
         }
       }, intervalSec * 1000);
     } catch (err: unknown) {
@@ -105,6 +140,7 @@ export function useGitHub() {
   return {
     user,
     loading,
+    checking,
     deviceAuth,
     authModalOpen,
     reposModalOpen,
@@ -112,6 +148,7 @@ export function useGitHub() {
     reposLoading,
     error,
     startDeviceAuth,
+    checkAuthorizationNow,
     logout,
     fetchRepositories,
     closeAuthModal: () => {

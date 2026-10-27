@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { DeviceAuthResponse, GitHubUser } from "../../../types/git";
-import { Copy, Check, ExternalLink, X, RefreshCw, ShieldCheck } from "lucide-react";
+import { Copy, Check, ExternalLink, X, RefreshCw, ShieldCheck, AlertCircle } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -8,6 +8,9 @@ interface GitHubAuthModalProps {
   isOpen: boolean;
   deviceAuth: DeviceAuthResponse | null;
   user: GitHubUser | null;
+  error?: string | null;
+  checking?: boolean;
+  onCheckNow?: () => void;
   onClose: () => void;
 }
 
@@ -15,6 +18,9 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({
   isOpen,
   deviceAuth,
   user,
+  error,
+  checking = false,
+  onCheckNow,
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -41,13 +47,13 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 select-none">
       <div className="w-full max-w-md bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-4 py-3 border-b border-[#30363d] flex items-center justify-between bg-[#0d1117]">
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12z" />
             </svg>
             <span className="font-semibold text-white text-sm">Vincular con GitHub</span>
           </div>
@@ -69,7 +75,7 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({
               </div>
               <h3 className="text-base font-semibold text-white">¡Conexión Exitosa!</h3>
               <p className="text-xs text-[#8b949e]">
-                Iniciaste sesión como <span className="text-white font-medium">@{user.login}</span>. Tus credenciales han sido guardadas de forma segura.
+                Iniciaste sesión como <span className="text-white font-medium">@{user.login}</span>. Tus credenciales han sido guardadas de forma segura en tu Secret Service nativo.
               </p>
             </div>
           ) : deviceAuth ? (
@@ -99,17 +105,39 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({
                 </span>
               )}
 
-              <Button
-                variant="primary"
-                onClick={handleOpenBrowser}
-                icon={<ExternalLink className="w-4 h-4" />}
-                className="w-full mt-2"
-              >
-                Abrir GitHub en Navegador
-              </Button>
+              <div className="flex flex-col w-full gap-2 mt-1">
+                <Button
+                  variant="primary"
+                  onClick={handleOpenBrowser}
+                  icon={<ExternalLink className="w-4 h-4" />}
+                  className="w-full"
+                >
+                  Abrir GitHub en Navegador
+                </Button>
+
+                {onCheckNow && (
+                  <Button
+                    variant="secondary"
+                    onClick={onCheckNow}
+                    disabled={checking}
+                    icon={<RefreshCw className={`w-3.5 h-3.5 ${checking ? "animate-spin text-blue-400" : ""}`} />}
+                    className="w-full text-xs h-8 border-[#30363d] text-white hover:bg-[#21262d]"
+                  >
+                    {checking ? "Comprobando autorización..." : "Ya autoricé en GitHub (Verificar ahora)"}
+                  </Button>
+                )}
+              </div>
+
+              {/* Error Banner if any */}
+              {error && (
+                <div className="w-full p-2.5 rounded bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2 text-left">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span className="truncate">{error}</span>
+                </div>
+              )}
 
               {/* Live Polling Indicator */}
-              <div className="flex items-center gap-2 text-xs text-[#8b949e] mt-2">
+              <div className="flex items-center gap-2 text-xs text-[#8b949e]">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-400" />
                 <span>Esperando confirmación en el navegador...</span>
               </div>
