@@ -2,6 +2,7 @@ pub mod core;
 pub mod ipc;
 pub mod models;
 
+use ipc::ai_commands::{generate_ai_commit, get_ai_config, save_ai_config};
 use ipc::check_system_status;
 use ipc::git_commands::{
     commit_changes_cmd, get_commits_cmd, get_diff_cmd, get_repo_info, get_repo_status,
@@ -38,6 +39,9 @@ pub fn run() {
             check_github_session,
             logout_github_session,
             get_github_repositories,
+            generate_ai_commit,
+            save_ai_config,
+            get_ai_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

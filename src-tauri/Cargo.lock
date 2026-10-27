@@ -1496,6 +1496,7 @@ dependencies = [
 name = "git-manager"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "git2",
  "keyring",
  "reqwest",

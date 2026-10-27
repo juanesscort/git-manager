@@ -68,3 +68,17 @@ export interface RemoteRepo {
   description?: string | null;
   updated_at: string;
 }
+
+export interface AiConfig {
+  provider: string; // "gemini" | "ollama" | "openai"
+  model: string;
+  base_url?: string | null;
+  has_api_key: boolean;
+}
+
+export interface SaveAiConfigRequest {
+  provider: string;
+  api_key?: string;
+  model?: string;
+  base_url?: string;
+}

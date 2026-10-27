@@ -1,5 +1,6 @@
 //! Capa delgada de comandos Tauri IPC.
 
+pub mod ai_commands;
 pub mod git_commands;
 pub mod github_commands;
 

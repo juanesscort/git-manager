@@ -1,16 +1,18 @@
 import React from "react";
-import { GitBranch, ShieldCheck, RefreshCw, FolderGit2, GitFork, LogOut, Cloud } from "lucide-react";
+import { GitBranch, ShieldCheck, RefreshCw, FolderGit2, GitFork, LogOut, Cloud, Sparkles } from "lucide-react";
 import { Badge } from "./components/ui/Badge";
 import { Button } from "./components/ui/Button";
 import { useRepo } from "./hooks/useRepo";
 import { useStaging } from "./features/staging-area/hooks/useStaging";
 import { useCommitGraph } from "./features/commit-graph/hooks/useCommitGraph";
 import { useGitHub } from "./features/github-sync/hooks/useGitHub";
+import { useAiAssistant } from "./features/ai-assistant/hooks/useAiAssistant";
 import { StagingArea } from "./features/staging-area/components/StagingArea";
 import { CommitGraph } from "./features/commit-graph/components/CommitGraph";
 import { DiffViewer } from "./features/staging-area/components/DiffViewer";
 import { GitHubAuthModal } from "./features/github-sync/components/GitHubAuthModal";
 import { RemoteReposModal } from "./features/github-sync/components/RemoteReposModal";
+import { AiConfigModal } from "./features/ai-assistant/components/AiConfigModal";
 import "./App.css";
 
 export const App: React.FC = () => {
@@ -29,6 +31,16 @@ export const App: React.FC = () => {
     closeAuthModal,
     closeReposModal,
   } = useGitHub();
+
+  const {
+    config: aiConfig,
+    configModalOpen: aiConfigModalOpen,
+    generating: aiGenerating,
+    saveConfig: saveAiConfig,
+    generateCommit,
+    openConfigModal: openAiConfigModal,
+    closeConfigModal: closeAiConfigModal,
+  } = useAiAssistant();
 
   const {
     graphNodes,
@@ -129,6 +141,16 @@ export const App: React.FC = () => {
             </Button>
           )}
 
+          {/* AI Config Pill */}
+          <button
+            onClick={openAiConfigModal}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border border-amber-500/30 bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 transition-colors"
+            title="Configurar IA"
+          >
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            <span className="capitalize">{aiConfig?.provider || "Gemini"}</span>
+          </button>
+
           <Badge
             label="Motor libgit2"
             variant="green"
@@ -181,6 +203,10 @@ export const App: React.FC = () => {
           </nav>
 
           <div className="mt-auto border-t border-[#30363d] pt-3 flex flex-col gap-1 text-[11px] text-[#8b949e]">
+            <div className="flex items-center gap-1.5 text-amber-400">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>IA Commits: Fase 4 (Activo)</span>
+            </div>
             <div className="flex items-center gap-1.5 text-emerald-400">
               <GitFork className="w-3.5 h-3.5" />
               <span>GitHub OAuth: Fase 3</span>
@@ -215,6 +241,7 @@ export const App: React.FC = () => {
           selectedFile={selectedFile}
           currentBranch={currentBranchName}
           loading={stagingLoading}
+          aiGenerating={aiGenerating}
           onRefresh={refreshStatuses}
           onStageFile={stageFile}
           onUnstageFile={unstageFile}
@@ -222,6 +249,8 @@ export const App: React.FC = () => {
           onUnstageAll={unstageAll}
           onSelectFile={(path, staged) => loadDiff(path, staged)}
           onCommit={commitChanges}
+          onGenerateAiCommit={() => generateCommit(repoPath)}
+          onOpenAiConfig={openAiConfigModal}
         />
       </div>
 
@@ -240,6 +269,14 @@ export const App: React.FC = () => {
         repos={repositories}
         loading={reposLoading}
         onClose={closeReposModal}
+      />
+
+      {/* AI Assistant Configuration Modal */}
+      <AiConfigModal
+        isOpen={aiConfigModalOpen}
+        currentConfig={aiConfig}
+        onSave={saveAiConfig}
+        onClose={closeAiConfigModal}
       />
     </div>
   );

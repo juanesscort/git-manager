@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Minus, Sparkles, RefreshCw, Layers } from "lucide-react";
+import { Plus, Minus, Sparkles, RefreshCw, Layers, Settings } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { FileItem } from "./FileItem";
@@ -11,6 +11,7 @@ interface StagingAreaProps {
   selectedFile: { path: string; staged: boolean } | null;
   currentBranch?: string | null;
   loading: boolean;
+  aiGenerating?: boolean;
   onRefresh: () => void;
   onStageFile: (path: string) => void;
   onUnstageFile: (path: string) => void;
@@ -18,6 +19,8 @@ interface StagingAreaProps {
   onUnstageAll: () => void;
   onSelectFile: (path: string, staged: boolean) => void;
   onCommit: (message: string) => void;
+  onGenerateAiCommit?: () => Promise<string | null>;
+  onOpenAiConfig?: () => void;
 }
 
 export const StagingArea: React.FC<StagingAreaProps> = ({
@@ -26,6 +29,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   selectedFile,
   currentBranch,
   loading,
+  aiGenerating,
   onRefresh,
   onStageFile,
   onUnstageFile,
@@ -33,6 +37,8 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   onUnstageAll,
   onSelectFile,
   onCommit,
+  onGenerateAiCommit,
+  onOpenAiConfig,
 }) => {
   const [commitMessage, setCommitMessage] = useState("");
 
@@ -40,6 +46,15 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
     if (!commitMessage.trim()) return;
     onCommit(commitMessage);
     setCommitMessage("");
+  };
+
+  const handleAiGenerate = async () => {
+    if (onGenerateAiCommit) {
+      const generated = await onGenerateAiCommit();
+      if (generated) {
+        setCommitMessage(generated);
+      }
+    }
   };
 
   return (
@@ -153,15 +168,35 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           <span className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
             Mensaje de Commit
           </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-amber-400 hover:text-amber-300 py-0.5 px-1.5 text-xs h-6"
-            icon={<Sparkles className="w-3.5 h-3.5" />}
-            title="Generar mensaje con IA (Fase 4)"
-          >
-            IA
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={stagedFiles.length === 0 || aiGenerating}
+              onClick={handleAiGenerate}
+              className="text-amber-400 hover:text-amber-300 py-0.5 px-2 text-xs h-6 border border-amber-500/20 bg-amber-950/20"
+              icon={
+                <Sparkles className={`w-3.5 h-3.5 ${aiGenerating ? "animate-spin text-amber-300" : ""}`} />
+              }
+              title={
+                stagedFiles.length === 0
+                  ? "Prepara archivos para generar con IA"
+                  : "Generar commit con IA (Conventional Commits)"
+              }
+            >
+              {aiGenerating ? "Analizando..." : "Generar IA"}
+            </Button>
+
+            {onOpenAiConfig && (
+              <button
+                onClick={onOpenAiConfig}
+                className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors"
+                title="Configurar proveedor IA (Gemini / Ollama / OpenAI)"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <textarea
