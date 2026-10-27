@@ -6,6 +6,7 @@ export function useGitHub() {
   const [user, setUser] = useState<GitHubUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [checking, setChecking] = useState<boolean>(false);
+  const [checkStatus, setCheckStatus] = useState<"pending" | "success" | null>(null);
   const [deviceAuth, setDeviceAuth] = useState<DeviceAuthResponse | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [reposModalOpen, setReposModalOpen] = useState<boolean>(false);
@@ -39,6 +40,7 @@ export function useGitHub() {
     if (!deviceAuth?.device_code) return false;
     setChecking(true);
     setError(null);
+    setCheckStatus(null);
     try {
       const authUser = await invoke<GitHubUser | null>("poll_github_device_token", {
         deviceCode: deviceAuth.device_code,
@@ -46,14 +48,41 @@ export function useGitHub() {
 
       if (authUser) {
         setUser(authUser);
+        setCheckStatus("success");
         stopPolling();
         setTimeout(() => {
           setAuthModalOpen(false);
           setDeviceAuth(null);
+          setCheckStatus(null);
         }, 1200);
         return true;
+      } else {
+        setCheckStatus("pending");
+        return false;
       }
+    } catch (err: unknown) {
+      const errMsg = typeof err === "string" ? err : JSON.stringify(err);
+      setError(errMsg);
       return false;
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const savePersonalAccessToken = async (token: string) => {
+    setChecking(true);
+    setError(null);
+    try {
+      const activeUser = await invoke<GitHubUser>("save_github_token_cmd", { token });
+      setUser(activeUser);
+      setCheckStatus("success");
+      stopPolling();
+      setTimeout(() => {
+        setAuthModalOpen(false);
+        setDeviceAuth(null);
+        setCheckStatus(null);
+      }, 1200);
+      return true;
     } catch (err: unknown) {
       const errMsg = typeof err === "string" ? err : JSON.stringify(err);
       setError(errMsg);
@@ -66,6 +95,7 @@ export function useGitHub() {
   const startDeviceAuth = async () => {
     stopPolling();
     setError(null);
+    setCheckStatus(null);
     setLoading(true);
     try {
       const res = await invoke<DeviceAuthResponse>("start_github_device_flow");
@@ -82,10 +112,12 @@ export function useGitHub() {
 
           if (authUser) {
             setUser(authUser);
+            setCheckStatus("success");
             stopPolling();
             setTimeout(() => {
               setAuthModalOpen(false);
               setDeviceAuth(null);
+              setCheckStatus(null);
             }, 1200);
           }
         } catch (pollErr: unknown) {
@@ -141,6 +173,7 @@ export function useGitHub() {
     user,
     loading,
     checking,
+    checkStatus,
     deviceAuth,
     authModalOpen,
     reposModalOpen,
@@ -149,12 +182,15 @@ export function useGitHub() {
     error,
     startDeviceAuth,
     checkAuthorizationNow,
+    savePersonalAccessToken,
     logout,
     fetchRepositories,
     closeAuthModal: () => {
       stopPolling();
       setAuthModalOpen(false);
       setDeviceAuth(null);
+      setCheckStatus(null);
+      setError(null);
     },
     closeReposModal: () => setReposModalOpen(false),
   };

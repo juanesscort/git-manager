@@ -49,21 +49,29 @@ pub async fn poll_access_token(
     device_code: &str,
 ) -> Result<Option<String>, GitHubError> {
     let client = reqwest::Client::new();
-    let payload = serde_json::json!({
-        "client_id": client_id,
-        "device_code": device_code,
-        "grant_type": "urn:ietf:params:oauth:grant-type:device_code"
-    });
+    let payload = [
+        ("client_id", client_id),
+        ("device_code", device_code),
+        ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+    ];
 
     let res = client
         .post("https://github.com/login/oauth/access_token")
         .header(ACCEPT, "application/json")
         .header(USER_AGENT, "Git-Manager-Desktop")
-        .json(&payload)
+        .form(&payload)
         .send()
         .await?;
 
+    let status = res.status();
     let text = res.text().await?;
+    let _ = std::fs::write(
+        "/tmp/git_manager_github.log",
+        format!(
+            "STATUS: {}\nDEVICE_CODE: {}\nRESPONSE: {}\n",
+            status, device_code, text
+        ),
+    );
     println!("[GitHub Auth] Poll response: {}", text);
 
     let token_res: TokenResponse = serde_json::from_str(&text)?;

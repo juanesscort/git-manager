@@ -29,8 +29,10 @@ export const App: React.FC = () => {
     reposLoading,
     error: githubError,
     checking: githubChecking,
+    checkStatus: githubCheckStatus,
     startDeviceAuth,
     checkAuthorizationNow,
+    savePersonalAccessToken,
     logout: logoutGitHub,
     fetchRepositories,
     closeAuthModal,
@@ -295,7 +297,9 @@ export const App: React.FC = () => {
         user={githubUser}
         error={githubError}
         checking={githubChecking}
+        checkStatus={githubCheckStatus}
         onCheckNow={checkAuthorizationNow}
+        onSaveToken={savePersonalAccessToken}
         onClose={closeAuthModal}
       />
 

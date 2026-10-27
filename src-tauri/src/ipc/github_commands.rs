@@ -44,6 +44,19 @@ pub async fn check_github_session() -> Result<Option<GitHubUser>, String> {
 }
 
 #[tauri::command]
+pub async fn save_github_token_cmd(token: String) -> Result<GitHubUser, String> {
+    let clean_token = token.trim();
+    if clean_token.is_empty() {
+        return Err("El token no puede estar vacío".to_string());
+    }
+    let user = get_user_profile(clean_token)
+        .await
+        .map_err(|e| e.to_string())?;
+    crate::core::github_client::save_token(clean_token).map_err(|e| e.to_string())?;
+    Ok(user)
+}
+
+#[tauri::command]
 pub async fn logout_github_session() -> Result<(), String> {
     delete_saved_token().map_err(|e| e.to_string())
 }

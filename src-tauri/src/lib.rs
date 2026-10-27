@@ -13,7 +13,7 @@ use ipc::git_commands::{
 };
 use ipc::github_commands::{
     check_github_session, get_github_repositories, logout_github_session, poll_github_device_token,
-    start_github_device_flow,
+    save_github_token_cmd, start_github_device_flow,
 };
 
 #[tauri::command]
@@ -39,6 +39,7 @@ pub fn run() {
             get_commits_cmd,
             start_github_device_flow,
             poll_github_device_token,
+            save_github_token_cmd,
             check_github_session,
             logout_github_session,
             get_github_repositories,
