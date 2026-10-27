@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Minus, Sparkles, RefreshCw, Layers, Settings } from "lucide-react";
+import { Plus, Minus, Sparkles, RefreshCw, Layers, Settings, AlertTriangle, GitMerge } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { FileItem } from "./FileItem";
@@ -8,6 +8,7 @@ import { FileStatusItem } from "../../../types/git";
 interface StagingAreaProps {
   stagedFiles: FileStatusItem[];
   unstagedFiles: FileStatusItem[];
+  conflictedFiles?: string[];
   selectedFile: { path: string; staged: boolean } | null;
   currentBranch?: string | null;
   loading: boolean;
@@ -21,11 +22,13 @@ interface StagingAreaProps {
   onCommit: (message: string) => void;
   onGenerateAiCommit?: () => Promise<string | null>;
   onOpenAiConfig?: () => void;
+  onOpenConflictResolver?: (path: string) => void;
 }
 
 export const StagingArea: React.FC<StagingAreaProps> = ({
   stagedFiles,
   unstagedFiles,
+  conflictedFiles = [],
   selectedFile,
   currentBranch,
   loading,
@@ -39,6 +42,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   onCommit,
   onGenerateAiCommit,
   onOpenAiConfig,
+  onOpenConflictResolver,
 }) => {
   const [commitMessage, setCommitMessage] = useState("");
 
@@ -76,6 +80,33 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
 
       {/* Main Files Split View */}
       <div className="flex-1 flex flex-col overflow-y-auto divide-y divide-[#30363d]/50 p-2 gap-2">
+        {/* Conflict Alert Banner */}
+        {conflictedFiles.length > 0 && (
+          <div className="bg-purple-950/30 border border-purple-500/40 rounded p-2.5 text-xs flex flex-col gap-2 shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-purple-300 font-semibold text-xs">
+                <AlertTriangle className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>{conflictedFiles.length} conflicto(s) pendiente(s)</span>
+              </div>
+              <Badge label="3-Way Merge" variant="purple" />
+            </div>
+            <p className="text-[11px] text-[#8b949e]">
+              Hay ramas en conflicto que deben resolverse antes de poder continuar o hacer commit.
+            </p>
+            {onOpenConflictResolver && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full h-6 text-xs bg-purple-900/40 border-purple-500/40 text-purple-200 hover:bg-purple-800/50"
+                onClick={() => onOpenConflictResolver(conflictedFiles[0])}
+                icon={<GitMerge className="w-3.5 h-3.5 text-purple-300" />}
+              >
+                Resolver: {conflictedFiles[0]}
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* Section: Staged Files */}
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between py-1 px-1">
@@ -109,8 +140,12 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   status={file.staged_status || "Added"}
                   isStaged={true}
                   isSelected={selectedFile?.path === file.path && selectedFile.staged}
+                  isConflicted={conflictedFiles.includes(file.path) || file.is_conflicted}
                   onSelect={() => onSelectFile(file.path, true)}
                   onAction={() => onUnstageFile(file.path)}
+                  onResolveConflict={
+                    onOpenConflictResolver ? () => onOpenConflictResolver(file.path) : undefined
+                  }
                 />
               ))
             )}
@@ -153,8 +188,12 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   status={file.unstaged_status || "Modified"}
                   isStaged={false}
                   isSelected={selectedFile?.path === file.path && !selectedFile.staged}
+                  isConflicted={conflictedFiles.includes(file.path) || file.is_conflicted}
                   onSelect={() => onSelectFile(file.path, false)}
                   onAction={() => onStageFile(file.path)}
+                  onResolveConflict={
+                    onOpenConflictResolver ? () => onOpenConflictResolver(file.path) : undefined
+                  }
                 />
               ))
             )}

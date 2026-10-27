@@ -1,5 +1,5 @@
-import React from "react";
-import { GitBranch, ShieldCheck, RefreshCw, FolderGit2, GitFork, LogOut, Cloud, Sparkles } from "lucide-react";
+import React, { useEffect } from "react";
+import { GitBranch, ShieldCheck, RefreshCw, FolderGit2, GitFork, LogOut, Cloud, Sparkles, GitMerge } from "lucide-react";
 import { Badge } from "./components/ui/Badge";
 import { Button } from "./components/ui/Button";
 import { useRepo } from "./hooks/useRepo";
@@ -7,12 +7,14 @@ import { useStaging } from "./features/staging-area/hooks/useStaging";
 import { useCommitGraph } from "./features/commit-graph/hooks/useCommitGraph";
 import { useGitHub } from "./features/github-sync/hooks/useGitHub";
 import { useAiAssistant } from "./features/ai-assistant/hooks/useAiAssistant";
+import { useConflictResolver } from "./features/conflict-resolver/hooks/useConflictResolver";
 import { StagingArea } from "./features/staging-area/components/StagingArea";
 import { CommitGraph } from "./features/commit-graph/components/CommitGraph";
 import { DiffViewer } from "./features/staging-area/components/DiffViewer";
 import { GitHubAuthModal } from "./features/github-sync/components/GitHubAuthModal";
 import { RemoteReposModal } from "./features/github-sync/components/RemoteReposModal";
 import { AiConfigModal } from "./features/ai-assistant/components/AiConfigModal";
+import { ConflictResolverModal } from "./features/conflict-resolver/components/ConflictResolverModal";
 import "./App.css";
 
 export const App: React.FC = () => {
@@ -70,10 +72,30 @@ export const App: React.FC = () => {
     refreshRepo();
   });
 
+  const {
+    conflictedFiles,
+    selectedConflict,
+    modalOpen: conflictModalOpen,
+    loading: conflictLoading,
+    checkConflicts,
+    openConflictModal,
+    resolveConflict,
+    closeModal: closeConflictModal,
+  } = useConflictResolver(repoPath, () => {
+    refreshStatuses();
+    refreshCommits();
+    refreshRepo();
+  });
+
+  useEffect(() => {
+    checkConflicts();
+  }, [checkConflicts, repoPath]);
+
   const handleRefreshAll = () => {
     refreshRepo();
     refreshStatuses();
     refreshCommits();
+    checkConflicts();
   };
 
   const currentBranchName = summary?.current_branch || "main";
@@ -203,9 +225,13 @@ export const App: React.FC = () => {
           </nav>
 
           <div className="mt-auto border-t border-[#30363d] pt-3 flex flex-col gap-1 text-[11px] text-[#8b949e]">
+            <div className="flex items-center gap-1.5 text-purple-400">
+              <GitMerge className="w-3.5 h-3.5" />
+              <span>3-Way Merge: Fase 5 (Activo)</span>
+            </div>
             <div className="flex items-center gap-1.5 text-amber-400">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>IA Commits: Fase 4 (Activo)</span>
+              <span>IA Commits: Fase 4</span>
             </div>
             <div className="flex items-center gap-1.5 text-emerald-400">
               <GitFork className="w-3.5 h-3.5" />
@@ -238,11 +264,15 @@ export const App: React.FC = () => {
         <StagingArea
           stagedFiles={stagedFiles}
           unstagedFiles={unstagedFiles}
+          conflictedFiles={conflictedFiles}
           selectedFile={selectedFile}
           currentBranch={currentBranchName}
           loading={stagingLoading}
           aiGenerating={aiGenerating}
-          onRefresh={refreshStatuses}
+          onRefresh={() => {
+            refreshStatuses();
+            checkConflicts();
+          }}
           onStageFile={stageFile}
           onUnstageFile={unstageFile}
           onStageAll={stageAll}
@@ -251,6 +281,7 @@ export const App: React.FC = () => {
           onCommit={commitChanges}
           onGenerateAiCommit={() => generateCommit(repoPath)}
           onOpenAiConfig={openAiConfigModal}
+          onOpenConflictResolver={openConflictModal}
         />
       </div>
 
@@ -277,6 +308,15 @@ export const App: React.FC = () => {
         currentConfig={aiConfig}
         onSave={saveAiConfig}
         onClose={closeAiConfigModal}
+      />
+
+      {/* 3-Way Merge Conflict Resolver Modal */}
+      <ConflictResolverModal
+        isOpen={conflictModalOpen}
+        conflict={selectedConflict}
+        loading={conflictLoading}
+        onResolve={resolveConflict}
+        onClose={closeConflictModal}
       />
     </div>
   );

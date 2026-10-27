@@ -82,3 +82,21 @@ export interface SaveAiConfigRequest {
   model?: string;
   base_url?: string;
 }
+
+export interface ConflictBlock {
+  id: number;
+  ours: string;
+  theirs: string;
+  base: string;
+  start_line: number;
+  end_line: number;
+}
+
+export interface ConflictedFileDetail {
+  path: string;
+  ours_content: string;
+  theirs_content: string;
+  base_content: string;
+  current_workdir_content: string;
+  blocks: ConflictBlock[];
+}

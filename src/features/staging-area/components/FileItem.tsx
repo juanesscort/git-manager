@@ -1,14 +1,16 @@
 import React from "react";
 import { FileStatusKind } from "../../../types/git";
-import { Plus, Minus, FileCode } from "lucide-react";
+import { Plus, Minus, FileCode, GitMerge } from "lucide-react";
 
 interface FileItemProps {
   path: string;
   status: FileStatusKind;
   isStaged: boolean;
   isSelected: boolean;
+  isConflicted?: boolean;
   onSelect: () => void;
   onAction: () => void;
+  onResolveConflict?: () => void;
 }
 
 export const FileItem: React.FC<FileItemProps> = ({
@@ -16,8 +18,10 @@ export const FileItem: React.FC<FileItemProps> = ({
   status,
   isStaged,
   isSelected,
+  isConflicted,
   onSelect,
   onAction,
+  onResolveConflict,
 }) => {
   const statusConfig: Record<FileStatusKind, { label: string; color: string; bg: string }> = {
     Added: { label: "A", color: "text-emerald-400", bg: "bg-emerald-950/40 border-emerald-800" },
@@ -28,11 +32,13 @@ export const FileItem: React.FC<FileItemProps> = ({
     Conflicted: { label: "C", color: "text-purple-400", bg: "bg-purple-950/40 border-purple-800" },
   };
 
-  const badge = statusConfig[status] || {
-    label: "?",
-    color: "text-gray-400",
-    bg: "bg-gray-800 border-gray-700",
-  };
+  const badge = isConflicted
+    ? statusConfig.Conflicted
+    : statusConfig[status] || {
+        label: "?",
+        color: "text-gray-400",
+        bg: "bg-gray-800 border-gray-700",
+      };
 
   // Split path for cleaner visual display
   const parts = path.split("/");
@@ -45,13 +51,15 @@ export const FileItem: React.FC<FileItemProps> = ({
       className={`group flex items-center justify-between px-2 py-1.5 rounded text-xs cursor-pointer transition-colors border ${
         isSelected
           ? "bg-[#1f6feb]/20 border-blue-600/50 text-white"
+          : isConflicted
+          ? "border-purple-800/40 bg-purple-950/20 hover:bg-purple-950/30 text-[#c9d1d9]"
           : "border-transparent hover:bg-[#161b22] text-[#c9d1d9]"
       }`}
     >
       <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
         <span
           className={`w-4 h-4 rounded text-[10px] font-bold flex items-center justify-center border shrink-0 ${badge.bg} ${badge.color}`}
-          title={status}
+          title={isConflicted ? "Conflicted" : status}
         >
           {badge.label}
         </span>
@@ -62,20 +70,35 @@ export const FileItem: React.FC<FileItemProps> = ({
         </span>
       </div>
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onAction();
-        }}
-        title={isStaged ? "Deshacer preparación (Unstage)" : "Preparar archivo (Stage)"}
-        className={`p-1 rounded transition-colors shrink-0 ${
-          isStaged
-            ? "hover:bg-rose-950/50 text-[#8b949e] hover:text-rose-400"
-            : "hover:bg-emerald-950/50 text-[#8b949e] hover:text-emerald-400"
-        }`}
-      >
-        {isStaged ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-      </button>
+      <div className="flex items-center gap-1 shrink-0">
+        {isConflicted && onResolveConflict && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onResolveConflict();
+            }}
+            title="Resolver conflictos de fusión"
+            className="p-1 rounded bg-purple-600/30 text-purple-300 hover:bg-purple-600/50 transition-colors"
+          >
+            <GitMerge className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAction();
+          }}
+          title={isStaged ? "Deshacer preparación (Unstage)" : "Preparar archivo (Stage)"}
+          className={`p-1 rounded transition-colors shrink-0 ${
+            isStaged
+              ? "hover:bg-rose-950/50 text-[#8b949e] hover:text-rose-400"
+              : "hover:bg-emerald-950/50 text-[#8b949e] hover:text-emerald-400"
+          }`}
+        >
+          {isStaged ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+        </button>
+      </div>
     </div>
   );
 };

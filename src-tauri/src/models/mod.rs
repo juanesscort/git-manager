@@ -1,6 +1,7 @@
 //! Estructuras de datos (DTOs) compartidas para serialización/deserialización IPC.
 
 pub mod ai_models;
+pub mod conflict_models;
 pub mod git_models;
 pub mod github_models;
 
