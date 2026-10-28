@@ -25,6 +25,7 @@ import { useAiAssistant } from "./features/ai-assistant/hooks/useAiAssistant";
 import { useConflictResolver } from "./features/conflict-resolver/hooks/useConflictResolver";
 import { StagingArea } from "./features/staging-area/components/StagingArea";
 import { CommitGraph } from "./features/commit-graph/components/CommitGraph";
+import { BranchTreeView } from "./features/commit-graph/components/BranchTreeView";
 import { DiffViewer } from "./features/staging-area/components/DiffViewer";
 import { CommitDetailsPanel } from "./features/commit-graph/components/CommitDetailsPanel";
 import { useBranches } from "./features/commit-graph/hooks/useBranches";
@@ -305,64 +306,26 @@ export const App: React.FC = () => {
           </div>
 
           <nav className="flex flex-col gap-3 text-xs overflow-y-auto">
-            {/* Local Branches Section */}
+            {/* Local Branches Section with Folders */}
             <div className="flex flex-col gap-1">
               <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider mb-0.5">
-                Ramas Locales ({branches.local.length || 1})
+                Ramas Locales ({branches.local.length})
               </span>
-              {branches.local.length === 0 ? (
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#1f6feb]/20 text-white font-medium border border-blue-600/30">
-                  <GitBranch className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                  <span className="truncate">{currentBranchName}</span>
-                  <span className="ml-auto text-[9px] bg-blue-500/20 px-1 py-0.2 rounded text-blue-300 font-mono">
-                    HEAD
-                  </span>
-                </div>
-              ) : (
-                branches.local.map((b) => (
-                  <div
-                    key={`local-${b.name}`}
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
-                      b.is_head || b.name === currentBranchName
-                        ? "bg-[#1f6feb]/20 text-white font-medium border border-blue-600/30"
-                        : "text-[#c9d1d9] hover:bg-[#161b22]"
-                    }`}
-                  >
-                    <GitBranch className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span className="truncate">{b.name}</span>
-                    {(b.is_head || b.name === currentBranchName) && (
-                      <span className="ml-auto text-[9px] bg-blue-500/20 px-1 py-0.2 rounded text-blue-300 font-mono">
-                        HEAD
-                      </span>
-                    )}
-                  </div>
-                ))
-              )}
+              <BranchTreeView
+                branches={branches.local}
+                currentBranch={currentBranchName}
+              />
             </div>
 
-            {/* Remote Branches Section */}
+            {/* Remote Branches Section with Folders */}
             <div className="flex flex-col gap-1 pt-1 border-t border-[#30363d]/50">
               <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider mb-0.5">
                 Ramas Remotas ({branches.remote.length})
               </span>
-              {branches.remote.length === 0 ? (
-                <p className="text-[11px] text-[#484f58] italic px-1">
-                  Sin ramas remotas (origin).
-                </p>
-              ) : (
-                branches.remote.map((b) => (
-                  <div
-                    key={`remote-${b.name}`}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#161b22] transition-colors group"
-                    title={`Rama remota: ${b.name}`}
-                  >
-                    <Cloud className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span className="truncate font-mono text-[11px] text-purple-300">
-                      {b.name}
-                    </span>
-                  </div>
-                ))
-              )}
+              <BranchTreeView
+                branches={branches.remote}
+                isRemote={true}
+              />
             </div>
           </nav>
         </aside>
@@ -465,6 +428,7 @@ export const App: React.FC = () => {
                       nodes={graphNodes}
                       selectedCommit={selectedCommit}
                       loading={commitsLoading}
+                      branches={branches}
                       onSelectCommit={handleSelectCommit}
                     />
                   )}
@@ -477,6 +441,7 @@ export const App: React.FC = () => {
                       nodes={graphNodes}
                       selectedCommit={selectedCommit}
                       loading={commitsLoading}
+                      branches={branches}
                       onSelectCommit={handleSelectCommit}
                     />
                   </div>
@@ -515,6 +480,7 @@ export const App: React.FC = () => {
                 nodes={graphNodes}
                 selectedCommit={selectedCommit}
                 loading={commitsLoading}
+                branches={branches}
                 onSelectCommit={handleSelectCommit}
               />
             </div>

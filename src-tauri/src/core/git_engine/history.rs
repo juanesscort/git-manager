@@ -11,7 +11,9 @@ pub fn get_commit_history(
     }
 
     let mut revwalk = repo.revwalk()?;
-    revwalk.push_head()?;
+    let _ = revwalk.push_head();
+    let _ = revwalk.push_glob("refs/heads/*");
+    let _ = revwalk.push_glob("refs/remotes/*");
     revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
 
     let mut commits = Vec::new();

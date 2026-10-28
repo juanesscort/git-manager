@@ -128,26 +128,54 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
         </div>
 
         {stashMenuOpen && (
-          <div className="absolute top-full left-0 mt-1 w-36 bg-[#161b22] border border-[#30363d] rounded shadow-xl py-1 z-50 text-xs">
+          <div className="absolute top-full right-0 mt-1.5 w-80 bg-[#161b22] border border-[#30363d] rounded-lg shadow-2xl py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+            <div className="px-3 pb-2 mb-1 border-b border-[#30363d]/70">
+              <span className="font-semibold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                <Archive className="w-3.5 h-3.5 text-amber-400" /> Operaciones de Stash (Casillero)
+              </span>
+              <p className="text-[10px] text-[#8b949e] mt-0.5">
+                Permite apartar cambios temporales sin hacer commit.
+              </p>
+            </div>
+
             <button
               onClick={() => {
                 setStashMenuOpen(false);
                 onStash();
               }}
-              className="w-full text-left px-3 py-1.5 hover:bg-[#1f6feb]/20 text-[#c9d1d9] hover:text-white flex items-center gap-2"
+              className="w-full text-left px-3 py-2 hover:bg-[#21262d] transition-colors flex items-start gap-2.5 group"
             >
-              <Archive className="w-3.5 h-3.5 text-amber-400" />
-              <span>Guardar Stash</span>
+              <div className="p-1.5 rounded bg-amber-950/40 border border-amber-500/30 text-amber-400 mt-0.5 shrink-0 group-hover:border-amber-400">
+                <Archive className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium text-white group-hover:text-amber-300 transition-colors">
+                  Guardar en Stash (Push)
+                </span>
+                <span className="text-[10px] text-[#8b949e] leading-snug mt-0.5">
+                  Guarda tus cambios modificados y limpia el espacio de trabajo para poder cambiar de rama o hacer pull sin conflictos.
+                </span>
+              </div>
             </button>
+
             <button
               onClick={() => {
                 setStashMenuOpen(false);
                 onPopStash();
               }}
-              className="w-full text-left px-3 py-1.5 hover:bg-[#1f6feb]/20 text-[#c9d1d9] hover:text-white flex items-center gap-2"
+              className="w-full text-left px-3 py-2 hover:bg-[#21262d] transition-colors flex items-start gap-2.5 group mt-1"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Pop Stash</span>
+              <div className="p-1.5 rounded bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 mt-0.5 shrink-0 group-hover:border-emerald-400">
+                <RefreshCw className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium text-white group-hover:text-emerald-300 transition-colors">
+                  Restaurar último Stash (Pop)
+                </span>
+                <span className="text-[10px] text-[#8b949e] leading-snug mt-0.5">
+                  Recupera los últimos cambios guardados, los aplica de vuelta a tus archivos y los retira del casillero.
+                </span>
+              </div>
             </button>
           </div>
         )}

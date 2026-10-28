@@ -6,16 +6,19 @@ export interface GraphNode {
   commit: CommitInfo;
   lane: number;
   color: string;
+  parentLanes: number[];
+  activeLanes: number[];
 }
 
-const LANE_COLORS = [
+export const LANE_COLORS = [
   "#38bdf8", // Sky blue
-  "#34d399", // Emerald
   "#c084fc", // Purple
-  "#fbbf24", // Amber
+  "#fb923c", // Orange
+  "#34d399", // Emerald
   "#f472b6", // Pink
-  "#a3e635", // Lime
+  "#facc15", // Amber
   "#22d3ee", // Cyan
+  "#a78bfa", // Violet
 ];
 
 export function useCommitGraph(repoPath: string) {
@@ -31,44 +34,103 @@ export function useCommitGraph(repoPath: string) {
     try {
       const result = await invoke<CommitInfo[]>("get_commits_cmd", {
         path: repoPath,
-        maxCount: 100,
+        maxCount: 150,
       });
       setCommits(result);
 
-      // Compute visual lanes for the commits
-      // Simple and robust lane allocator:
-      const activeOids: (string | null)[] = [];
-      const nodes: GraphNode[] = [];
+      // Pass 1: Allocate lanes to all commits topologically
+      const commitLaneMap = new Map<string, number>();
+      const activeLanes: (string | null)[] = [];
 
       for (const commit of result) {
-        let lane = activeOids.indexOf(commit.oid);
+        let lane = activeLanes.indexOf(commit.oid);
 
         if (lane === -1) {
-          // Find first free lane
-          lane = activeOids.indexOf(null);
+          lane = activeLanes.indexOf(null);
           if (lane === -1) {
-            lane = activeOids.length;
-            activeOids.push(null);
+            lane = activeLanes.length;
+            activeLanes.push(null);
           }
         }
 
-        const color = LANE_COLORS[lane % LANE_COLORS.length];
-        nodes.push({ commit, lane, color });
+        commitLaneMap.set(commit.oid, lane);
 
-        // Update active lanes with parents
-        activeOids[lane] = commit.parent_oids.length > 0 ? commit.parent_oids[0] : null;
+        // Update active lanes: first parent keeps the lane
+        if (commit.parent_oids.length > 0) {
+          activeLanes[lane] = commit.parent_oids[0];
+        } else {
+          activeLanes[lane] = null;
+        }
 
-        // Additional parents (merges) get extra lanes
+        // Additional parents (merges) get their own lanes
         for (let i = 1; i < commit.parent_oids.length; i++) {
           const parentOid = commit.parent_oids[i];
-          if (!activeOids.includes(parentOid)) {
-            const nextLane = activeOids.indexOf(null);
+          if (!activeLanes.includes(parentOid)) {
+            const nextLane = activeLanes.indexOf(null);
             if (nextLane !== -1) {
-              activeOids[nextLane] = parentOid;
+              activeLanes[nextLane] = parentOid;
             } else {
-              activeOids.push(parentOid);
+              activeLanes.push(parentOid);
             }
           }
+        }
+      }
+
+      // Pass 2: Build graph nodes with parent lines and passing lanes
+      const currentActiveLanes: (string | null)[] = [];
+      const nodes: GraphNode[] = [];
+
+      for (let idx = 0; idx < result.length; idx++) {
+        const commit = result[idx];
+        const lane = commitLaneMap.get(commit.oid) ?? 0;
+        const color = LANE_COLORS[lane % LANE_COLORS.length];
+
+        while (currentActiveLanes.length <= lane) {
+          currentActiveLanes.push(null);
+        }
+        currentActiveLanes[lane] = commit.oid;
+
+        // Determine parent lanes
+        const parentLanes: number[] = [];
+        for (const pOid of commit.parent_oids) {
+          const pLane = commitLaneMap.get(pOid);
+          if (pLane !== undefined) {
+            parentLanes.push(pLane);
+          } else {
+            parentLanes.push(lane);
+          }
+        }
+
+        // Passing lanes at this row (other active lanes that aren't this commit's lane)
+        const passing: number[] = [];
+        for (let l = 0; l < currentActiveLanes.length; l++) {
+          if (l !== lane && currentActiveLanes[l] !== null) {
+            passing.push(l);
+          }
+        }
+
+        nodes.push({
+          commit,
+          lane,
+          color,
+          parentLanes,
+          activeLanes: passing,
+        });
+
+        // Update currentActiveLanes for next rows
+        if (commit.parent_oids.length > 0) {
+          currentActiveLanes[lane] = commit.parent_oids[0];
+        } else {
+          currentActiveLanes[lane] = null;
+        }
+
+        for (let i = 1; i < commit.parent_oids.length; i++) {
+          const pOid = commit.parent_oids[i];
+          const pLane = commitLaneMap.get(pOid) ?? lane;
+          while (currentActiveLanes.length <= pLane) {
+            currentActiveLanes.push(null);
+          }
+          currentActiveLanes[pLane] = pOid;
         }
       }
 

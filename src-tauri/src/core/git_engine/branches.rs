@@ -32,6 +32,10 @@ pub fn get_branches(repo: &Repository) -> Result<BranchesSummary, GitEngineError
         for branch_res in branches {
             let (branch, _) = branch_res?;
             let name = branch.name()?.unwrap_or("").to_string();
+            // Filter out remote HEAD symbolic ref (e.g. origin/HEAD)
+            if name.ends_with("/HEAD") || name == "HEAD" {
+                continue;
+            }
             let target_oid = branch
                 .get()
                 .target()
