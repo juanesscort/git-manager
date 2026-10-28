@@ -21,8 +21,8 @@ pub use diff::{
 pub use errors::GitEngineError;
 pub use history::get_commit_history;
 pub use remote_ops::{
-    checkout_branch, create_branch, delete_branch, git_fetch, git_merge, git_pull, git_push,
-    git_rebase, git_stash, git_stash_pop, rename_branch,
+    checkout_branch, create_branch, delete_branch, git_clone, git_fetch, git_merge, git_pull,
+    git_push, git_rebase, git_stash, git_stash_pop, pick_folder, rename_branch,
 };
 pub use repository::{get_repo_summary, open_repository};
 pub use staging::{stage_all, stage_file, unstage_all, unstage_file};

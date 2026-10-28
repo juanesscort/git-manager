@@ -3,6 +3,7 @@ import {
   GitBranch,
   RefreshCw,
   FolderGit2,
+  FolderPlus,
   LogOut,
   Cloud,
   FileText,
@@ -17,6 +18,9 @@ import { Splitter } from "./components/ui/Splitter";
 import { CreateBranchModal } from "./components/ui/CreateBranchModal";
 import { BranchMergeModal } from "./components/ui/BranchMergeModal";
 import { BranchContextMenu, BranchContextMenuState } from "./components/ui/BranchContextMenu";
+import { RepoTabBar } from "./components/ui/RepoTabBar";
+import { OpenRepoModal } from "./components/ui/OpenRepoModal";
+import { useRepoTabs } from "./hooks/useRepoTabs";
 import { GitToolbar } from "./features/git-ops/components/GitToolbar";
 import { useGitToolbar } from "./hooks/useGitToolbar";
 import { useRepo } from "./hooks/useRepo";
@@ -40,7 +44,30 @@ import { CommitInfo } from "./types/git";
 import "./App.css";
 
 export const App: React.FC = () => {
-  const { repoPath, summary, refreshRepo } = useRepo(".");
+  // Multi-project Tabs management
+  const {
+    tabs,
+    activeTabId,
+    activeTab,
+    recentRepos,
+    openTab,
+    closeTab,
+    switchTab,
+    updateTabBranch,
+    clearRecentRepos,
+  } = useRepoTabs();
+
+  const [openRepoModalOpen, setOpenRepoModalOpen] = useState<boolean>(false);
+  const activeRepoPath = activeTab?.path || ".";
+
+  const { repoPath, summary, refreshRepo } = useRepo(activeRepoPath);
+
+  // Sync active tab's branch badge with the current summary
+  useEffect(() => {
+    if (summary?.current_branch && activeTabId) {
+      updateTabBranch(activeTabId, summary.current_branch);
+    }
+  }, [summary?.current_branch, activeTabId, updateTabBranch]);
 
   // Resizable panel dimensions (Flechas 2, 3, 4)
   const [leftWidth, setLeftWidth] = useState<number>(230);
@@ -241,6 +268,14 @@ export const App: React.FC = () => {
   const activeDiff = isCommitDiffActive ? commitFileDiff : diff;
   const activeDiffLoading = isCommitDiffActive ? commitDiffLoading : diffLoading;
 
+  // Reset commit/file selections when active tab changes
+  useEffect(() => {
+    setSelectedCommit(null);
+    selectCommitFile("");
+    clearSelectedFile();
+    setActiveCenterTab("graph");
+  }, [activeTabId]);
+
   const handleCloseDiff = () => {
     if (isCommitDiffActive) {
       selectCommitFile("");
@@ -253,6 +288,15 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0d1117] text-[#c9d1d9] select-none overflow-hidden">
+      {/* GitKraken-Style Multi-Project Top Tab Bar */}
+      <RepoTabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onSwitchTab={switchTab}
+        onCloseTab={closeTab}
+        onOpenNewTab={() => setOpenRepoModalOpen(true)}
+      />
+
       {/* Top Navigation Bar & GitKraken Action Toolbar */}
       <header className="h-12 border-b border-[#30363d] bg-[#161b22] px-3 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3">
@@ -260,6 +304,11 @@ export const App: React.FC = () => {
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
             <h1 className="font-semibold text-white tracking-wide text-xs">Git-Manager</h1>
           </div>
+          {activeTab && (
+            <span className="text-[11px] font-mono text-blue-400 bg-blue-950/40 border border-blue-500/30 px-2 py-0.5 rounded font-medium">
+              {activeTab.name}
+            </span>
+          )}
           {summary?.current_branch && (
             <Badge
               label={summary.current_branch}
@@ -341,27 +390,70 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Studio Layout with Resizable Columns (Flechas 2 y 3) */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar: Navigation & Repositories */}
-        <aside
-          style={{ width: leftWidth }}
-          className="bg-[#0d1117] flex flex-col p-3 gap-4 shrink-0 overflow-hidden select-none"
-        >
-          <div>
-            <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider">
-              Repositorio Local
-            </span>
-            <div className="mt-1.5 p-2 rounded bg-[#161b22] border border-[#30363d] text-xs">
-              <div className="flex items-center gap-1.5 text-white font-medium">
-                <FolderGit2 className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="truncate">git-manager</span>
-              </div>
-              <p className="text-[#8b949e] text-[10px] truncate mt-1 font-mono">
-                {summary?.path || "/home/juanesscort/Proyectos/git-manager"}
-              </p>
-            </div>
+      {/* Main Studio Layout with Resizable Columns or Empty Workspace */}
+      {tabs.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0d1117] select-none text-center">
+          <div className="w-16 h-16 rounded-2xl bg-blue-950/40 border border-blue-500/40 flex items-center justify-center mb-4">
+            <FolderGit2 className="w-8 h-8 text-blue-400" />
           </div>
+          <h2 className="text-xl font-bold text-white mb-2">No hay ningún repositorio abierto</h2>
+          <p className="text-xs text-[#8b949e] max-w-md mb-6 leading-relaxed">
+            Abre un repositorio local de tu equipo o clona un repositorio directamente desde tu cuenta de GitHub para comenzar a gestionar ramas, commits y diferencias.
+          </p>
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => setOpenRepoModalOpen(true)}
+              icon={<FolderPlus className="w-4 h-4" />}
+            >
+              Abrir o Clonar Repositorio
+            </Button>
+          </div>
+          {recentRepos.length > 0 && (
+            <div className="mt-8 flex flex-col items-center gap-2">
+              <span className="text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider">
+                O reabrir reciente
+              </span>
+              <div className="flex flex-wrap gap-2 justify-center max-w-lg mt-1">
+                {recentRepos.slice(0, 5).map((path) => {
+                  const name = path.split("/").filter(Boolean).pop() || path;
+                  return (
+                    <button
+                      key={path}
+                      onClick={() => openTab(path)}
+                      className="px-3 py-1.5 rounded-lg bg-[#161b22] border border-[#30363d] hover:border-blue-500/60 hover:text-white text-xs text-[#8b949e] transition-all flex items-center gap-1.5 font-mono"
+                    >
+                      <FolderGit2 className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Sidebar: Navigation & Repositories */}
+          <aside
+            style={{ width: leftWidth }}
+            className="bg-[#0d1117] flex flex-col p-3 gap-4 shrink-0 overflow-hidden select-none"
+          >
+            <div>
+              <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider">
+                Repositorio Local
+              </span>
+              <div className="mt-1.5 p-2 rounded bg-[#161b22] border border-[#30363d] text-xs">
+                <div className="flex items-center gap-1.5 text-white font-medium">
+                  <FolderGit2 className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span className="truncate">{activeTab?.name || "git-manager"}</span>
+                </div>
+                <p className="text-[#8b949e] text-[10px] truncate mt-1 font-mono">
+                  {summary?.path || activeRepoPath}
+                </p>
+              </div>
+            </div>
 
           <nav className="flex flex-col gap-3 text-xs overflow-y-auto">
             {/* Local Branches Section with Folders */}
@@ -620,13 +712,14 @@ export const App: React.FC = () => {
                 }
               }}
               onCommit={commitChanges}
-              onGenerateAiCommit={() => generateCommit(repoPath)}
+              onGenerateAiCommit={() => generateCommit(activeRepoPath)}
               onOpenAiConfig={openAiConfigModal}
               onOpenConflictResolver={openConflictModal}
             />
           )}
         </div>
       </div>
+      )}
 
       {/* New Branch Modal */}
       <CreateBranchModal
@@ -701,6 +794,17 @@ export const App: React.FC = () => {
         onRebase={(branchName) => rebaseBranch(branchName)}
         onRename={(oldName, newName) => renameBranch(oldName, newName)}
         onDelete={(branchName) => deleteBranch(branchName)}
+      />
+
+      {/* Open / Clone Repository Modal */}
+      <OpenRepoModal
+        isOpen={openRepoModalOpen}
+        recentRepos={recentRepos}
+        gitHubRepos={repositories}
+        gitHubUser={githubUser}
+        onClose={() => setOpenRepoModalOpen(false)}
+        onOpenRepo={openTab}
+        onClearRecent={clearRecentRepos}
       />
     </div>
   );

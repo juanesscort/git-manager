@@ -107,6 +107,8 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
   };
 
   useEffect(() => {
+    setSelectedFile(null);
+    setDiff(null);
     refreshStatuses();
   }, [refreshStatuses]);
 

@@ -4,8 +4,8 @@ use crate::core::git_engine::{
     get_branches,
     history::get_commit_history,
     remote_ops::{
-        checkout_branch, create_branch, delete_branch, git_fetch, git_merge, git_pull, git_push,
-        git_rebase, git_stash, git_stash_pop, rename_branch,
+        checkout_branch, create_branch, delete_branch, git_clone, git_fetch, git_merge, git_pull,
+        git_push, git_rebase, git_stash, git_stash_pop, pick_folder, rename_branch,
     },
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
@@ -173,4 +173,14 @@ pub async fn git_merge_cmd(path: String, source_branch: String) -> Result<String
 pub async fn git_rebase_cmd(path: String, upstream_branch: String) -> Result<String, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
     git_rebase(&repo, &upstream_branch).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn pick_folder_dialog_cmd() -> Result<Option<String>, String> {
+    pick_folder().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn clone_repo_cmd(clone_url: String, target_path: String) -> Result<String, String> {
+    git_clone(&clone_url, &target_path).map_err(|e| e.to_string())
 }

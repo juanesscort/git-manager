@@ -189,3 +189,36 @@ pub fn git_rebase(repo: &Repository, upstream_branch: &str) -> Result<String, Gi
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
+
+pub fn git_clone(clone_url: &str, target_path: &str) -> Result<String, GitEngineError> {
+    let output = Command::new("git")
+        .args(["clone", clone_url, target_path])
+        .output()
+        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(GitEngineError::InvalidPath(format!("git clone: {}", err)));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+pub fn pick_folder() -> Result<Option<String>, GitEngineError> {
+    let output = Command::new("zenity")
+        .args([
+            "--file-selection",
+            "--directory",
+            "--title=Seleccionar repositorio Git",
+        ])
+        .output();
+
+    if let Ok(out) = output {
+        let path_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if out.status.success() && !path_str.is_empty() {
+            return Ok(Some(path_str));
+        }
+    }
+
+    Ok(None)
+}

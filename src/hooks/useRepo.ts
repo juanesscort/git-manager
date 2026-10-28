@@ -8,6 +8,10 @@ export function useRepo(initialPath: string = ".") {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setRepoPath(initialPath);
+  }, [initialPath]);
+
   const refreshRepo = useCallback(async () => {
     setLoading(true);
     setError(null);

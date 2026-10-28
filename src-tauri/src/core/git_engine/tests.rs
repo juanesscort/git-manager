@@ -133,3 +133,27 @@ fn test_branches_and_commit_changes() {
     assert_eq!(file_diff.path, "file.txt");
     assert!(file_diff.patch.contains("+Hello world"));
 }
+
+#[test]
+fn test_git_clone_local() {
+    let (source_dir, repo) = setup_temp_repo();
+    let file_path = source_dir.path().join("readme.md");
+    fs::write(&file_path, "# Cloned Repo\n").expect("write file");
+    stage_file(&repo, "readme.md").expect("stage file");
+    create_commit(&repo, "feat: initial commit", None, None).expect("commit");
+
+    let target_dir = tempfile::tempdir().expect("temp target dir");
+    let cloned_path = target_dir.path().join("clone_destination");
+
+    let source_path_str = source_dir.path().to_str().expect("source path");
+    let target_path_str = cloned_path.to_str().expect("target path");
+
+    let result = crate::core::git_engine::git_clone(source_path_str, target_path_str);
+    assert!(result.is_ok(), "git_clone should succeed for local repo");
+
+    let cloned_repo =
+        crate::core::git_engine::open_repository(&cloned_path).expect("open cloned repo");
+    let cloned_summary =
+        crate::core::git_engine::get_repo_summary(&cloned_repo).expect("summary of cloned repo");
+    assert!(!cloned_summary.is_empty);
+}
