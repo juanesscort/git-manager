@@ -67,16 +67,32 @@ export const CreateTagModal: React.FC<CreateTagModalProps> = ({
             </div>
           )}
 
-          {/* Target Commit Info */}
-          <div className="flex items-center gap-2 p-2 rounded bg-[#0d1117] border border-[#30363d]">
-            <GitCommit className="w-4 h-4 text-purple-400 shrink-0" />
-            <div className="flex flex-col truncate">
-              <span className="text-[10px] text-[#8b949e]">Apuntando al Commit:</span>
-              <span className="font-mono text-white text-[11px] truncate">
-                {targetCommitOid.slice(0, 7)}
-                {targetCommitSummary ? ` — ${targetCommitSummary}` : " (HEAD actual)"}
+          {/* Target Commit Alert & Destination Indicator */}
+          <div className="p-3 rounded-lg bg-blue-950/40 border border-blue-500/40 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <GitCommit className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+                  Destino de la Etiqueta
+                </span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-900/60 border border-blue-500/50 text-blue-200">
+                {targetCommitOid === "HEAD" ? "HEAD (Punta activa)" : "Commit Seleccionado"}
               </span>
             </div>
+
+            <div className="flex items-center gap-2 text-xs font-mono bg-[#0d1117] px-2.5 py-1.5 rounded border border-[#30363d] text-[#c9d1d9]">
+              <span className="px-1.5 py-0.2 rounded bg-[#21262d] text-cyan-300 font-bold text-[11px] border border-cyan-500/30 shrink-0">
+                {targetCommitOid.slice(0, 7)}
+              </span>
+              <span className="truncate text-[11px] text-[#8b949e]">
+                {targetCommitSummary || "Último commit de la rama actual"}
+              </span>
+            </div>
+
+            <p className="text-[10px] text-blue-300/80 leading-relaxed">
+              📍 Esta etiqueta quedará fijada permanentemente a este commit. No se moverá aunque agregues nuevos commits después.
+            </p>
           </div>
 
           {/* Tag Name Input */}
@@ -124,7 +140,9 @@ export const CreateTagModal: React.FC<CreateTagModalProps> = ({
               disabled={submitting || !tagName.trim()}
               className="bg-emerald-600 hover:bg-emerald-500 text-white"
             >
-              {submitting ? "Creando..." : "Crear Etiqueta"}
+              {submitting
+                ? "Creando..."
+                : `Crear Etiqueta en ${targetCommitOid === "HEAD" ? "HEAD" : targetCommitOid.slice(0, 7)}`}
             </Button>
           </div>
         </form>

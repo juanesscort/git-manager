@@ -158,8 +158,33 @@ pub fn checkout_branch(repo: &Repository, branch_name: &str) -> Result<String, G
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-pub fn git_merge(repo: &Repository, source_branch: &str) -> Result<String, GitEngineError> {
+pub fn git_merge(
+    repo: &Repository,
+    source_branch: &str,
+    target_branch: Option<&str>,
+) -> Result<String, GitEngineError> {
     let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+
+    // If target branch is specified and is not currently checked out, checkout target first
+    if let Some(target) = target_branch.filter(|t| !t.is_empty()) {
+        let current = repo
+            .head()
+            .ok()
+            .and_then(|h| h.shorthand().ok().map(|s| s.to_string()))
+            .unwrap_or_default();
+        if current != target {
+            let checkout_output = Command::new("git")
+                .args(["checkout", target])
+                .current_dir(workdir)
+                .output()
+                .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+            if !checkout_output.status.success() {
+                let err = String::from_utf8_lossy(&checkout_output.stderr);
+                return Err(GitEngineError::InvalidPath(format!("git checkout {}: {}", target, err)));
+            }
+        }
+    }
+
     let output = Command::new("git")
         .args(["merge", source_branch])
         .current_dir(workdir)

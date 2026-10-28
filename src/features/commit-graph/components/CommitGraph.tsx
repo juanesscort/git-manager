@@ -107,7 +107,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
-    document.body.style.cursor = "col-resize";
+    document.body.style.cursor = "ew-resize";
     document.body.style.userSelect = "none";
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
@@ -129,7 +129,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
-    document.body.style.cursor = "col-resize";
+    document.body.style.cursor = "ew-resize";
     document.body.style.userSelect = "none";
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
@@ -262,7 +262,8 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
         {/* Resizer 1 between RAMA / ETIQUETA and GRAFO */}
         <div
           onPointerDown={handleBranchResizeStart}
-          className="w-2 h-full -mx-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 shrink-0 z-20 flex items-center justify-center transition-colors group"
+          style={{ cursor: "ew-resize" }}
+          className="w-2 h-full -mx-1 cursor-ew-resize hover:bg-blue-500/60 active:bg-blue-500 shrink-0 z-20 flex items-center justify-center transition-colors group"
           title="Arrastra para redimensionar la columna de Ramas / Etiquetas"
         >
           <div className="w-[1px] h-3 bg-[#30363d] group-hover:bg-blue-300 transition-colors pointer-events-none" />
@@ -279,7 +280,8 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
         {/* Resizer 2 between GRAFO and MENSAJE DE COMMIT */}
         <div
           onPointerDown={handleGraphResizeStart}
-          className="w-2 h-full -mx-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 shrink-0 z-20 flex items-center justify-center transition-colors group"
+          style={{ cursor: "ew-resize" }}
+          className="w-2 h-full -mx-1 cursor-ew-resize hover:bg-blue-500/60 active:bg-blue-500 shrink-0 z-20 flex items-center justify-center transition-colors group"
           title="Arrastra para redimensionar la columna del Grafo"
         >
           <div className="w-[1px] h-3 bg-[#30363d] group-hover:bg-blue-300 transition-colors pointer-events-none" />

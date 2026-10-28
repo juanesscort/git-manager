@@ -166,9 +166,13 @@ pub async fn checkout_branch_cmd(path: String, branch_name: String) -> Result<St
 }
 
 #[tauri::command]
-pub async fn git_merge_cmd(path: String, source_branch: String) -> Result<String, String> {
+pub async fn git_merge_cmd(
+    path: String,
+    source_branch: String,
+    target_branch: Option<String>,
+) -> Result<String, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
-    git_merge(&repo, &source_branch).map_err(|e| e.to_string())
+    git_merge(&repo, &source_branch, target_branch.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

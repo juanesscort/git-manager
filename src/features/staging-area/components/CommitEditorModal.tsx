@@ -1,13 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   GitCommit,
   Sparkles,
   X,
   AlertTriangle,
-  Layers,
-  FileCode,
   Check,
   Minimize2,
+  Tag,
+  TagPlus,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -17,12 +17,16 @@ interface CommitEditorModalProps {
   isOpen: boolean;
   commitTitle: string;
   commitDescription: string;
+  commitTag?: string;
+  commitTagMessage?: string;
   stagedFiles: FileStatusItem[];
   currentBranch?: string | null;
   aiGenerating?: boolean;
   aiError?: string | null;
   onChangeTitle: (title: string) => void;
   onChangeDescription: (desc: string) => void;
+  onChangeTag?: (tag: string) => void;
+  onChangeTagMessage?: (msg: string) => void;
   onGenerateAiCommit?: () => void;
   onCommit: () => void;
   onClose: () => void;
@@ -30,37 +34,61 @@ interface CommitEditorModalProps {
 }
 
 const CONVENTIONAL_TYPES = [
-  { type: "feat", label: "feat: nueva funcionalidad", color: "bg-blue-950/60 text-blue-300 border-blue-500/40" },
-  { type: "fix", label: "fix: corrección de bug", color: "bg-emerald-950/60 text-emerald-300 border-emerald-500/40" },
-  { type: "refactor", label: "refactor: refactorización", color: "bg-purple-950/60 text-purple-300 border-purple-500/40" },
-  { type: "docs", label: "docs: documentación", color: "bg-amber-950/60 text-amber-300 border-amber-500/40" },
-  { type: "chore", label: "chore: mantenimiento", color: "bg-slate-800 text-slate-300 border-slate-600" },
-  { type: "perf", label: "perf: rendimiento", color: "bg-rose-950/60 text-rose-300 border-rose-500/40" },
-  { type: "test", label: "test: pruebas unitarias", color: "bg-cyan-950/60 text-cyan-300 border-cyan-500/40" },
+  { type: "feat", label: "feat: nueva funcionalidad" },
+  { type: "fix", label: "fix: corrección de bug" },
+  { type: "refactor", label: "refactor: refactorización" },
+  { type: "docs", label: "docs: documentación" },
+  { type: "chore", label: "chore: mantenimiento" },
+  { type: "perf", label: "perf: rendimiento" },
+  { type: "test", label: "test: pruebas unitarias" },
 ];
+
+const CONVENTIONAL_REGEX = /^(feat|fix|refactor|docs|chore|perf|test)(\([^)]+\))?:\s*/i;
 
 export const CommitEditorModal: React.FC<CommitEditorModalProps> = ({
   isOpen,
   commitTitle,
   commitDescription,
+  commitTag,
+  commitTagMessage,
   stagedFiles,
   currentBranch,
   aiGenerating = false,
   aiError = null,
   onChangeTitle,
   onChangeDescription,
+  onChangeTag,
+  onChangeTagMessage,
   onGenerateAiCommit,
   onCommit,
   onClose,
   onOpenAiConfig,
 }) => {
+  const [showTagFields, setShowTagFields] = useState<boolean>(
+    () => Boolean(commitTag && commitTag.trim())
+  );
+
   if (!isOpen) return null;
 
-  const handleTypeSelect = (typePrefix: string) => {
-    if (!commitTitle.trim()) {
-      onChangeTitle(`${typePrefix}: `);
-    } else if (!commitTitle.includes(":")) {
-      onChangeTitle(`${typePrefix}: ${commitTitle}`);
+  // Detect active prefix and scope
+  const prefixMatch = commitTitle.match(CONVENTIONAL_REGEX);
+  const activeType = prefixMatch ? prefixMatch[1].toLowerCase() : null;
+  const currentScope = prefixMatch && prefixMatch[2] ? prefixMatch[2] : "";
+
+  // Flecha 5: Switch toggle logic (click active removes it, click inactive switches to it)
+  const handleTogglePrefix = (type: string) => {
+    if (activeType === type.toLowerCase()) {
+      // Toggle OFF: remove prefix completely
+      const stripped = commitTitle.replace(CONVENTIONAL_REGEX, "");
+      onChangeTitle(stripped);
+    } else if (activeType) {
+      // Switch to new prefix, retaining scope if any
+      const stripped = commitTitle.replace(CONVENTIONAL_REGEX, "");
+      const newPrefix = currentScope ? `${type}${currentScope}: ` : `${type}: `;
+      onChangeTitle(`${newPrefix}${stripped}`);
+    } else {
+      // Prepend prefix
+      onChangeTitle(`${type}: ${commitTitle}`);
     }
   };
 
@@ -121,57 +149,59 @@ export const CommitEditorModal: React.FC<CommitEditorModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 p-5 overflow-y-auto flex flex-col gap-4 text-xs">
-          {/* Quick Conventional Commits Type Badges */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider mr-1">
-              Prefijo rápido:
-            </span>
-            {CONVENTIONAL_TYPES.map((item) => (
-              <button
-                key={item.type}
-                type="button"
-                onClick={() => handleTypeSelect(item.type)}
-                className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-all cursor-pointer hover:scale-105 ${item.color}`}
-                title={`Insertar ${item.type}: al título`}
-              >
-                {item.type}
-              </button>
-            ))}
-          </div>
-
-          {/* AI Generation Banner */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-[#0d1117] border border-[#30363d]">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <div>
-                <span className="font-semibold text-white text-xs block">
-                  Asistente de Commits con Inteligencia Artificial
-                </span>
-                <span className="text-[11px] text-[#8b949e]">
-                  Analiza las diferencias preparadas (staged diffs) y genera un mensaje en español.
-                </span>
-              </div>
+          {/* Top Bar: Dual-State Conventional Types Switches & Tag Toggle (Flechas 5 y 8) */}
+          <div className="flex items-center justify-between gap-2 flex-wrap shrink-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider mr-1">
+                Prefijo rápido:
+              </span>
+              {CONVENTIONAL_TYPES.map((item) => {
+                const isActive = activeType === item.type;
+                return (
+                  <button
+                    key={item.type}
+                    type="button"
+                    onClick={() => handleTogglePrefix(item.type)}
+                    className={`text-[10px] font-mono px-2.5 py-1 rounded-md border transition-all cursor-pointer ${
+                      isActive
+                        ? "bg-blue-600 text-white border-blue-400 ring-2 ring-blue-500/30 font-bold shadow-xs scale-105"
+                        : "bg-[#0d1117] text-[#8b949e] hover:text-[#c9d1d9] border-[#30363d] hover:bg-[#21262d]"
+                    }`}
+                    title={
+                      isActive
+                        ? `Quitar prefijo activo ${item.type}: (dejar limpio)`
+                        : `Aplicar prefijo ${item.label}`
+                    }
+                  >
+                    {item.type}
+                  </button>
+                );
+              })}
             </div>
 
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={stagedFiles.length === 0 || aiGenerating}
-              onClick={onGenerateAiCommit}
-              className="text-amber-300 border-amber-500/30 hover:border-amber-400/60 bg-amber-950/20 shrink-0"
-              icon={
-                <Sparkles
-                  className={`w-3.5 h-3.5 ${aiGenerating ? "animate-spin text-amber-300" : ""}`}
-                />
+            {/* Strategic TagPlus Switch Button (Flecha 8) */}
+            <button
+              type="button"
+              onClick={() => setShowTagFields((prev) => !prev)}
+              className={`flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1 rounded-md border transition-all cursor-pointer ${
+                showTagFields || (commitTag && commitTag.trim())
+                  ? "bg-emerald-950/80 border-emerald-500/60 text-emerald-300 font-bold shadow-xs"
+                  : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#21262d]"
+              }`}
+              title={
+                showTagFields
+                  ? "Ocultar campos de etiqueta"
+                  : "Crear y asignar etiqueta (tag) para este commit"
               }
             >
-              {aiGenerating ? "Analizando cambios..." : "Generar con IA"}
-            </Button>
+              <TagPlus className="w-3.5 h-3.5 text-emerald-400" />
+              <span>+ Tag / Versión</span>
+            </button>
           </div>
 
           {/* AI Error Alert */}
           {aiError && (
-            <div className="bg-rose-950/50 border border-rose-500/50 rounded-lg p-3 text-xs flex flex-col gap-1.5 animate-in fade-in duration-200">
+            <div className="bg-rose-950/50 border border-rose-500/50 rounded-lg p-3 text-xs flex flex-col gap-1.5 shrink-0 animate-in fade-in duration-200">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-rose-300 font-semibold text-[11px]">
                   <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
@@ -193,8 +223,8 @@ export const CommitEditorModal: React.FC<CommitEditorModalProps> = ({
             </div>
           )}
 
-          {/* Commit Title Field */}
-          <div className="flex flex-col gap-1.5">
+          {/* Commit Title Field with Compact AI Icon Button (Flecha 6) */}
+          <div className="flex flex-col gap-1.5 shrink-0">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
                 <span>Título del Commit</span>
@@ -214,54 +244,100 @@ export const CommitEditorModal: React.FC<CommitEditorModalProps> = ({
               </span>
             </div>
 
-            <input
-              type="text"
-              autoFocus
-              value={commitTitle}
-              onChange={(e) => onChangeTitle(e.target.value)}
-              placeholder="feat(alcance): resumen conciso del cambio en español..."
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden font-mono shadow-inner"
-            />
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                autoFocus
+                value={commitTitle}
+                onChange={(e) => onChangeTitle(e.target.value)}
+                placeholder="feat(alcance): resumen conciso del cambio en español..."
+                className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg pl-3 pr-10 py-2.5 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden font-mono shadow-inner"
+              />
+              {/* Compact AI Icon Button on right side of Title (Flecha 6) */}
+              <button
+                type="button"
+                disabled={stagedFiles.length === 0 || aiGenerating}
+                onClick={onGenerateAiCommit}
+                className="absolute right-2 p-1.5 rounded-md text-amber-400 hover:text-amber-300 hover:bg-amber-950/40 transition-colors cursor-pointer disabled:opacity-40"
+                title={
+                  stagedFiles.length === 0
+                    ? "Prepara archivos para generar con IA"
+                    : aiGenerating
+                    ? "Analizando cambios con IA..."
+                    : "Generar título y descripción con IA"
+                }
+              >
+                <Sparkles
+                  className={`w-4 h-4 ${aiGenerating ? "animate-spin text-amber-300" : ""}`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Commit Description Field - Spacious & Resizable */}
-          <div className="flex flex-col gap-1.5 flex-1 min-h-[160px]">
+          <div className="flex flex-col gap-1.5 flex-1 min-h-[140px]">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
                 Descripción Detallada (Opcional)
               </label>
               <span className="text-[10px] text-[#484f58]">
-                Markdown y listas con guiones soportados
+                Markdown y listas soportados
               </span>
             </div>
 
             <textarea
               value={commitDescription}
               onChange={(e) => onChangeDescription(e.target.value)}
-              placeholder="Detalles adicionales, contexto del problema resuelto, notas de migración o listas de cambios:&#10;&#10;- Ajuste en la visualización del grafo&#10;- Corrección de márgenes y bordes&#10;- Soporte para redimensión vertical"
-              className="w-full flex-1 min-h-[140px] bg-[#0d1117] border border-[#30363d] rounded-lg p-3 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden resize-none font-mono leading-relaxed shadow-inner"
+              placeholder="Detalles adicionales, contexto del problema resuelto, notas de migración o listas de cambios:&#10;&#10;- Ajuste en la visualización del grafo&#10;- Corrección de márgenes y bordes"
+              className="w-full flex-1 min-h-[120px] bg-[#0d1117] border border-[#30363d] rounded-lg p-3 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden resize-none font-mono leading-relaxed shadow-inner"
             />
           </div>
 
-          {/* Staged Files Preview Strip */}
-          <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-[#0d1117] border border-[#30363d]">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#8b949e] uppercase tracking-wider">
-              <Layers className="w-3 h-3 text-emerald-400" />
-              <span>Archivos incluidos en este commit ({stagedFiles.length})</span>
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-              {stagedFiles.map((f) => (
-                <div
-                  key={f.path}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#161b22] border border-[#30363d] text-[10px] font-mono text-[#c9d1d9] shrink-0"
-                  title={f.path}
-                >
-                  <FileCode className="w-3 h-3 text-emerald-400 shrink-0" />
-                  <span className="truncate max-w-[160px]">{f.path.split("/").pop()}</span>
+          {/* Tag Name Input & Tag Description Textarea (Flechas 7 y 8) */}
+          {showTagFields && (
+            <div className="flex flex-col gap-3 p-3.5 rounded-xl bg-[#0d1117]/60 border border-emerald-500/30 animate-in fade-in duration-150 shrink-0">
+              {/* Tag Name Input (Exact same styling as Commit Title) */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5" />
+                    <span>Nombre de la Etiqueta (Tag)</span>
+                    <span className="text-rose-400 font-bold">*</span>
+                  </label>
+                  <span className="text-[10px] text-[#8b949e] font-mono">
+                    ej: v0.1.1, v1.0.0
+                  </span>
                 </div>
-              ))}
+                <input
+                  type="text"
+                  value={commitTag || ""}
+                  onChange={(e) => onChangeTag && onChangeTag(e.target.value)}
+                  placeholder="v0.1.1"
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg p-2.5 text-xs text-white placeholder-[#484f58] focus:border-emerald-500 focus:outline-hidden font-mono shadow-inner"
+                />
+              </div>
+
+              {/* Tag Message Textarea (Exact same styling as Commit Description) */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
+                    Descripción / Mensaje del Tag (Opcional)
+                  </label>
+                  <span className="text-[10px] text-[#484f58]">
+                    Para tags anotados con notas de versión
+                  </span>
+                </div>
+                <textarea
+                  value={commitTagMessage || ""}
+                  onChange={(e) =>
+                    onChangeTagMessage && onChangeTagMessage(e.target.value)
+                  }
+                  placeholder="Notas de la versión, hitos relevantes o changelog..."
+                  className="w-full h-20 bg-[#0d1117] border border-[#30363d] rounded-lg p-3 text-xs text-white placeholder-[#484f58] focus:border-emerald-500 focus:outline-hidden resize-none font-mono leading-relaxed shadow-inner"
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Modal Footer */}
@@ -286,7 +362,9 @@ export const CommitEditorModal: React.FC<CommitEditorModalProps> = ({
               onClick={onCommit}
               icon={<Check className="w-3.5 h-3.5" />}
             >
-              Confirmar Commit ({stagedFiles.length})
+              {commitTag && commitTag.trim()
+                ? `Confirmar Commit & Tag "${commitTag.trim()}" (${stagedFiles.length})`
+                : `Confirmar Commit (${stagedFiles.length})`}
             </Button>
           </div>
         </div>

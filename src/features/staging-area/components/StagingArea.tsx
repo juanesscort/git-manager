@@ -17,9 +17,12 @@ import {
   FileCode,
   X,
   Maximize2,
+  Tag,
+  TagPlus,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
+import { AccordionSection } from "../../../components/ui/AccordionSection";
 import { FileItem } from "./FileItem";
 import { FileStatusItem } from "../../../types/git";
 import { CommitEditorModal } from "./CommitEditorModal";
@@ -38,7 +41,7 @@ interface StagingAreaProps {
   onStageAll: () => void;
   onUnstageAll: () => void;
   onSelectFile: (path: string, staged: boolean) => void;
-  onCommit: (message: string) => void;
+  onCommit: (message: string, tag?: string, tagMessage?: string) => void;
   onGenerateAiCommit?: () => Promise<string | null>;
   onOpenAiConfig?: () => void;
   onOpenConflictResolver?: (path: string) => void;
@@ -111,11 +114,14 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [aiError, setAiError] = useState<string | null>(null);
   const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
+  const [commitTag, setCommitTag] = useState("");
+  const [commitTagMessage, setCommitTagMessage] = useState("");
+  const [showTagInput, setShowTagInput] = useState(false);
 
-  // User adjustable commit box vertical height (Flecha 6)
+  // User adjustable commit box vertical height (Flechas 4, 5, 6)
   const [commitBoxHeight, setCommitBoxHeight] = useState<number>(() => {
     const saved = localStorage.getItem("gitmanager_commit_box_height");
-    return saved ? Math.max(170, Math.min(550, parseInt(saved, 10))) : 230;
+    return saved ? Math.max(230, Math.min(550, parseInt(saved, 10))) : 240;
   });
 
   const handleCommitBoxResizeStart = (e: React.PointerEvent) => {
@@ -125,7 +131,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
     const startH = commitBoxHeight;
     const onPointerMove = (ev: PointerEvent) => {
       const delta = startY - ev.clientY;
-      const newH = Math.max(170, Math.min(550, startH + delta));
+      const newH = Math.max(230, Math.min(550, startH + delta));
       setCommitBoxHeight(newH);
       localStorage.setItem("gitmanager_commit_box_height", newH.toString());
     };
@@ -135,7 +141,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
-    document.body.style.cursor = "row-resize";
+    document.body.style.cursor = "ns-resize";
     document.body.style.userSelect = "none";
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
@@ -153,9 +159,16 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
     const fullMessage = commitDescription.trim()
       ? `${commitTitle.trim()}\n\n${commitDescription.trim()}`
       : commitTitle.trim();
-    onCommit(fullMessage);
+    onCommit(
+      fullMessage,
+      commitTag.trim() || undefined,
+      commitTagMessage.trim() || undefined
+    );
     setCommitTitle("");
     setCommitDescription("");
+    setCommitTag("");
+    setCommitTagMessage("");
+    setShowTagInput(false);
     setAiError(null);
   };
 
@@ -393,29 +406,24 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           </div>
         )}
 
-        {/* Section: Staged Files */}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between py-1 px-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-white uppercase tracking-wider">
-                Preparados (Staged)
-              </span>
-              <Badge
-                label={String(stagedFiles.length)}
-                variant={stagedFiles.length > 0 ? "green" : "gray"}
-              />
-            </div>
-            {stagedFiles.length > 0 && (
+        {/* Section: Staged Files (Flecha 1 - Acordeón) */}
+        <AccordionSection
+          title="Preparados (Staged)"
+          count={stagedFiles.length}
+          defaultOpen={true}
+          action={
+            stagedFiles.length > 0 ? (
               <button
+                type="button"
                 onClick={onUnstageAll}
-                className="text-[10px] text-[#8b949e] hover:text-rose-400 flex items-center gap-0.5"
-                title="Deshacer todos"
+                className="text-[10px] text-[#8b949e] hover:text-rose-400 flex items-center gap-0.5 cursor-pointer"
+                title="Deshacer todos (Unstage All)"
               >
                 <Minus className="w-3 h-3" /> Unstage All
               </button>
-            )}
-          </div>
-
+            ) : undefined
+          }
+        >
           <div className="flex flex-col gap-0.5">
             {stagedFiles.length === 0 ? (
               <p className="text-[11px] text-[#484f58] italic px-2 py-1">
@@ -441,31 +449,26 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               stagedTree.map((node) => renderTreeNode(node, true))
             )}
           </div>
-        </div>
+        </AccordionSection>
 
-        {/* Section: Unstaged Files */}
-        <div className="flex flex-col gap-1 pt-2">
-          <div className="flex items-center justify-between py-1 px-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-white uppercase tracking-wider">
-                Sin Preparar (Unstaged)
-              </span>
-              <Badge
-                label={String(unstagedFiles.length)}
-                variant={unstagedFiles.length > 0 ? "yellow" : "gray"}
-              />
-            </div>
-            {unstagedFiles.length > 0 && (
+        {/* Section: Unstaged Files (Flecha 1 - Acordeón) */}
+        <AccordionSection
+          title="Sin Preparar (Unstaged)"
+          count={unstagedFiles.length}
+          defaultOpen={true}
+          action={
+            unstagedFiles.length > 0 ? (
               <button
+                type="button"
                 onClick={onStageAll}
-                className="text-[10px] text-[#8b949e] hover:text-emerald-400 flex items-center gap-0.5"
-                title="Preparar todos"
+                className="text-[10px] text-[#8b949e] hover:text-emerald-400 flex items-center gap-0.5 cursor-pointer"
+                title="Preparar todos (Stage All)"
               >
                 <Plus className="w-3 h-3" /> Stage All
               </button>
-            )}
-          </div>
-
+            ) : undefined
+          }
+        >
           <div className="flex flex-col gap-0.5">
             {unstagedFiles.length === 0 ? (
               <p className="text-[11px] text-[#484f58] italic px-2 py-1">
@@ -491,13 +494,14 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               unstagedTree.map((node) => renderTreeNode(node, false))
             )}
           </div>
-        </div>
+        </AccordionSection>
       </div>
 
-      {/* Resizable Divider between file trees and commit box (Flecha 6) */}
+      {/* Resizable Divider between file trees and commit box (Flechas 4, 5, 6) */}
       <div
         onPointerDown={handleCommitBoxResizeStart}
-        className="h-1.5 w-full bg-[#30363d] hover:bg-blue-500 cursor-row-resize transition-colors shrink-0 z-20 flex items-center justify-center group select-none"
+        style={{ cursor: "ns-resize" }}
+        className="h-2 w-full bg-[#30363d] hover:bg-blue-500 cursor-ns-resize transition-colors shrink-0 z-20 flex items-center justify-center group select-none -my-0.5"
         title="Arrastra para redimensionar verticalmente el panel de escritura de commits"
       >
         <div className="w-8 h-0.5 rounded bg-transparent group-hover:bg-blue-300 transition-colors pointer-events-none" />
@@ -506,7 +510,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
       {/* Commit Box: Title (Required) + Description (Optional) with Dynamic Height */}
       <div
         style={{ height: commitBoxHeight }}
-        className="bg-[#161b22] p-3 flex flex-col gap-2 shrink-0 overflow-hidden"
+        className="bg-[#161b22] p-3 flex flex-col gap-2 shrink-0 min-h-[230px] overflow-y-auto no-scrollbar justify-start"
       >
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-1.5">
@@ -516,9 +520,9 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
             <span className="text-[10px] text-rose-400 font-bold">*</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span
-              className={`text-[10px] font-mono ${
+              className={`text-[10px] font-mono mr-1 ${
                 commitTitle.length > 72
                   ? "text-amber-400 font-bold"
                   : commitTitle.length > 50
@@ -529,31 +533,52 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               {commitTitle.length}/72
             </span>
 
-            <Button
-              size="sm"
-              variant="ghost"
+            {/* Compact AI Icon Button (Flecha 2) */}
+            <button
+              type="button"
               disabled={stagedFiles.length === 0 || aiGenerating}
               onClick={handleAiGenerate}
-              className="text-amber-400 hover:text-amber-300 py-0.5 px-2 text-xs h-6 border border-amber-500/20 bg-amber-950/20"
-              icon={
-                <Sparkles
-                  className={`w-3.5 h-3.5 ${aiGenerating ? "animate-spin text-amber-300" : ""}`}
-                />
-              }
+              className={`p-1.5 rounded transition-colors cursor-pointer border ${
+                aiGenerating
+                  ? "bg-amber-950/40 border-amber-500/50 text-amber-300"
+                  : "text-amber-400 hover:text-amber-300 hover:bg-amber-950/30 border-amber-500/20 bg-amber-950/10"
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
               title={
                 stagedFiles.length === 0
                   ? "Prepara archivos para generar con IA"
-                  : "Generar título y descripción con IA (Conventional Commits)"
+                  : aiGenerating
+                  ? "Analizando cambios con IA..."
+                  : "Generar título y descripción con IA"
               }
             >
-              {aiGenerating ? "Analizando..." : "Generar IA"}
-            </Button>
+              <Sparkles
+                className={`w-3.5 h-3.5 ${aiGenerating ? "animate-spin text-amber-300" : ""}`}
+              />
+            </button>
 
-            {/* Expand in Dedicated Modal Button (Flecha 6) */}
+            {/* TagPlus Switch Button (Flecha 2) */}
+            <button
+              type="button"
+              onClick={() => setShowTagInput((prev) => !prev)}
+              className={`p-1.5 rounded transition-colors cursor-pointer border ${
+                showTagInput || commitTag.trim()
+                  ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300 shadow-xs"
+                  : "text-[#8b949e] hover:text-white hover:bg-[#21262d] border-transparent"
+              }`}
+              title={
+                showTagInput
+                  ? "Ocultar campo de etiqueta / tag"
+                  : "Crear y asignar etiqueta (tag) a este commit"
+              }
+            >
+              <TagPlus className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Expand in Dedicated Modal Button */}
             <button
               type="button"
               onClick={() => setIsCommitModalOpen(true)}
-              className="p-1 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors cursor-pointer"
+              className="p-1.5 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors cursor-pointer"
               title="Abrir editor de commits en modal ampliado (mayor espacio y libertad)"
             >
               <Maximize2 className="w-3.5 h-3.5" />
@@ -593,8 +618,33 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2.5 py-1.5 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden font-mono shrink-0"
         />
 
-        {/* Description Textarea (Opcional) - Flexible to expand with height */}
-        <div className="flex flex-col gap-1 flex-1 min-h-0">
+        {/* Dedicated Tag Input Row (Flechas 2 y 3 - sin colisión con textarea) */}
+        {(showTagInput || commitTag.trim()) && (
+          <div className="flex items-center gap-1.5 bg-[#0d1117] border border-emerald-500/40 rounded px-2.5 py-1 shrink-0 animate-in fade-in duration-150">
+            <Tag className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <input
+              type="text"
+              value={commitTag}
+              onChange={(e) => setCommitTag(e.target.value)}
+              placeholder="Nombre del tag (ej: v0.1.1)..."
+              className="w-full bg-transparent border-none text-xs text-emerald-300 placeholder-[#484f58] focus:outline-hidden font-mono"
+              autoFocus
+            />
+            {commitTag.trim() && (
+              <button
+                type="button"
+                onClick={() => setCommitTag("")}
+                className="text-[#8b949e] hover:text-white p-0.5 cursor-pointer"
+                title="Borrar etiqueta"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Description Textarea (Opcional) - Flexible to expand with height, min-h-[48px], no collision */}
+        <div className="flex flex-col gap-1 flex-1 min-h-[48px]">
           <span className="text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider shrink-0">
             Descripción (Opcional)
           </span>
@@ -613,21 +663,27 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           onClick={handleCommitSubmit}
           className="w-full mt-0.5 shrink-0"
         >
-          Commit a {currentBranch || "HEAD"} ({stagedFiles.length})
+          {commitTag.trim()
+            ? `Commit & Tag "${commitTag.trim()}"`
+            : `Commit a ${currentBranch || "HEAD"} (${stagedFiles.length})`}
         </Button>
       </div>
 
-      {/* Dedicated Pop-out Modal for Free & Spacious Commit Writing (Flecha 6) */}
+      {/* Dedicated Pop-out Modal for Free & Spacious Commit Writing */}
       <CommitEditorModal
         isOpen={isCommitModalOpen}
         commitTitle={commitTitle}
         commitDescription={commitDescription}
+        commitTag={commitTag}
+        commitTagMessage={commitTagMessage}
         stagedFiles={stagedFiles}
         currentBranch={currentBranch}
         aiGenerating={aiGenerating}
         aiError={aiError}
         onChangeTitle={setCommitTitle}
         onChangeDescription={setCommitDescription}
+        onChangeTag={setCommitTag}
+        onChangeTagMessage={setCommitTagMessage}
         onGenerateAiCommit={handleAiGenerate}
         onCommit={() => {
           handleCommitSubmit();

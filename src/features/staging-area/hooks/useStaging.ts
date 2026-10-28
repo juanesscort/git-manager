@@ -91,18 +91,20 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
     }
   };
 
-  const commitChanges = async (message: string) => {
-    if (!message.trim()) return;
+  const commitChanges = async (message: string): Promise<string | null> => {
+    if (!message.trim()) return null;
     try {
-      await invoke<string>("commit_changes_cmd", { path: repoPath, message });
+      const newOid = await invoke<string>("commit_changes_cmd", { path: repoPath, message });
       setSelectedFile(null);
       setDiff(null);
       await refreshStatuses();
       if (onCommitSuccess) {
         onCommitSuccess();
       }
+      return newOid;
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      return null;
     }
   };
 

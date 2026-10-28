@@ -374,11 +374,11 @@ export const App: React.FC = () => {
       <header className="h-14 border-b border-[#30363d] bg-[#161b22] px-3 flex items-center justify-between shrink-0 z-30 select-none">
         <div className="flex items-center gap-3">
           {/* Logo & Application Brand */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <img
               src={logoImg}
               alt="GitManager"
-              className="h-10 w-10 object-contain shrink-0 filter drop-shadow-[0_0_12px_rgba(56,189,248,0.45)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] transition-transform hover:scale-105 cursor-pointer"
+              className="h-12 w-12 object-contain shrink-0 filter drop-shadow-[0_0_16px_rgba(56,189,248,0.55)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.9)] transition-transform hover:scale-105 cursor-pointer"
               onClick={() => handleOpenSettings("about")}
               title="GitManager PRO"
             />
@@ -547,11 +547,22 @@ export const App: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      setTargetCommitForTag({ oid: "HEAD" });
+                      if (selectedCommit) {
+                        setTargetCommitForTag({
+                          oid: selectedCommit.oid,
+                          summary: selectedCommit.summary,
+                        });
+                      } else {
+                        setTargetCommitForTag({ oid: "HEAD" });
+                      }
                       setCreateTagModalOpen(true);
                     }}
                     className="p-1 rounded text-[#8b949e] hover:text-emerald-400 hover:bg-[#161b22] transition-colors cursor-pointer"
-                    title="Crear nueva etiqueta sobre HEAD"
+                    title={
+                      selectedCommit
+                        ? `Crear etiqueta sobre commit ${selectedCommit.short_oid}`
+                        : "Crear nueva etiqueta sobre HEAD"
+                    }
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -761,7 +772,7 @@ export const App: React.FC = () => {
           direction="vertical"
           title="Arrastra para cambiar el ancho de la barra derecha"
           onDrag={(e) =>
-            setRightWidth(Math.min(Math.max(window.innerWidth - e.clientX, 250), 600))
+            setRightWidth(Math.min(Math.max(window.innerWidth - e.clientX, 280), 650))
           }
         />
 
@@ -817,7 +828,16 @@ export const App: React.FC = () => {
                   setActiveCenterTab("diff");
                 }
               }}
-              onCommit={commitChanges}
+              onCommit={async (message, tag, tagMessage) => {
+                const newOid = await commitChanges(message);
+                if (newOid && tag && tag.trim()) {
+                  try {
+                    await createTag(tag.trim(), newOid, tagMessage?.trim() || undefined);
+                  } catch (e) {
+                    console.error("Error al crear etiqueta para commit:", e);
+                  }
+                }
+              }}
               onGenerateAiCommit={() => generateCommit(activeRepoPath)}
               onOpenAiConfig={openAiConfigModal}
               onOpenConflictResolver={openConflictModal}
@@ -899,7 +919,7 @@ export const App: React.FC = () => {
         sourceIsRemote={mergeModal.sourceIsRemote}
         targetIsRemote={mergeModal.targetIsRemote}
         onClose={() => setMergeModal((prev) => ({ ...prev, isOpen: false }))}
-        onMerge={(source) => mergeBranch(source)}
+        onMerge={(source) => mergeBranch(source, mergeModal.targetBranch)}
         onRebase={(source) => rebaseBranch(source)}
         onPull={() => pullRemote()}
         onPush={() => pushRemote()}
@@ -912,7 +932,7 @@ export const App: React.FC = () => {
         hasUncommittedChanges={hasUncommittedChanges}
         onClose={() => setContextMenuState((prev) => ({ ...prev, isOpen: false }))}
         onCheckout={(branchName) => checkoutBranch(branchName)}
-        onMerge={(branchName) => mergeBranch(branchName)}
+        onMerge={(branchName) => mergeBranch(branchName, currentBranchName)}
         onRebase={(branchName) => rebaseBranch(branchName)}
         onRename={(oldName, newName) => renameBranch(oldName, newName)}
         onDelete={(branchName) => deleteBranch(branchName)}

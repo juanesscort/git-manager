@@ -122,10 +122,11 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
   );
 
   const mergeBranch = useCallback(
-    (sourceBranch: string) => {
+    (sourceBranch: string, targetBranch?: string) => {
       if (!sourceBranch.trim()) return;
       return runOperation(`Merge ${sourceBranch}`, "git_merge_cmd", {
         sourceBranch: sourceBranch.trim(),
+        targetBranch: targetBranch?.trim() || null,
       });
     },
     [runOperation]

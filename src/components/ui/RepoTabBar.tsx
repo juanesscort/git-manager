@@ -66,13 +66,13 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
                 <img
                   src={tab.customIcon}
                   alt=""
-                  className="w-3.5 h-3.5 shrink-0 object-contain"
+                  className="w-4 h-4 shrink-0 object-contain"
                 />
               ) : (
                 <img
                   src={logoImg}
                   alt=""
-                  className="w-3.5 h-3.5 shrink-0 object-contain drop-shadow-xs transition-opacity opacity-85 group-hover:opacity-100"
+                  className="w-4 h-4 shrink-0 object-contain drop-shadow-xs transition-opacity opacity-90 group-hover:opacity-100"
                 />
               )}
 
