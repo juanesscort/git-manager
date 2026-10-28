@@ -12,6 +12,9 @@ interface CommitGraphProps {
   showCommitBody?: boolean;
   githubAvatarUrl?: string | null;
   githubLogin?: string | null;
+  wipChangesCount?: { staged: number; unstaged: number };
+  isWipSelected?: boolean;
+  onSelectWip?: () => void;
   onSelectCommit: (commit: CommitInfo) => void;
   onCheckoutBranch?: (branchName: string) => void;
   onBranchContextMenu?: (x: number, y: number, branchName: string, isHead: boolean, isRemote: boolean) => void;
@@ -74,6 +77,9 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   showCommitBody = false,
   githubAvatarUrl,
   githubLogin,
+  wipChangesCount,
+  isWipSelected = false,
+  onSelectWip,
   onSelectCommit,
   onBranchContextMenu,
   onDropBranch,
@@ -238,6 +244,11 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
     }
   }
 
+  // WIP (Working Copy / Uncommitted Changes) node state (GitKraken / Gitnuro style)
+  const hasWipChanges = Boolean(
+    wipChangesCount && (wipChangesCount.staged > 0 || wipChangesCount.unstaged > 0)
+  );
+
   // Graph geometry
   const maxLane = Math.max(...nodes.map((n) => Math.max(n.lane, ...(n.parentLanes || []))), 0);
   const laneSpacing = 20;
@@ -246,6 +257,13 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   const rowHeight = showCommitBody ? 42 : 28;
   const cy = rowHeight / 2;
   const nodeRadius = 9; // 18px diameter avatar
+
+  const headNode =
+    nodes.find((n) => commitBranchesMap.get(n.commit.oid)?.some((b) => b.isHead)) || nodes[0];
+  const wipLane = headNode ? headNode.lane : 0;
+  const wipColor = headNode ? headNode.color : (LANE_COLORS[0] || "#38bdf8");
+  const wipCx = 12 + wipLane * laneSpacing;
+  const wipCy = rowHeight / 2;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#010409]">
@@ -311,6 +329,161 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
       {/* Commit List with GitKraken-styled Graph and Lane Backgrounds */}
       <div className="flex-1 overflow-auto relative">
         <div className="flex flex-col">
+          {/* WIP Row (GitKraken / Gitnuro style) - Rendered only when there are pending changes */}
+          {hasWipChanges && (
+            <div
+              onClick={() => onSelectWip && onSelectWip()}
+              style={{
+                height: rowHeight,
+                backgroundColor: isWipSelected
+                  ? "rgba(245, 158, 11, 0.22)"
+                  : "rgba(245, 158, 11, 0.06)",
+              }}
+              className={`flex items-center text-xs cursor-pointer border-b border-amber-500/20 transition-colors group select-none ${
+                isWipSelected
+                  ? "text-white font-medium"
+                  : "hover:bg-amber-500/[0.10] text-[#c9d1d9]"
+              }`}
+            >
+              {/* 1. BRANCH / TAG Column with seamless horizontal connector line */}
+              <div
+                style={{ width: branchColWidth }}
+                className="shrink-0 h-full flex items-center justify-end pl-2 pr-0 overflow-hidden select-none"
+              >
+                <div className="flex items-center w-full justify-end">
+                  <div className="flex items-center gap-1 shrink-0 max-w-[calc(100%-6px)] overflow-hidden">
+                    <div
+                      className="flex items-center gap-1 h-5 px-1.5 rounded text-[10px] font-mono border shrink-0 bg-amber-950/70 text-amber-300 border-amber-500/50 shadow-xs select-none"
+                      title="Cambios en curso en el espacio de trabajo (WIP / Uncommitted Changes)"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                      <span className="font-semibold">// WIP</span>
+                    </div>
+                  </div>
+
+                  {/* Horizontal connector line */}
+                  <div
+                    className="flex-1 h-[2px] min-w-[6px]"
+                    style={{ backgroundColor: wipColor, opacity: 0.85 }}
+                  />
+                </div>
+              </div>
+
+              {/* 2. GRAPH Column with Dashed WIP Node and Connector */}
+              <div
+                style={{ width: finalGraphWidth, height: rowHeight }}
+                className="shrink-0 relative overflow-visible"
+              >
+                <svg width={finalGraphWidth} height={rowHeight} className="overflow-visible">
+                  {/* Passing lanes */}
+                  {nodes[0]?.activeLanes?.map((pLane) => {
+                    if (pLane === wipLane) return null;
+                    const lx = 12 + pLane * laneSpacing;
+                    const pColor = LANE_COLORS[pLane % LANE_COLORS.length];
+                    return (
+                      <line
+                        key={`wip-pass-${pLane}`}
+                        x1={lx}
+                        y1={0}
+                        x2={lx}
+                        y2={rowHeight}
+                        stroke={pColor}
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        opacity="0.65"
+                      />
+                    );
+                  })}
+
+                  {/* Horizontal branch line from column boundary to WIP node */}
+                  <line
+                    x1={0}
+                    y1={wipCy}
+                    x2={wipCx - nodeRadius}
+                    y2={wipCy}
+                    stroke={wipColor}
+                    strokeWidth="2"
+                    opacity="0.85"
+                  />
+
+                  {/* Line down to latest commit */}
+                  <line
+                    x1={wipCx}
+                    y1={wipCy}
+                    x2={wipCx}
+                    y2={rowHeight}
+                    stroke={wipColor}
+                    strokeWidth="2.5"
+                    strokeDasharray="3,2"
+                    strokeLinecap="round"
+                  />
+
+                  {/* WIP Node: Dashed outer circle with pulsing core */}
+                  <circle
+                    cx={wipCx}
+                    cy={wipCy}
+                    r={nodeRadius}
+                    fill="#161b22"
+                    stroke={wipColor}
+                    strokeWidth="2"
+                    strokeDasharray="3,2"
+                  />
+                  <circle
+                    cx={wipCx}
+                    cy={wipCy}
+                    r={3.5}
+                    fill={wipColor}
+                    className="animate-pulse"
+                  />
+                </svg>
+              </div>
+
+              {/* 3. COMMIT MESSAGE Column with amber accent */}
+              <div
+                className="flex items-center flex-1 px-3 min-w-0 border-l-2 h-full overflow-hidden"
+                style={{ borderLeftColor: wipColor }}
+              >
+                <div className="flex flex-col justify-center min-w-0 py-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-amber-300 font-semibold text-xs truncate">
+                      // WIP: Cambios en el espacio de trabajo
+                    </span>
+                    {wipChangesCount && (
+                      <span className="px-1.5 py-0.2 bg-amber-950/60 text-amber-300 border border-amber-800/60 rounded text-[9px] shrink-0 font-sans">
+                        {wipChangesCount.staged > 0 && `${wipChangesCount.staged} preparado(s)`}
+                        {wipChangesCount.staged > 0 && wipChangesCount.unstaged > 0 && " • "}
+                        {wipChangesCount.unstaged > 0 && `${wipChangesCount.unstaged} sin preparar`}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-[#8b949e] font-sans truncate mt-0.5">
+                    Haz clic para inspeccionar diferencias o preparar cambios
+                  </p>
+                </div>
+              </div>
+
+              {/* 4. AUTHOR Column */}
+              <div className="w-32 shrink-0 px-2 truncate flex items-center justify-center gap-1.5 text-[11px] text-[#8b949e]">
+                <span className="truncate italic font-mono text-[10px] text-amber-300/80">
+                  Tú (en curso)
+                </span>
+              </div>
+
+              {/* 5. DATE Column */}
+              <div className="w-24 shrink-0 px-2 flex items-center justify-center gap-1 text-[11px] text-amber-300/80 truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                <span className="truncate font-mono text-[10px]">Ahora</span>
+              </div>
+
+              {/* 6. HASH Column */}
+              <div className="w-20 shrink-0 px-2 text-center">
+                <span className="font-mono text-[10px] bg-amber-950/40 px-1.5 py-0.5 rounded border border-dashed border-amber-500/50 text-amber-300 font-semibold select-none">
+                  WIP
+                </span>
+              </div>
+            </div>
+          )}
+
           {nodes.map((node, idx) => {
             const { commit, lane, color, parentLanes = [], activeLanes = [] } = node;
             const isSelected = selectedCommit?.oid === commit.oid;
@@ -501,8 +674,8 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                       );
                     })}
 
-                    {/* Line in from top child */}
-                    {idx > 0 && (
+                    {/* Line in from top child or WIP (GitKraken style) */}
+                    {(idx > 0 || hasWipChanges) && (
                       <line
                         x1={cx}
                         y1={0}
@@ -510,6 +683,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                         y2={cy}
                         stroke={color}
                         strokeWidth="2.5"
+                        strokeDasharray={idx === 0 && hasWipChanges ? "3,2" : undefined}
                         strokeLinecap="round"
                       />
                     )}

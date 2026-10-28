@@ -146,6 +146,7 @@ export const App: React.FC = () => {
 
   const {
     tags,
+    refreshTags,
     createTag,
     deleteTag,
   } = useTags(activeRepoPath);
@@ -195,6 +196,9 @@ export const App: React.FC = () => {
   } = useStaging(repoPath, () => {
     refreshCommits();
     refreshRepo();
+    refreshBranches();
+    refreshTags();
+    checkConflicts();
   });
 
   const {
@@ -210,6 +214,8 @@ export const App: React.FC = () => {
     refreshStatuses();
     refreshCommits();
     refreshRepo();
+    refreshBranches();
+    refreshTags();
   });
 
   useEffect(() => {
@@ -222,6 +228,16 @@ export const App: React.FC = () => {
     refreshCommits();
     checkConflicts();
     refreshBranches();
+    refreshTags();
+  };
+
+  const handleSelectWip = () => {
+    setSelectedCommit(null);
+    const first = stagedFiles[0] || unstagedFiles[0];
+    if (first) {
+      loadDiff(first.path, first.staged_status !== null && first.staged_status !== undefined);
+      setActiveCenterTab("diff");
+    }
   };
 
   // Git Operations Toolbar (Flecha 1)
@@ -688,6 +704,9 @@ export const App: React.FC = () => {
                       showCommitBody={showCommitBody}
                       githubAvatarUrl={githubUser?.avatar_url}
                       githubLogin={githubUser?.login}
+                      wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
+                      isWipSelected={selectedCommit === null}
+                      onSelectWip={handleSelectWip}
                       onSelectCommit={handleSelectCommit}
                       onBranchContextMenu={handleOpenBranchContextMenu}
                       onDropBranch={handleDropBranch}
@@ -707,6 +726,9 @@ export const App: React.FC = () => {
                       showCommitBody={showCommitBody}
                       githubAvatarUrl={githubUser?.avatar_url}
                       githubLogin={githubUser?.login}
+                      wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
+                      isWipSelected={selectedCommit === null}
+                      onSelectWip={handleSelectWip}
                       onSelectCommit={handleSelectCommit}
                       onBranchContextMenu={handleOpenBranchContextMenu}
                       onDropBranch={handleDropBranch}
@@ -752,6 +774,9 @@ export const App: React.FC = () => {
                 showCommitBody={showCommitBody}
                 githubAvatarUrl={githubUser?.avatar_url}
                 githubLogin={githubUser?.login}
+                wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
+                isWipSelected={selectedCommit === null}
+                onSelectWip={handleSelectWip}
                 onSelectCommit={handleSelectCommit}
                 onBranchContextMenu={handleOpenBranchContextMenu}
                 onDropBranch={handleDropBranch}
@@ -837,6 +862,7 @@ export const App: React.FC = () => {
                     console.error("Error al crear etiqueta para commit:", e);
                   }
                 }
+                handleRefreshAll();
               }}
               onGenerateAiCommit={() => generateCommit(activeRepoPath)}
               onOpenAiConfig={openAiConfigModal}
