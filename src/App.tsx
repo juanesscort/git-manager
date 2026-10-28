@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { GitBranch, ShieldCheck, RefreshCw, FolderGit2, GitFork, LogOut, Cloud, Sparkles, GitMerge } from "lucide-react";
+import { GitBranch, ShieldCheck, RefreshCw, FolderGit2, LogOut, Cloud, Sparkles } from "lucide-react";
 import { Badge } from "./components/ui/Badge";
 import { Button } from "./components/ui/Button";
 import { useRepo } from "./hooks/useRepo";
@@ -114,7 +114,6 @@ export const App: React.FC = () => {
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
             <h1 className="font-semibold text-white tracking-wide text-xs">Git-Manager</h1>
           </div>
-          <Badge label="Linux Nativo" variant="blue" />
           {summary?.current_branch && (
             <Badge
               label={summary.current_branch}
@@ -228,21 +227,6 @@ export const App: React.FC = () => {
               </span>
             </div>
           </nav>
-
-          <div className="mt-auto border-t border-[#30363d] pt-3 flex flex-col gap-1 text-[11px] text-[#8b949e]">
-            <div className="flex items-center gap-1.5 text-purple-400">
-              <GitMerge className="w-3.5 h-3.5" />
-              <span>3-Way Merge: Fase 5 (Activo)</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-amber-400">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>IA Commits: Fase 4</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-emerald-400">
-              <GitFork className="w-3.5 h-3.5" />
-              <span>GitHub OAuth: Fase 3</span>
-            </div>
-          </div>
         </aside>
 
         {/* Center: Interactive Commit Graph Area & Diff Viewer Drawer */}
