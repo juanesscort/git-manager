@@ -1,7 +1,22 @@
-import React, { useEffect } from "react";
-import { GitBranch, ShieldCheck, RefreshCw, FolderGit2, LogOut, Cloud, Sparkles } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  GitBranch,
+  RefreshCw,
+  FolderGit2,
+  LogOut,
+  Cloud,
+  FileText,
+  GitGraph,
+  Split,
+  Maximize2,
+  X,
+} from "lucide-react";
 import { Badge } from "./components/ui/Badge";
 import { Button } from "./components/ui/Button";
+import { Splitter } from "./components/ui/Splitter";
+import { CreateBranchModal } from "./components/ui/CreateBranchModal";
+import { GitToolbar } from "./features/git-ops/components/GitToolbar";
+import { useGitToolbar } from "./hooks/useGitToolbar";
 import { useRepo } from "./hooks/useRepo";
 import { useStaging } from "./features/staging-area/hooks/useStaging";
 import { useCommitGraph } from "./features/commit-graph/hooks/useCommitGraph";
@@ -18,10 +33,21 @@ import { GitHubAuthModal } from "./features/github-sync/components/GitHubAuthMod
 import { RemoteReposModal } from "./features/github-sync/components/RemoteReposModal";
 import { AiConfigModal } from "./features/ai-assistant/components/AiConfigModal";
 import { ConflictResolverModal } from "./features/conflict-resolver/components/ConflictResolverModal";
+import { CommitInfo } from "./types/git";
 import "./App.css";
 
 export const App: React.FC = () => {
   const { repoPath, summary, refreshRepo } = useRepo(".");
+
+  // Resizable panel dimensions (Flechas 2, 3, 4)
+  const [leftWidth, setLeftWidth] = useState<number>(230);
+  const [rightWidth, setRightWidth] = useState<number>(340);
+  const [diffHeight, setDiffHeight] = useState<number>(320);
+
+  // Center Area display mode (Flecha 6)
+  const [centerViewMode, setCenterViewMode] = useState<"full" | "split">("full");
+  const [activeCenterTab, setActiveCenterTab] = useState<"graph" | "diff">("graph");
+  const [branchModalOpen, setBranchModalOpen] = useState<boolean>(false);
 
   const {
     user: githubUser,
@@ -118,12 +144,58 @@ export const App: React.FC = () => {
     refreshBranches();
   };
 
+  // Git Operations Toolbar (Flecha 1)
+  const {
+    operating: toolbarOperating,
+    activeOp: toolbarActiveOp,
+    message: toolbarMessage,
+    error: toolbarError,
+    fetchRemote,
+    pullRemote,
+    pushRemote,
+    stashChanges,
+    popStash,
+    createNewBranch,
+    clearNotification: clearToolbarNotification,
+  } = useGitToolbar(repoPath, handleRefreshAll);
+
   const currentBranchName = summary?.current_branch || "main";
+
+  // Flecha 5: Toggle commit selection on click
+  const handleSelectCommit = (commit: CommitInfo) => {
+    if (selectedCommit?.oid === commit.oid) {
+      setSelectedCommit(null);
+      selectCommitFile("");
+      setActiveCenterTab("graph");
+    } else {
+      setSelectedCommit(commit);
+      clearSelectedFile();
+    }
+  };
+
+  // Flecha 6: Central Diff Viewer resolution
+  const isCommitDiffActive = selectedCommit !== null && !!commitSelectedFile;
+  const isStagingDiffActive = selectedCommit === null && !!selectedFile;
+  const hasActiveDiff = isCommitDiffActive || isStagingDiffActive;
+
+  const activeDiffPath = isCommitDiffActive ? commitSelectedFile : selectedFile?.path || null;
+  const activeDiff = isCommitDiffActive ? commitFileDiff : diff;
+  const activeDiffLoading = isCommitDiffActive ? commitDiffLoading : diffLoading;
+
+  const handleCloseDiff = () => {
+    if (isCommitDiffActive) {
+      selectCommitFile("");
+    }
+    if (isStagingDiffActive) {
+      clearSelectedFile();
+    }
+    setActiveCenterTab("graph");
+  };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0d1117] text-[#c9d1d9] select-none overflow-hidden">
-      {/* Top Navigation Bar */}
-      <header className="h-12 border-b border-[#30363d] bg-[#161b22] px-3 flex items-center justify-between shrink-0">
+      {/* Top Navigation Bar & GitKraken Action Toolbar */}
+      <header className="h-12 border-b border-[#30363d] bg-[#161b22] px-3 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
@@ -138,8 +210,23 @@ export const App: React.FC = () => {
           )}
         </div>
 
+        {/* Flecha 1: Action Toolbar (Fetch, Pull, Push, Branch, Stash) */}
+        <GitToolbar
+          operating={toolbarOperating}
+          activeOp={toolbarActiveOp}
+          message={toolbarMessage}
+          error={toolbarError}
+          onFetch={fetchRemote}
+          onPull={pullRemote}
+          onPush={pushRemote}
+          onOpenCreateBranch={() => setBranchModalOpen(true)}
+          onStash={stashChanges}
+          onPopStash={popStash}
+          onClearNotification={clearToolbarNotification}
+        />
+
+        {/* Right Section: GitHub User & Single Unified Refresh (Flecha 8, Badges removed Flecha 7) */}
         <div className="flex items-center gap-2">
-          {/* GitHub Integration Status */}
           {githubUser ? (
             <div className="flex items-center gap-2 bg-[#0d1117] border border-[#30363d] rounded-full py-0.5 px-2.5 text-xs">
               <img
@@ -182,28 +269,12 @@ export const App: React.FC = () => {
             </Button>
           )}
 
-          {/* AI Config Pill */}
-          <button
-            onClick={openAiConfigModal}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border border-amber-500/30 bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 transition-colors"
-            title="Configurar IA"
-          >
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            <span className="capitalize">{aiConfig?.provider || "Gemini"}</span>
-          </button>
-
-          <Badge
-            label="Motor libgit2"
-            variant="green"
-            icon={<ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
-          />
-
           <Button
             size="sm"
             variant="secondary"
             icon={<RefreshCw className={`w-3.5 h-3.5 ${stagingLoading || commitsLoading ? "animate-spin" : ""}`} />}
             onClick={handleRefreshAll}
-            title="Sincronizar todo"
+            title="Sincronizar todo el repositorio"
             className="h-7 text-xs"
           >
             Sincronizar
@@ -211,10 +282,13 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main 3-Column Studio Layout */}
+      {/* Main Studio Layout with Resizable Columns (Flechas 2 y 3) */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar: Navigation & Repositories */}
-        <aside className="w-56 border-r border-[#30363d] bg-[#0d1117] flex flex-col p-3 gap-4 shrink-0">
+        <aside
+          style={{ width: leftWidth }}
+          className="bg-[#0d1117] flex flex-col p-3 gap-4 shrink-0 overflow-hidden select-none"
+        >
           <div>
             <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider">
               Repositorio Local
@@ -293,61 +367,238 @@ export const App: React.FC = () => {
           </nav>
         </aside>
 
-        {/* Center: Interactive Commit Graph Area & Diff Viewer Drawer */}
-        <main className="flex-1 flex flex-col bg-[#010409] overflow-hidden">
-          {/* Commit Graph */}
-          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <CommitGraph
-              nodes={graphNodes}
-              selectedCommit={selectedCommit}
-              loading={commitsLoading}
-              onSelectCommit={setSelectedCommit}
-            />
-          </div>
+        {/* Flecha 2: Resizable Left Splitter */}
+        <Splitter
+          direction="vertical"
+          title="Arrastra para cambiar el ancho de la barra izquierda"
+          onDrag={(e) => setLeftWidth(Math.min(Math.max(e.clientX, 170), 450))}
+        />
 
-          {/* Bottom Commit Details Drawer or Working Diff Viewer */}
+        {/* Center Canvas: Commit Graph & Central Diff Viewer (Flecha 6 & Flecha 4) */}
+        <main className="flex-1 flex flex-col bg-[#010409] overflow-hidden min-w-0">
+          {hasActiveDiff ? (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Center Tab Header */}
+              <div className="h-9 px-3 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0 select-none">
+                <div className="flex items-center gap-1">
+                  {/* Tab 1: Commit Graph */}
+                  <button
+                    onClick={() => setActiveCenterTab("graph")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      activeCenterTab === "graph"
+                        ? "bg-[#21262d] text-white border border-[#30363d]"
+                        : "text-[#8b949e] hover:text-white"
+                    }`}
+                  >
+                    <GitGraph className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Grafo de Commits</span>
+                  </button>
+
+                  {/* Tab 2: Diff File Tab */}
+                  <div
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                      activeCenterTab === "diff"
+                        ? "bg-[#1f6feb]/20 border-blue-500/50 text-white"
+                        : "bg-[#21262d] border-[#30363d] text-[#8b949e] hover:text-white"
+                    }`}
+                  >
+                    <button
+                      onClick={() => setActiveCenterTab("diff")}
+                      className="flex items-center gap-1.5"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="font-mono truncate max-w-xs">{activeDiffPath}</span>
+                    </button>
+                    <button
+                      onClick={handleCloseDiff}
+                      className="ml-1 p-0.5 hover:text-rose-400 rounded text-[#8b949e] transition-colors"
+                      title="Cerrar diff y volver al grafo"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* View Mode Controls (Split vs Fullscreen) */}
+                <div className="flex items-center gap-1">
+                  {centerViewMode === "full" ? (
+                    <button
+                      onClick={() => setCenterViewMode("split")}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
+                      title="Dividir pantalla: Ver Grafo y Diff simultáneamente"
+                    >
+                      <Split className="w-3 h-3" />
+                      <span>Dividir</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setCenterViewMode("full")}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
+                      title="Pantalla Completa para el Diff"
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                      <span>Maximizar</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleCloseDiff}
+                    className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#21262d] transition-colors ml-1"
+                    title="Cerrar diff"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Content depending on Full vs Split */}
+              {centerViewMode === "full" ? (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {activeCenterTab === "diff" ? (
+                    <DiffViewer
+                      diff={activeDiff}
+                      loading={activeDiffLoading}
+                      onClose={handleCloseDiff}
+                    />
+                  ) : (
+                    <CommitGraph
+                      nodes={graphNodes}
+                      selectedCommit={selectedCommit}
+                      loading={commitsLoading}
+                      onSelectCommit={handleSelectCommit}
+                    />
+                  )}
+                </div>
+              ) : (
+                /* Split View: Commit Graph on top, Draggable Splitter, DiffViewer on bottom (Flecha 4) */
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="flex-1 flex flex-col overflow-hidden min-h-[120px]">
+                    <CommitGraph
+                      nodes={graphNodes}
+                      selectedCommit={selectedCommit}
+                      loading={commitsLoading}
+                      onSelectCommit={handleSelectCommit}
+                    />
+                  </div>
+
+                  {/* Flecha 4: Horizontal Resizable Splitter */}
+                  <Splitter
+                    direction="horizontal"
+                    title="Arrastra para cambiar la altura del visor de diferencias"
+                    onDrag={(e) =>
+                      setDiffHeight(
+                        Math.min(
+                          Math.max(window.innerHeight - e.clientY, 140),
+                          window.innerHeight - 200
+                        )
+                      )
+                    }
+                  />
+
+                  <div
+                    style={{ height: diffHeight }}
+                    className="shrink-0 flex flex-col overflow-hidden bg-[#0d1117]"
+                  >
+                    <DiffViewer
+                      diff={activeDiff}
+                      loading={activeDiffLoading}
+                      onClose={handleCloseDiff}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Default: Full Commit Graph Canvas */
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <CommitGraph
+                nodes={graphNodes}
+                selectedCommit={selectedCommit}
+                loading={commitsLoading}
+                onSelectCommit={handleSelectCommit}
+              />
+            </div>
+          )}
+        </main>
+
+        {/* Flecha 3: Resizable Right Splitter */}
+        <Splitter
+          direction="vertical"
+          title="Arrastra para cambiar el ancho de la barra derecha"
+          onDrag={(e) =>
+            setRightWidth(Math.min(Math.max(window.innerWidth - e.clientX, 250), 600))
+          }
+        />
+
+        {/* Right Sidebar: Dynamic Mode (Flecha 5: CommitDetailsPanel OR StagingArea WIP) */}
+        <div
+          style={{ width: rightWidth }}
+          className="h-full shrink-0 flex flex-col bg-[#0d1117] overflow-hidden select-none"
+        >
           {selectedCommit ? (
             <CommitDetailsPanel
               commit={selectedCommit}
               files={commitFiles}
               loading={commitFilesLoading}
               selectedFilePath={commitSelectedFile}
-              fileDiff={commitFileDiff}
-              diffLoading={commitDiffLoading}
-              onSelectFile={selectCommitFile}
-              onClose={() => setSelectedCommit(null)}
+              onSelectFile={(path) => {
+                if (commitSelectedFile === path) {
+                  selectCommitFile("");
+                  setActiveCenterTab("graph");
+                } else {
+                  selectCommitFile(path);
+                  setActiveCenterTab("diff");
+                }
+              }}
+              onClose={() => {
+                setSelectedCommit(null);
+                selectCommitFile("");
+                setActiveCenterTab("graph");
+              }}
             />
-          ) : selectedFile ? (
-            <div className="h-64 flex flex-col shrink-0 border-t border-[#30363d] shadow-2xl">
-              <DiffViewer diff={diff} loading={diffLoading} onClose={clearSelectedFile} />
-            </div>
-          ) : null}
-        </main>
-
-        {/* Right Sidebar: Staging Area */}
-        <StagingArea
-          stagedFiles={stagedFiles}
-          unstagedFiles={unstagedFiles}
-          conflictedFiles={conflictedFiles}
-          selectedFile={selectedFile}
-          currentBranch={currentBranchName}
-          loading={stagingLoading}
-          aiGenerating={aiGenerating}
-          onRefresh={() => {
-            refreshStatuses();
-            checkConflicts();
-          }}
-          onStageFile={stageFile}
-          onUnstageFile={unstageFile}
-          onStageAll={stageAll}
-          onUnstageAll={unstageAll}
-          onSelectFile={(path, staged) => loadDiff(path, staged)}
-          onCommit={commitChanges}
-          onGenerateAiCommit={() => generateCommit(repoPath)}
-          onOpenAiConfig={openAiConfigModal}
-          onOpenConflictResolver={openConflictModal}
-        />
+          ) : (
+            <StagingArea
+              stagedFiles={stagedFiles}
+              unstagedFiles={unstagedFiles}
+              conflictedFiles={conflictedFiles}
+              selectedFile={selectedFile}
+              currentBranch={currentBranchName}
+              loading={stagingLoading}
+              aiGenerating={aiGenerating}
+              onRefresh={() => {
+                refreshStatuses();
+                checkConflicts();
+              }}
+              onStageFile={stageFile}
+              onUnstageFile={unstageFile}
+              onStageAll={stageAll}
+              onUnstageAll={unstageAll}
+              onSelectFile={(path, staged) => {
+                if (!path) {
+                  clearSelectedFile();
+                  setActiveCenterTab("graph");
+                } else {
+                  loadDiff(path, staged);
+                  setActiveCenterTab("diff");
+                }
+              }}
+              onCommit={commitChanges}
+              onGenerateAiCommit={() => generateCommit(repoPath)}
+              onOpenAiConfig={openAiConfigModal}
+              onOpenConflictResolver={openConflictModal}
+            />
+          )}
+        </div>
       </div>
+
+      {/* New Branch Modal */}
+      <CreateBranchModal
+        isOpen={branchModalOpen}
+        onClose={() => setBranchModalOpen(false)}
+        onCreate={(branchName) => {
+          createNewBranch(branchName);
+        }}
+      />
 
       {/* GitHub Authentication Modal */}
       <GitHubAuthModal

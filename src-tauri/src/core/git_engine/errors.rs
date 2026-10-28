@@ -20,6 +20,9 @@ pub enum GitEngineError {
     #[error("Ruta de archivo inválida: {0}")]
     InvalidPath(String),
 
+    #[error("Repositorio sin árbol de trabajo (bare repository)")]
+    BareRepository,
+
     #[error("Mensaje de commit vacío")]
     EmptyCommitMessage,
 

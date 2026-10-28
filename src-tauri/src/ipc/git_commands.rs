@@ -3,6 +3,7 @@ use crate::core::git_engine::{
     diff::{get_commit_changed_files, get_commit_file_diff, get_file_diff},
     get_branches,
     history::get_commit_history,
+    remote_ops::{create_branch, git_fetch, git_pull, git_push, git_stash, git_stash_pop},
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
     status::get_repo_statuses,
@@ -95,4 +96,40 @@ pub async fn get_commit_file_diff_cmd(
 ) -> Result<DiffDelta, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
     get_commit_file_diff(&repo, &commit_oid, &relative_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn git_fetch_cmd(path: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_fetch(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn git_pull_cmd(path: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_pull(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn git_push_cmd(path: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_push(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn git_stash_cmd(path: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_stash(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn git_stash_pop_cmd(path: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_stash_pop(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_branch_cmd(path: String, branch_name: String) -> Result<(), String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    create_branch(&repo, &branch_name).map_err(|e| e.to_string())
 }

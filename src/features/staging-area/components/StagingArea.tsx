@@ -13,7 +13,7 @@ interface StagingAreaProps {
   currentBranch?: string | null;
   loading: boolean;
   aiGenerating?: boolean;
-  onRefresh: () => void;
+  onRefresh?: () => void;
   onStageFile: (path: string) => void;
   onUnstageFile: (path: string) => void;
   onStageAll: () => void;
@@ -33,7 +33,6 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   currentBranch,
   loading,
   aiGenerating,
-  onRefresh,
   onStageFile,
   onUnstageFile,
   onStageAll,
@@ -52,6 +51,14 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
     setCommitMessage("");
   };
 
+  const handleToggleFile = (path: string, staged: boolean) => {
+    if (selectedFile?.path === path && selectedFile.staged === staged) {
+      onSelectFile("", false);
+    } else {
+      onSelectFile(path, staged);
+    }
+  };
+
   const handleAiGenerate = async () => {
     if (onGenerateAiCommit) {
       const generated = await onGenerateAiCommit();
@@ -62,20 +69,17 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   };
 
   return (
-    <aside className="w-80 border-l border-[#30363d] bg-[#0d1117] flex flex-col h-full overflow-hidden select-none">
+    <aside className="w-full h-full bg-[#0d1117] flex flex-col overflow-hidden select-none">
       {/* Header */}
       <div className="h-10 border-b border-[#30363d] px-3 flex items-center justify-between text-xs bg-[#161b22] shrink-0">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-blue-400" />
-          <span className="font-semibold text-white">Área de Cambios</span>
+          <span className="font-semibold text-white">Área de Cambios (WIP)</span>
+          {loading && <RefreshCw className="w-3 h-3 text-blue-400 animate-spin" />}
         </div>
-        <button
-          onClick={onRefresh}
-          className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors"
-          title="Refrescar estado"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-        </button>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/30 font-medium">
+          {stagedFiles.length + unstagedFiles.length} cambios
+        </span>
       </div>
 
       {/* Main Files Split View */}
@@ -141,7 +145,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   isStaged={true}
                   isSelected={selectedFile?.path === file.path && selectedFile.staged}
                   isConflicted={conflictedFiles.includes(file.path) || file.is_conflicted}
-                  onSelect={() => onSelectFile(file.path, true)}
+                  onSelect={() => handleToggleFile(file.path, true)}
                   onAction={() => onUnstageFile(file.path)}
                   onResolveConflict={
                     onOpenConflictResolver ? () => onOpenConflictResolver(file.path) : undefined
@@ -189,7 +193,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   isStaged={false}
                   isSelected={selectedFile?.path === file.path && !selectedFile.staged}
                   isConflicted={conflictedFiles.includes(file.path) || file.is_conflicted}
-                  onSelect={() => onSelectFile(file.path, false)}
+                  onSelect={() => handleToggleFile(file.path, false)}
                   onAction={() => onStageFile(file.path)}
                   onResolveConflict={
                     onOpenConflictResolver ? () => onOpenConflictResolver(file.path) : undefined

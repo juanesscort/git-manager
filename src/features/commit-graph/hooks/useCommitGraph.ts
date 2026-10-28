@@ -73,15 +73,12 @@ export function useCommitGraph(repoPath: string) {
       }
 
       setGraphNodes(nodes);
-      if (result.length > 0 && !selectedCommit) {
-        setSelectedCommit(result[0]);
-      }
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
     } finally {
       setLoading(false);
     }
-  }, [repoPath, selectedCommit]);
+  }, [repoPath]);
 
   useEffect(() => {
     fetchCommits();

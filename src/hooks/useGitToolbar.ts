@@ -1,0 +1,100 @@
+import { useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+
+export interface GitToolbarState {
+  operating: boolean;
+  activeOp: string | null;
+  message: string | null;
+  error: string | null;
+}
+
+export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void) {
+  const [state, setState] = useState<GitToolbarState>({
+    operating: false,
+    activeOp: null,
+    message: null,
+    error: null,
+  });
+
+  const clearNotification = useCallback(() => {
+    setState((prev) => ({ ...prev, message: null, error: null }));
+  }, []);
+
+  const runOperation = useCallback(
+    async (opName: string, invokeName: string, args: Record<string, unknown> = {}) => {
+      setState({
+        operating: true,
+        activeOp: opName,
+        message: null,
+        error: null,
+      });
+
+      try {
+        const result = await invoke<string | void>(invokeName, {
+          path: repoPath,
+          ...args,
+        });
+
+        const successMsg =
+          typeof result === "string" && result.trim()
+            ? result.trim()
+            : `Operación ${opName} completada con éxito.`;
+
+        setState({
+          operating: false,
+          activeOp: null,
+          message: successMsg,
+          error: null,
+        });
+
+        if (onOperationSuccess) {
+          onOperationSuccess();
+        }
+
+        setTimeout(() => {
+          setState((prev) => (prev.activeOp === null ? { ...prev, message: null } : prev));
+        }, 5000);
+      } catch (err: unknown) {
+        const errorMsg =
+          typeof err === "string"
+            ? err
+            : err instanceof Error
+            ? err.message
+            : JSON.stringify(err);
+
+        setState({
+          operating: false,
+          activeOp: null,
+          message: null,
+          error: errorMsg,
+        });
+      }
+    },
+    [repoPath, onOperationSuccess]
+  );
+
+  const fetchRemote = useCallback(() => runOperation("Fetch", "git_fetch_cmd"), [runOperation]);
+  const pullRemote = useCallback(() => runOperation("Pull", "git_pull_cmd"), [runOperation]);
+  const pushRemote = useCallback(() => runOperation("Push", "git_push_cmd"), [runOperation]);
+  const stashChanges = useCallback(() => runOperation("Stash", "git_stash_cmd"), [runOperation]);
+  const popStash = useCallback(() => runOperation("Pop Stash", "git_stash_pop_cmd"), [runOperation]);
+
+  const createNewBranch = useCallback(
+    (branchName: string) => {
+      if (!branchName.trim()) return;
+      return runOperation("Nueva Rama", "create_branch_cmd", { branchName: branchName.trim() });
+    },
+    [runOperation]
+  );
+
+  return {
+    ...state,
+    fetchRemote,
+    pullRemote,
+    pushRemote,
+    stashChanges,
+    popStash,
+    createNewBranch,
+    clearNotification,
+  };
+}
