@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Folder, FolderOpen, GitBranch, Cloud, ChevronRight, ChevronDown, Check, ArrowRightLeft } from "lucide-react";
+import { Folder, FolderOpen, GitBranch, Cloud, ChevronRight, ChevronDown, Check } from "lucide-react";
 import { BranchInfo } from "../../../types/git";
 
 interface BranchTreeViewProps {
@@ -7,7 +7,7 @@ interface BranchTreeViewProps {
   currentBranch?: string | null;
   isRemote?: boolean;
   onSelectBranch?: (branchName: string) => void;
-  onCheckoutBranch?: (branchName: string) => void;
+  onContextMenu?: (x: number, y: number, branchName: string, isHead: boolean, isRemote: boolean) => void;
   onDropBranch?: (sourceBranch: string, targetBranch: string, isRemote: boolean) => void;
 }
 
@@ -24,7 +24,7 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
   currentBranch,
   isRemote = false,
   onSelectBranch,
-  onCheckoutBranch,
+  onContextMenu,
   onDropBranch,
 }) => {
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
@@ -150,7 +150,13 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
           }
         }}
         onClick={() => onSelectBranch && onSelectBranch(node.fullPath)}
-        onDoubleClick={() => !isRemote && onCheckoutBranch && onCheckoutBranch(node.fullPath)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (onContextMenu) {
+            onContextMenu(e.clientX, e.clientY, node.fullPath, isHead, isRemote);
+          }
+        }}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         className={`flex items-center gap-2 py-1 px-2 rounded text-xs transition-all cursor-pointer group select-none relative ${
           isDragTarget
@@ -159,7 +165,7 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
             ? "bg-[#1f6feb]/20 text-white font-medium border border-blue-600/30 shadow-sm"
             : "text-[#c9d1d9] hover:bg-[#161b22] border border-transparent"
         }`}
-        title={`${isRemote ? "Rama remota" : "Rama local"}: ${node.fullPath} (Doble clic para checkout, arrastra para merge/pull)`}
+        title={`${isRemote ? "Rama remota" : "Rama local"}: ${node.fullPath} (Clic derecho para menú de opciones, arrastra para merge/pull)`}
       >
         {isRemote ? (
           <Cloud className="w-3.5 h-3.5 text-purple-400 shrink-0" />
@@ -173,25 +179,10 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
 
         <span className="truncate font-mono text-[11px] flex-1">{node.name}</span>
 
-        {isHead ? (
+        {isHead && (
           <span className="ml-auto text-[9px] bg-blue-500/20 px-1 py-0.2 rounded text-blue-300 font-mono shrink-0 flex items-center gap-0.5">
             <Check className="w-2.5 h-2.5 text-blue-400" /> HEAD
           </span>
-        ) : (
-          !isRemote &&
-          onCheckoutBranch && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onCheckoutBranch(node.fullPath);
-              }}
-              className="ml-auto hidden group-hover:flex items-center gap-1 text-[10px] text-blue-400 hover:text-white bg-blue-900/40 hover:bg-blue-600/60 px-1.5 py-0.5 rounded border border-blue-500/30 transition-colors shrink-0"
-              title={`Cambiar a rama ${node.fullPath}`}
-            >
-              <ArrowRightLeft className="w-2.5 h-2.5" />
-              <span>Checkout</span>
-            </button>
-          )
         )}
       </div>
     );

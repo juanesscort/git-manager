@@ -16,6 +16,7 @@ import { Button } from "./components/ui/Button";
 import { Splitter } from "./components/ui/Splitter";
 import { CreateBranchModal } from "./components/ui/CreateBranchModal";
 import { BranchMergeModal } from "./components/ui/BranchMergeModal";
+import { BranchContextMenu, BranchContextMenuState } from "./components/ui/BranchContextMenu";
 import { GitToolbar } from "./features/git-ops/components/GitToolbar";
 import { useGitToolbar } from "./hooks/useGitToolbar";
 import { useRepo } from "./hooks/useRepo";
@@ -159,6 +160,8 @@ export const App: React.FC = () => {
     popStash,
     createNewBranch,
     checkoutBranch,
+    deleteBranch,
+    renameBranch,
     mergeBranch,
     rebaseBranch,
     clearNotification: clearToolbarNotification,
@@ -185,6 +188,35 @@ export const App: React.FC = () => {
       isRemote,
     });
   };
+
+  // Branch right-click context menu state
+  const [contextMenuState, setContextMenuState] = useState<BranchContextMenuState>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    branchName: "",
+    isHead: false,
+    isRemote: false,
+  });
+
+  const handleOpenBranchContextMenu = (
+    x: number,
+    y: number,
+    branchName: string,
+    isHead: boolean,
+    isRemote: boolean
+  ) => {
+    setContextMenuState({
+      isOpen: true,
+      x,
+      y,
+      branchName,
+      isHead,
+      isRemote,
+    });
+  };
+
+  const hasUncommittedChanges = stagedFiles.length > 0 || unstagedFiles.length > 0;
 
   const currentBranchName = summary?.current_branch || "main";
 
@@ -340,7 +372,7 @@ export const App: React.FC = () => {
               <BranchTreeView
                 branches={branches.local}
                 currentBranch={currentBranchName}
-                onCheckoutBranch={checkoutBranch}
+                onContextMenu={handleOpenBranchContextMenu}
                 onDropBranch={handleDropBranch}
               />
             </div>
@@ -353,6 +385,7 @@ export const App: React.FC = () => {
               <BranchTreeView
                 branches={branches.remote}
                 isRemote={true}
+                onContextMenu={handleOpenBranchContextMenu}
                 onDropBranch={handleDropBranch}
               />
             </div>
@@ -460,7 +493,7 @@ export const App: React.FC = () => {
                       branches={branches}
                       githubAvatarUrl={githubUser?.avatar_url}
                       onSelectCommit={handleSelectCommit}
-                      onCheckoutBranch={checkoutBranch}
+                      onBranchContextMenu={handleOpenBranchContextMenu}
                       onDropBranch={handleDropBranch}
                     />
                   )}
@@ -476,7 +509,7 @@ export const App: React.FC = () => {
                       branches={branches}
                       githubAvatarUrl={githubUser?.avatar_url}
                       onSelectCommit={handleSelectCommit}
-                      onCheckoutBranch={checkoutBranch}
+                      onBranchContextMenu={handleOpenBranchContextMenu}
                       onDropBranch={handleDropBranch}
                     />
                   </div>
@@ -518,7 +551,7 @@ export const App: React.FC = () => {
                 branches={branches}
                 githubAvatarUrl={githubUser?.avatar_url}
                 onSelectCommit={handleSelectCommit}
-                onCheckoutBranch={checkoutBranch}
+                onBranchContextMenu={handleOpenBranchContextMenu}
                 onDropBranch={handleDropBranch}
               />
             </div>
@@ -598,9 +631,11 @@ export const App: React.FC = () => {
       {/* New Branch Modal */}
       <CreateBranchModal
         isOpen={branchModalOpen}
+        branches={branches}
+        currentBranch={currentBranchName}
         onClose={() => setBranchModalOpen(false)}
-        onCreate={(branchName) => {
-          createNewBranch(branchName);
+        onCreate={(branchName, baseBranch) => {
+          createNewBranch(branchName, baseBranch);
         }}
       />
 
@@ -653,6 +688,19 @@ export const App: React.FC = () => {
         onMerge={(source) => mergeBranch(source)}
         onRebase={(source) => rebaseBranch(source)}
         onPull={() => pullRemote()}
+      />
+
+      {/* Branch Right-Click Context Menu */}
+      <BranchContextMenu
+        state={contextMenuState}
+        currentBranch={currentBranchName}
+        hasUncommittedChanges={hasUncommittedChanges}
+        onClose={() => setContextMenuState((prev) => ({ ...prev, isOpen: false }))}
+        onCheckout={(branchName) => checkoutBranch(branchName)}
+        onMerge={(branchName) => mergeBranch(branchName)}
+        onRebase={(branchName) => rebaseBranch(branchName)}
+        onRename={(oldName, newName) => renameBranch(oldName, newName)}
+        onDelete={(branchName) => deleteBranch(branchName)}
       />
     </div>
   );

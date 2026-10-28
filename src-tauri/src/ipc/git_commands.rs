@@ -4,8 +4,8 @@ use crate::core::git_engine::{
     get_branches,
     history::get_commit_history,
     remote_ops::{
-        checkout_branch, create_branch, git_fetch, git_merge, git_pull, git_push, git_rebase,
-        git_stash, git_stash_pop,
+        checkout_branch, create_branch, delete_branch, git_fetch, git_merge, git_pull, git_push,
+        git_rebase, git_stash, git_stash_pop, rename_branch,
     },
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
@@ -132,9 +132,29 @@ pub async fn git_stash_pop_cmd(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn create_branch_cmd(path: String, branch_name: String) -> Result<(), String> {
+pub async fn create_branch_cmd(
+    path: String,
+    branch_name: String,
+    base_branch: Option<String>,
+) -> Result<(), String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
-    create_branch(&repo, &branch_name).map_err(|e| e.to_string())
+    create_branch(&repo, &branch_name, base_branch.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_branch_cmd(path: String, branch_name: String) -> Result<(), String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    delete_branch(&repo, &branch_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn rename_branch_cmd(
+    path: String,
+    old_name: String,
+    new_name: String,
+) -> Result<(), String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    rename_branch(&repo, &old_name, &new_name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

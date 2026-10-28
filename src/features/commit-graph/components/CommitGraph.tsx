@@ -11,6 +11,7 @@ interface CommitGraphProps {
   githubAvatarUrl?: string | null;
   onSelectCommit: (commit: CommitInfo) => void;
   onCheckoutBranch?: (branchName: string) => void;
+  onBranchContextMenu?: (x: number, y: number, branchName: string, isHead: boolean, isRemote: boolean) => void;
   onDropBranch?: (sourceBranch: string, targetBranch: string, isRemote: boolean) => void;
 }
 
@@ -21,7 +22,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   branches,
   githubAvatarUrl,
   onSelectCommit,
-  onCheckoutBranch,
+  onBranchContextMenu,
   onDropBranch,
 }) => {
   const [dragOverBadge, setDragOverBadge] = useState<string | null>(null);
@@ -157,9 +158,12 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                                 onDropBranch(source, bName, sourceIsRemote);
                               }
                             }}
-                            onDoubleClick={(e) => {
+                            onContextMenu={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
-                              if (onCheckoutBranch) onCheckoutBranch(bName);
+                              if (onBranchContextMenu) {
+                                onBranchContextMenu(e.clientX, e.clientY, bName, isHead, false);
+                              }
                             }}
                             className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border shrink-0 transition-all select-none ${
                               isBadgeDragTarget
@@ -168,7 +172,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                                 ? "bg-blue-950/60 text-blue-300 border-blue-500/60 shadow-sm"
                                 : "bg-emerald-950/50 text-emerald-300 border-emerald-600/50"
                             }`}
-                            title={`Rama local: ${bName}${isHead ? " (HEAD)" : ""} (Doble clic para checkout, arrastra para merge)`}
+                            title={`Rama local: ${bName}${isHead ? " (HEAD)" : ""} (Clic derecho para opciones, arrastra para merge)`}
                           >
                             {isHead ? (
                               <Check className="w-2.5 h-2.5 text-blue-400 shrink-0" />
@@ -191,8 +195,15 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                             e.dataTransfer.setData("application/is-remote", "true");
                             e.dataTransfer.effectAllowed = "move";
                           }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (onBranchContextMenu) {
+                              onBranchContextMenu(e.clientX, e.clientY, rName, false, true);
+                            }
+                          }}
                           className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-950/60 text-purple-300 border border-purple-500/60 shrink-0 shadow-sm select-none hover:border-purple-400 transition-colors"
-                          title={`Rama remota en GitHub: ${rName} (Arrastra a una rama local para hacer pull)`}
+                          title={`Rama remota en GitHub: ${rName} (Clic derecho para opciones, arrastra para pull)`}
                         >
                           {githubAvatarUrl ? (
                             <img

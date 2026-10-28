@@ -80,9 +80,12 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
   const popStash = useCallback(() => runOperation("Pop Stash", "git_stash_pop_cmd"), [runOperation]);
 
   const createNewBranch = useCallback(
-    (branchName: string) => {
+    (branchName: string, baseBranch?: string) => {
       if (!branchName.trim()) return;
-      return runOperation("Nueva Rama", "create_branch_cmd", { branchName: branchName.trim() });
+      return runOperation("Nueva Rama", "create_branch_cmd", {
+        branchName: branchName.trim(),
+        baseBranch: baseBranch?.trim() || null,
+      });
     },
     [runOperation]
   );
@@ -92,6 +95,27 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
       if (!branchName.trim()) return;
       return runOperation(`Checkout ${branchName}`, "checkout_branch_cmd", {
         branchName: branchName.trim(),
+      });
+    },
+    [runOperation]
+  );
+
+  const deleteBranch = useCallback(
+    (branchName: string) => {
+      if (!branchName.trim()) return;
+      return runOperation(`Eliminar ${branchName}`, "delete_branch_cmd", {
+        branchName: branchName.trim(),
+      });
+    },
+    [runOperation]
+  );
+
+  const renameBranch = useCallback(
+    (oldName: string, newName: string) => {
+      if (!oldName.trim() || !newName.trim()) return;
+      return runOperation(`Renombrar ${oldName}`, "rename_branch_cmd", {
+        oldName: oldName.trim(),
+        newName: newName.trim(),
       });
     },
     [runOperation]
@@ -126,6 +150,8 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
     popStash,
     createNewBranch,
     checkoutBranch,
+    deleteBranch,
+    renameBranch,
     mergeBranch,
     rebaseBranch,
     clearNotification,
