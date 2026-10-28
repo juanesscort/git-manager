@@ -446,7 +446,7 @@ export const App: React.FC = () => {
           <Button
             size="sm"
             variant="secondary"
-            icon={<RefreshCw className={`w-3.5 h-3.5 ${stagingLoading || commitsLoading ? "animate-spin" : ""}`} />}
+            icon={<RefreshCw className={`w-3.5 h-3.5 ${stagingLoading || commitsLoading ? "animate-pulse text-blue-400" : ""}`} />}
             onClick={handleRefreshAll}
             title="Sincronizar todo el repositorio"
             className="h-8 text-xs font-medium"

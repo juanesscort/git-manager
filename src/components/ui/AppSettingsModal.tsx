@@ -522,7 +522,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                     icon={
                       <RefreshCw
                         className={`w-3.5 h-3.5 ${
-                          updateStatus === "checking" ? "animate-spin text-blue-400" : ""
+                          updateStatus === "checking" ? "animate-pulse text-blue-400" : ""
                         }`}
                       />
                     }

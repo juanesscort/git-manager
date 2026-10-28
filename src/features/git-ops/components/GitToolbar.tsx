@@ -72,7 +72,7 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
       >
         <ArrowDownCircle
           className={`w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform ${
-            operating && activeOp === "Pull" ? "animate-spin" : ""
+            operating && activeOp === "Pull" ? "animate-pulse" : ""
           }`}
         />
         <span className="text-[10px] font-medium tracking-tight mt-0.5">Pull</span>
@@ -87,7 +87,7 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
       >
         <ArrowUpCircle
           className={`w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform ${
-            operating && activeOp === "Push" ? "animate-spin" : ""
+            operating && activeOp === "Push" ? "animate-pulse" : ""
           }`}
         />
         <span className="text-[10px] font-medium tracking-tight mt-0.5">Push</span>

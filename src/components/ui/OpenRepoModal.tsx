@@ -307,7 +307,7 @@ export const OpenRepoModal: React.FC<OpenRepoModalProps> = ({
                           className="shrink-0 h-7 text-xs bg-[#21262d] hover:bg-purple-900/40 text-purple-200 border-purple-500/30"
                           icon={
                             isCloningThis ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                              <RefreshCw className="w-3.5 h-3.5 animate-pulse text-purple-400" />
                             ) : (
                               <Download className="w-3.5 h-3.5 text-purple-400" />
                             )

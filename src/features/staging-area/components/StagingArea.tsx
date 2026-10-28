@@ -182,6 +182,12 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
 
   const handleAiGenerate = async () => {
     setAiError(null);
+    if (stagedFiles.length === 0) {
+      setAiError(
+        "No hay archivos preparados (staged). Para que la IA analice los cambios y genere el mensaje de commit, primero debes preparar (stage) al menos un archivo."
+      );
+      return;
+    }
     if (!onGenerateAiCommit) return;
 
     try {
@@ -199,6 +205,10 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           const lines = generated.trim().split("\n");
           title = lines[0].replace(/^TITLE:\s*/i, "").trim();
           description = lines.slice(1).join("\n").replace(/^DESCRIPTION:\s*/i, "").trim();
+        }
+
+        if (title.length > 72) {
+          title = title.slice(0, 72).trimEnd();
         }
 
         setCommitTitle(title);
@@ -323,7 +333,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-blue-400" />
           <span className="font-semibold text-white">Área de Cambios (WIP)</span>
-          {loading && <RefreshCw className="w-3 h-3 text-blue-400 animate-spin" />}
+          {loading && <RefreshCw className="w-3 h-3 text-blue-400 animate-pulse" />}
         </div>
         <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/30 font-medium">
           {stagedFiles.length + unstagedFiles.length} cambios
@@ -536,23 +546,25 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
             {/* Compact AI Icon Button (Flecha 2) */}
             <button
               type="button"
-              disabled={stagedFiles.length === 0 || aiGenerating}
+              disabled={aiGenerating}
               onClick={handleAiGenerate}
               className={`p-1.5 rounded transition-colors cursor-pointer border ${
                 aiGenerating
                   ? "bg-amber-950/40 border-amber-500/50 text-amber-300"
+                  : stagedFiles.length === 0
+                  ? "text-amber-400/70 hover:text-amber-300 hover:bg-amber-950/20 border-amber-500/20 bg-amber-950/10"
                   : "text-amber-400 hover:text-amber-300 hover:bg-amber-950/30 border-amber-500/20 bg-amber-950/10"
-              } disabled:opacity-40 disabled:cursor-not-allowed`}
+              }`}
               title={
                 stagedFiles.length === 0
-                  ? "Prepara archivos para generar con IA"
+                  ? "Haz clic para saber cómo usar la IA (requiere archivos preparados)"
                   : aiGenerating
                   ? "Analizando cambios con IA..."
                   : "Generar título y descripción con IA"
               }
             >
               <Sparkles
-                className={`w-3.5 h-3.5 ${aiGenerating ? "animate-spin text-amber-300" : ""}`}
+                className={`w-3.5 h-3.5 ${aiGenerating ? "animate-pulse text-amber-300" : ""}`}
               />
             </button>
 
@@ -592,7 +604,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 text-rose-300 font-semibold text-[11px]">
                 <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                <span>Error al generar commit con IA</span>
+                <span>Aviso de IA</span>
               </div>
               <button
                 type="button"
@@ -609,16 +621,30 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           </div>
         )}
 
-        {/* Title Input (Obligatorio) */}
+        {/* Title Input (Obligatorio, máx 72 caracteres estrictos) */}
         <input
           type="text"
+          maxLength={72}
           value={commitTitle}
           onChange={(e) => setCommitTitle(e.target.value)}
           placeholder="feat(alcance): resumen conciso del cambio..."
           className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2.5 py-1.5 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden font-mono shrink-0"
         />
 
-        {/* Dedicated Tag Input Row (Flechas 2 y 3 - sin colisión con textarea) */}
+        {/* Description Textarea (Opcional) - Flexible to expand with height, min-h-[48px], no collision */}
+        <div className="flex flex-col gap-1 flex-1 min-h-[48px]">
+          <span className="text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider shrink-0">
+            Descripción (Opcional)
+          </span>
+          <textarea
+            value={commitDescription}
+            onChange={(e) => setCommitDescription(e.target.value)}
+            placeholder="Detalles adicionales, contexto o notas sobre este cambio..."
+            className="w-full flex-1 min-h-[40px] bg-[#0d1117] border border-[#30363d] rounded p-2 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden resize-none font-mono leading-relaxed"
+          />
+        </div>
+
+        {/* Dedicated Tag Input Row (Flecha 3: Ubicado DEBAJO de la descripción) */}
         {(showTagInput || commitTag.trim()) && (
           <div className="flex items-center gap-1.5 bg-[#0d1117] border border-emerald-500/40 rounded px-2.5 py-1 shrink-0 animate-in fade-in duration-150">
             <Tag className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -642,19 +668,6 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
             )}
           </div>
         )}
-
-        {/* Description Textarea (Opcional) - Flexible to expand with height, min-h-[48px], no collision */}
-        <div className="flex flex-col gap-1 flex-1 min-h-[48px]">
-          <span className="text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider shrink-0">
-            Descripción (Opcional)
-          </span>
-          <textarea
-            value={commitDescription}
-            onChange={(e) => setCommitDescription(e.target.value)}
-            placeholder="Detalles adicionales, contexto o notas sobre este cambio..."
-            className="w-full flex-1 min-h-[40px] bg-[#0d1117] border border-[#30363d] rounded p-2 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden resize-none font-mono leading-relaxed"
-          />
-        </div>
 
         <Button
           size="sm"

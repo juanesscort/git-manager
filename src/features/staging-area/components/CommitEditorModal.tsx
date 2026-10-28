@@ -205,7 +205,7 @@ export const CommitEditorModal: React.FC<CommitEditorModalProps> = ({
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-rose-300 font-semibold text-[11px]">
                   <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>Error al generar commit con IA</span>
+                  <span>Aviso de IA</span>
                 </div>
               </div>
               <p className="text-[11px] text-rose-200 font-mono break-words leading-relaxed">
@@ -247,6 +247,7 @@ export const CommitEditorModal: React.FC<CommitEditorModalProps> = ({
             <div className="relative flex items-center">
               <input
                 type="text"
+                maxLength={72}
                 autoFocus
                 value={commitTitle}
                 onChange={(e) => onChangeTitle(e.target.value)}
@@ -256,19 +257,19 @@ export const CommitEditorModal: React.FC<CommitEditorModalProps> = ({
               {/* Compact AI Icon Button on right side of Title (Flecha 6) */}
               <button
                 type="button"
-                disabled={stagedFiles.length === 0 || aiGenerating}
+                disabled={aiGenerating}
                 onClick={onGenerateAiCommit}
-                className="absolute right-2 p-1.5 rounded-md text-amber-400 hover:text-amber-300 hover:bg-amber-950/40 transition-colors cursor-pointer disabled:opacity-40"
+                className="absolute right-2 p-1.5 rounded-md text-amber-400 hover:text-amber-300 hover:bg-amber-950/40 transition-colors cursor-pointer"
                 title={
                   stagedFiles.length === 0
-                    ? "Prepara archivos para generar con IA"
+                    ? "Haz clic para saber cómo usar la IA (requiere archivos preparados)"
                     : aiGenerating
                     ? "Analizando cambios con IA..."
                     : "Generar título y descripción con IA"
                 }
               >
                 <Sparkles
-                  className={`w-4 h-4 ${aiGenerating ? "animate-spin text-amber-300" : ""}`}
+                  className={`w-4 h-4 ${aiGenerating ? "animate-pulse text-amber-300" : ""}`}
                 />
               </button>
             </div>

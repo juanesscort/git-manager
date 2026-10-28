@@ -181,7 +181,7 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({
                       variant="secondary"
                       onClick={onCheckNow}
                       disabled={checking}
-                      icon={<RefreshCw className={`w-3.5 h-3.5 ${checking ? "animate-spin text-blue-400" : ""}`} />}
+                      icon={<RefreshCw className={`w-3.5 h-3.5 ${checking ? "animate-pulse text-blue-400" : ""}`} />}
                       className="w-full text-xs h-8 border-[#30363d] text-white hover:bg-[#21262d]"
                     >
                       {checking ? "Comprobando autorización..." : "Ya autoricé en GitHub (Verificar ahora)"}
@@ -209,13 +209,13 @@ export const GitHubAuthModal: React.FC<GitHubAuthModalProps> = ({
 
                 {/* Live Polling Indicator */}
                 <div className="flex items-center gap-2 text-xs text-[#8b949e]">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                  <RefreshCw className="w-3.5 h-3.5 animate-pulse text-blue-400" />
                   <span>Esperando confirmación en el navegador...</span>
                 </div>
               </div>
             ) : (
               <div className="flex items-center justify-center py-8 text-xs text-[#8b949e]">
-                <RefreshCw className="w-5 h-5 animate-spin text-blue-400 mr-2" />
+                <RefreshCw className="w-5 h-5 animate-pulse text-blue-400 mr-2" />
                 <span>Solicitando código a GitHub...</span>
               </div>
             )
