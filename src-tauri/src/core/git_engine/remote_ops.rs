@@ -91,3 +91,54 @@ pub fn create_branch(repo: &Repository, branch_name: &str) -> Result<(), GitEngi
     repo.branch(branch_name, &target_commit, false)?;
     Ok(())
 }
+
+pub fn checkout_branch(repo: &Repository, branch_name: &str) -> Result<String, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    let output = Command::new("git")
+        .args(["checkout", branch_name])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(GitEngineError::InvalidPath(format!(
+            "git checkout: {}",
+            err
+        )));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+pub fn git_merge(repo: &Repository, source_branch: &str) -> Result<String, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    let output = Command::new("git")
+        .args(["merge", source_branch])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(GitEngineError::InvalidPath(format!("git merge: {}", err)));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+pub fn git_rebase(repo: &Repository, upstream_branch: &str) -> Result<String, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    let output = Command::new("git")
+        .args(["rebase", upstream_branch])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(GitEngineError::InvalidPath(format!("git rebase: {}", err)));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}

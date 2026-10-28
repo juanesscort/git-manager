@@ -3,7 +3,10 @@ use crate::core::git_engine::{
     diff::{get_commit_changed_files, get_commit_file_diff, get_file_diff},
     get_branches,
     history::get_commit_history,
-    remote_ops::{create_branch, git_fetch, git_pull, git_push, git_stash, git_stash_pop},
+    remote_ops::{
+        checkout_branch, create_branch, git_fetch, git_merge, git_pull, git_push, git_rebase,
+        git_stash, git_stash_pop,
+    },
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
     status::get_repo_statuses,
@@ -132,4 +135,22 @@ pub async fn git_stash_pop_cmd(path: String) -> Result<String, String> {
 pub async fn create_branch_cmd(path: String, branch_name: String) -> Result<(), String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
     create_branch(&repo, &branch_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn checkout_branch_cmd(path: String, branch_name: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    checkout_branch(&repo, &branch_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn git_merge_cmd(path: String, source_branch: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_merge(&repo, &source_branch).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn git_rebase_cmd(path: String, upstream_branch: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_rebase(&repo, &upstream_branch).map_err(|e| e.to_string())
 }

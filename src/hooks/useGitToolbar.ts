@@ -87,6 +87,36 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
     [runOperation]
   );
 
+  const checkoutBranch = useCallback(
+    (branchName: string) => {
+      if (!branchName.trim()) return;
+      return runOperation(`Checkout ${branchName}`, "checkout_branch_cmd", {
+        branchName: branchName.trim(),
+      });
+    },
+    [runOperation]
+  );
+
+  const mergeBranch = useCallback(
+    (sourceBranch: string) => {
+      if (!sourceBranch.trim()) return;
+      return runOperation(`Merge ${sourceBranch}`, "git_merge_cmd", {
+        sourceBranch: sourceBranch.trim(),
+      });
+    },
+    [runOperation]
+  );
+
+  const rebaseBranch = useCallback(
+    (upstreamBranch: string) => {
+      if (!upstreamBranch.trim()) return;
+      return runOperation(`Rebase ${upstreamBranch}`, "git_rebase_cmd", {
+        upstreamBranch: upstreamBranch.trim(),
+      });
+    },
+    [runOperation]
+  );
+
   return {
     ...state,
     fetchRemote,
@@ -95,6 +125,9 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
     stashChanges,
     popStash,
     createNewBranch,
+    checkoutBranch,
+    mergeBranch,
+    rebaseBranch,
     clearNotification,
   };
 }

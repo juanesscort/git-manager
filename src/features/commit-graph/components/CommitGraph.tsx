@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { GraphNode, LANE_COLORS } from "../hooks/useCommitGraph";
 import { CommitInfo, BranchesSummary } from "../../../types/git";
 import { GitCommit, User, Calendar, GitBranch, Cloud, Check } from "lucide-react";
@@ -8,7 +8,10 @@ interface CommitGraphProps {
   selectedCommit: CommitInfo | null;
   loading: boolean;
   branches?: BranchesSummary;
+  githubAvatarUrl?: string | null;
   onSelectCommit: (commit: CommitInfo) => void;
+  onCheckoutBranch?: (branchName: string) => void;
+  onDropBranch?: (sourceBranch: string, targetBranch: string, isRemote: boolean) => void;
 }
 
 export const CommitGraph: React.FC<CommitGraphProps> = ({
@@ -16,8 +19,13 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   selectedCommit,
   loading,
   branches,
+  githubAvatarUrl,
   onSelectCommit,
+  onCheckoutBranch,
+  onDropBranch,
 }) => {
+  const [dragOverBadge, setDragOverBadge] = useState<string | null>(null);
+
   if (loading && nodes.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-[#8b949e] text-xs">
@@ -36,7 +44,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
     );
   }
 
-  // Pre-calculate branch map: target_oid -> { local: BranchInfo[], remote: BranchInfo[] }
+  // Pre-calculate branch map: target_oid -> { local: string[], remote: string[], isHead: boolean }
   const branchMap = new Map<
     string,
     { local: string[]; remote: string[]; isHead: boolean }
@@ -70,7 +78,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
     <div className="flex-1 flex flex-col overflow-hidden bg-[#010409]">
       {/* Table Header */}
       <div className="h-8 border-b border-[#30363d] bg-[#161b22] px-3 flex items-center text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider shrink-0 select-none">
-        <div className="w-48 shrink-0 px-2">Ramas / Estado</div>
+        <div className="w-52 shrink-0 px-2">Ramas / Estado</div>
         <div style={{ width: svgWidth }} className="shrink-0 text-center">
           Grafo
         </div>
@@ -109,39 +117,93 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                     : "hover:bg-[#161b22]/70 text-[#c9d1d9]"
                 }`}
               >
-                {/* 1. Branch Badges Column (GitKraken style) */}
-                <div className="w-48 shrink-0 px-2 flex items-center gap-1.5 overflow-hidden">
+                {/* 1. Branch Badges Column (GitKraken style with GitHub Avatar & Drag-and-Drop) */}
+                <div className="w-52 shrink-0 px-2 flex items-center gap-1.5 overflow-hidden">
                   {commitBranches && (
                     <div className="flex items-center gap-1 overflow-hidden truncate">
                       {/* Local Branches pointing to this commit */}
-                      {commitBranches.local.map((bName) => (
-                        <div
-                          key={`local-${bName}`}
-                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border shrink-0 transition-shadow ${
-                            bName === "main" || isHead
-                              ? "bg-blue-950/60 text-blue-300 border-blue-500/60 shadow-sm"
-                              : "bg-emerald-950/50 text-emerald-300 border-emerald-600/50"
-                          }`}
-                          title={`Rama local: ${bName}${isHead ? " (HEAD actual)" : ""}`}
-                        >
-                          {isHead ? (
-                            <Check className="w-2.5 h-2.5 text-blue-400 shrink-0" />
-                          ) : (
-                            <GitBranch className="w-2.5 h-2.5 shrink-0" />
-                          )}
-                          <span className="truncate max-w-[90px]">{bName}</span>
-                        </div>
-                      ))}
+                      {commitBranches.local.map((bName) => {
+                        const isBadgeDragTarget = dragOverBadge === bName;
 
-                      {/* Remote Branches pointing to this commit */}
+                        return (
+                          <div
+                            key={`local-${bName}`}
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              e.dataTransfer.setData("application/git-branch", bName);
+                              e.dataTransfer.setData("application/is-remote", "false");
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(e) => {
+                              if (e.dataTransfer.types.includes("application/git-branch")) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.dataTransfer.dropEffect = "move";
+                                if (dragOverBadge !== bName) setDragOverBadge(bName);
+                              }
+                            }}
+                            onDragLeave={(e) => {
+                              e.stopPropagation();
+                              if (dragOverBadge === bName) setDragOverBadge(null);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setDragOverBadge(null);
+                              const source = e.dataTransfer.getData("application/git-branch");
+                              const sourceIsRemote = e.dataTransfer.getData("application/is-remote") === "true";
+                              if (source && source !== bName && onDropBranch) {
+                                onDropBranch(source, bName, sourceIsRemote);
+                              }
+                            }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              if (onCheckoutBranch) onCheckoutBranch(bName);
+                            }}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border shrink-0 transition-all select-none ${
+                              isBadgeDragTarget
+                                ? "bg-blue-600/40 border-2 border-blue-400 text-white scale-105"
+                                : bName === "main" || isHead
+                                ? "bg-blue-950/60 text-blue-300 border-blue-500/60 shadow-sm"
+                                : "bg-emerald-950/50 text-emerald-300 border-emerald-600/50"
+                            }`}
+                            title={`Rama local: ${bName}${isHead ? " (HEAD)" : ""} (Doble clic para checkout, arrastra para merge)`}
+                          >
+                            {isHead ? (
+                              <Check className="w-2.5 h-2.5 text-blue-400 shrink-0" />
+                            ) : (
+                              <GitBranch className="w-2.5 h-2.5 shrink-0" />
+                            )}
+                            <span className="truncate max-w-[85px]">{bName}</span>
+                          </div>
+                        );
+                      })}
+
+                      {/* Remote Branches with GitHub Avatar */}
                       {commitBranches.remote.map((rName) => (
                         <div
                           key={`remote-${rName}`}
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-950/60 text-purple-300 border border-purple-500/60 shrink-0"
-                          title={`Rama en GitHub (remoto): ${rName}`}
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.stopPropagation();
+                            e.dataTransfer.setData("application/git-branch", rName);
+                            e.dataTransfer.setData("application/is-remote", "true");
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
+                          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-950/60 text-purple-300 border border-purple-500/60 shrink-0 shadow-sm select-none hover:border-purple-400 transition-colors"
+                          title={`Rama remota en GitHub: ${rName} (Arrastra a una rama local para hacer pull)`}
                         >
-                          <Cloud className="w-2.5 h-2.5 text-purple-400 shrink-0" />
-                          <span className="truncate max-w-[90px]">{rName}</span>
+                          {githubAvatarUrl ? (
+                            <img
+                              src={githubAvatarUrl}
+                              alt="GitHub User"
+                              className="w-3.5 h-3.5 rounded-full border border-purple-400 shrink-0 object-cover"
+                            />
+                          ) : (
+                            <Cloud className="w-2.5 h-2.5 text-purple-400 shrink-0" />
+                          )}
+                          <span className="truncate max-w-[85px]">{rName}</span>
                         </div>
                       ))}
                     </div>
@@ -187,14 +249,10 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                     )}
 
                     {/* Lines / Bezier Curves down to parents */}
-                    {parentLanes.length === 0 ? (
-                      // Root commit (no parents)
-                      null
-                    ) : (
+                    {parentLanes.length === 0 ? null : (
                       parentLanes.map((pLane, pIdx) => {
                         const px = 14 + pLane * laneSpacing;
                         if (px === cx) {
-                          // Straight vertical line down
                           return (
                             <line
                               key={`parent-${pIdx}`}
@@ -208,7 +266,6 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                             />
                           );
                         } else {
-                          // Smooth cubic Bezier curve down to parent lane
                           const midY = (cy + rowHeight) / 2;
                           const pathData = `M ${cx} ${cy} C ${cx} ${midY}, ${px} ${midY}, ${px} ${rowHeight}`;
                           return (
@@ -267,9 +324,17 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                   )}
                 </div>
 
-                {/* 4. Author */}
+                {/* 4. Author with GitHub Avatar */}
                 <div className="w-36 px-2 truncate flex items-center gap-1.5 text-[11px] text-[#8b949e]">
-                  <User className="w-3 h-3 text-[#484f58] shrink-0" />
+                  {githubAvatarUrl ? (
+                    <img
+                      src={githubAvatarUrl}
+                      alt={commit.author_name}
+                      className="w-4 h-4 rounded-full border border-blue-500/40 shrink-0 object-cover"
+                    />
+                  ) : (
+                    <User className="w-3.5 h-3.5 text-[#484f58] shrink-0" />
+                  )}
                   <span className="truncate">{commit.author_name}</span>
                 </div>
 

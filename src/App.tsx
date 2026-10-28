@@ -15,6 +15,7 @@ import { Badge } from "./components/ui/Badge";
 import { Button } from "./components/ui/Button";
 import { Splitter } from "./components/ui/Splitter";
 import { CreateBranchModal } from "./components/ui/CreateBranchModal";
+import { BranchMergeModal } from "./components/ui/BranchMergeModal";
 import { GitToolbar } from "./features/git-ops/components/GitToolbar";
 import { useGitToolbar } from "./hooks/useGitToolbar";
 import { useRepo } from "./hooks/useRepo";
@@ -157,8 +158,33 @@ export const App: React.FC = () => {
     stashChanges,
     popStash,
     createNewBranch,
+    checkoutBranch,
+    mergeBranch,
+    rebaseBranch,
     clearNotification: clearToolbarNotification,
   } = useGitToolbar(repoPath, handleRefreshAll);
+
+  // Drag & drop branch merge state
+  const [mergeModal, setMergeModal] = useState<{
+    isOpen: boolean;
+    sourceBranch: string;
+    targetBranch: string;
+    isRemote: boolean;
+  }>({
+    isOpen: false,
+    sourceBranch: "",
+    targetBranch: "",
+    isRemote: false,
+  });
+
+  const handleDropBranch = (sourceBranch: string, targetBranch: string, isRemote: boolean) => {
+    setMergeModal({
+      isOpen: true,
+      sourceBranch,
+      targetBranch,
+      isRemote,
+    });
+  };
 
   const currentBranchName = summary?.current_branch || "main";
 
@@ -314,6 +340,8 @@ export const App: React.FC = () => {
               <BranchTreeView
                 branches={branches.local}
                 currentBranch={currentBranchName}
+                onCheckoutBranch={checkoutBranch}
+                onDropBranch={handleDropBranch}
               />
             </div>
 
@@ -325,6 +353,7 @@ export const App: React.FC = () => {
               <BranchTreeView
                 branches={branches.remote}
                 isRemote={true}
+                onDropBranch={handleDropBranch}
               />
             </div>
           </nav>
@@ -429,7 +458,10 @@ export const App: React.FC = () => {
                       selectedCommit={selectedCommit}
                       loading={commitsLoading}
                       branches={branches}
+                      githubAvatarUrl={githubUser?.avatar_url}
                       onSelectCommit={handleSelectCommit}
+                      onCheckoutBranch={checkoutBranch}
+                      onDropBranch={handleDropBranch}
                     />
                   )}
                 </div>
@@ -442,7 +474,10 @@ export const App: React.FC = () => {
                       selectedCommit={selectedCommit}
                       loading={commitsLoading}
                       branches={branches}
+                      githubAvatarUrl={githubUser?.avatar_url}
                       onSelectCommit={handleSelectCommit}
+                      onCheckoutBranch={checkoutBranch}
+                      onDropBranch={handleDropBranch}
                     />
                   </div>
 
@@ -481,7 +516,10 @@ export const App: React.FC = () => {
                 selectedCommit={selectedCommit}
                 loading={commitsLoading}
                 branches={branches}
+                githubAvatarUrl={githubUser?.avatar_url}
                 onSelectCommit={handleSelectCommit}
+                onCheckoutBranch={checkoutBranch}
+                onDropBranch={handleDropBranch}
               />
             </div>
           )}
@@ -603,6 +641,18 @@ export const App: React.FC = () => {
         loading={conflictLoading}
         onResolve={resolveConflict}
         onClose={closeConflictModal}
+      />
+
+      {/* Drag & Drop Branch Merge / Rebase / Pull Modal */}
+      <BranchMergeModal
+        isOpen={mergeModal.isOpen}
+        sourceBranch={mergeModal.sourceBranch}
+        targetBranch={mergeModal.targetBranch}
+        isRemote={mergeModal.isRemote}
+        onClose={() => setMergeModal((prev) => ({ ...prev, isOpen: false }))}
+        onMerge={(source) => mergeBranch(source)}
+        onRebase={(source) => rebaseBranch(source)}
+        onPull={() => pullRemote()}
       />
     </div>
   );

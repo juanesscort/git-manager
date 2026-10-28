@@ -20,7 +20,10 @@ pub use diff::{
 };
 pub use errors::GitEngineError;
 pub use history::get_commit_history;
-pub use remote_ops::{create_branch, git_fetch, git_pull, git_push, git_stash, git_stash_pop};
+pub use remote_ops::{
+    checkout_branch, create_branch, git_fetch, git_merge, git_pull, git_push, git_rebase,
+    git_stash, git_stash_pop,
+};
 pub use repository::{get_repo_summary, open_repository};
 pub use staging::{stage_all, stage_file, unstage_all, unstage_file};
 pub use status::get_repo_statuses;
