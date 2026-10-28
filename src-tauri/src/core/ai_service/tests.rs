@@ -55,3 +55,10 @@ fn test_prompt_building() {
     assert!(prompt.contains("diff test"));
     assert!(SYSTEM_PROMPT.contains("Conventional Commits"));
 }
+
+#[test]
+fn test_fallback_chain() {
+    use super::gemini::GeminiProvider;
+    let provider = GeminiProvider::new("test_key".to_string(), Some("gemini-3.5-flash-lite".to_string()));
+    assert_eq!(provider.model, "gemini-3.5-flash-lite");
+}

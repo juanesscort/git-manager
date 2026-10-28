@@ -4,8 +4,6 @@ import {
   RefreshCw,
   FolderGit2,
   FolderPlus,
-  LogOut,
-  Cloud,
   FileText,
   GitGraph,
   Split,
@@ -20,6 +18,7 @@ import { BranchMergeModal } from "./components/ui/BranchMergeModal";
 import { BranchContextMenu, BranchContextMenuState } from "./components/ui/BranchContextMenu";
 import { RepoTabBar } from "./components/ui/RepoTabBar";
 import { OpenRepoModal } from "./components/ui/OpenRepoModal";
+import { EmbeddedTerminal } from "./components/ui/EmbeddedTerminal";
 import { useRepoTabs } from "./hooks/useRepoTabs";
 import { GitToolbar } from "./features/git-ops/components/GitToolbar";
 import { useGitToolbar } from "./hooks/useGitToolbar";
@@ -38,7 +37,7 @@ import { useBranches } from "./features/commit-graph/hooks/useBranches";
 import { useCommitDetails } from "./features/commit-graph/hooks/useCommitDetails";
 import { GitHubAuthModal } from "./features/github-sync/components/GitHubAuthModal";
 import { RemoteReposModal } from "./features/github-sync/components/RemoteReposModal";
-import { AiConfigModal } from "./features/ai-assistant/components/AiConfigModal";
+import { AppSettingsModal } from "./components/ui/AppSettingsModal";
 import { ConflictResolverModal } from "./features/conflict-resolver/components/ConflictResolverModal";
 import { CommitInfo } from "./types/git";
 import "./App.css";
@@ -54,10 +53,12 @@ export const App: React.FC = () => {
     closeTab,
     switchTab,
     updateTabBranch,
+    setRepoPathChanges,
     clearRecentRepos,
   } = useRepoTabs();
 
   const [openRepoModalOpen, setOpenRepoModalOpen] = useState<boolean>(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false);
   const activeRepoPath = activeTab?.path || ".";
 
   const { repoPath, summary, refreshRepo } = useRepo(activeRepoPath);
@@ -107,6 +108,13 @@ export const App: React.FC = () => {
     openConfigModal: openAiConfigModal,
     closeConfigModal: closeAiConfigModal,
   } = useAiAssistant();
+
+  const [settingsTab, setSettingsTab] = useState<"ai" | "about">("ai");
+
+  const handleOpenSettings = (tab: "ai" | "about" = "ai") => {
+    setSettingsTab(tab);
+    openAiConfigModal();
+  };
 
   const {
     graphNodes,
@@ -194,25 +202,41 @@ export const App: React.FC = () => {
     clearNotification: clearToolbarNotification,
   } = useGitToolbar(repoPath, handleRefreshAll);
 
-  // Drag & drop branch merge state
+  // Keep each repository's pending changes counter updated without leaking between tabs (Flecha 5)
+  const pendingChangesCount = stagedFiles.length + unstagedFiles.length;
+  useEffect(() => {
+    if (!stagingLoading && repoPath && activeTab?.path === repoPath) {
+      setRepoPathChanges(repoPath, pendingChangesCount);
+    }
+  }, [stagingLoading, repoPath, activeTab?.path, pendingChangesCount, setRepoPathChanges]);
+
+  // Drag & drop branch merge / pull / push state
   const [mergeModal, setMergeModal] = useState<{
     isOpen: boolean;
     sourceBranch: string;
     targetBranch: string;
-    isRemote: boolean;
+    sourceIsRemote: boolean;
+    targetIsRemote: boolean;
   }>({
     isOpen: false,
     sourceBranch: "",
     targetBranch: "",
-    isRemote: false,
+    sourceIsRemote: false,
+    targetIsRemote: false,
   });
 
-  const handleDropBranch = (sourceBranch: string, targetBranch: string, isRemote: boolean) => {
+  const handleDropBranch = (
+    sourceBranch: string,
+    targetBranch: string,
+    sourceIsRemote: boolean = false,
+    targetIsRemote: boolean = false
+  ) => {
     setMergeModal({
       isOpen: true,
       sourceBranch,
       targetBranch,
-      isRemote,
+      sourceIsRemote,
+      targetIsRemote,
     });
   };
 
@@ -288,102 +312,97 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0d1117] text-[#c9d1d9] select-none overflow-hidden">
-      {/* GitKraken-Style Multi-Project Top Tab Bar */}
+      {/* GitKraken-Style Multi-Project Top Tab Bar with User Profile on Right */}
       <RepoTabBar
         tabs={tabs}
         activeTabId={activeTabId}
+        user={githubUser}
+        notificationCount={toolbarMessage || toolbarError ? 1 : 0}
         onSwitchTab={switchTab}
         onCloseTab={closeTab}
         onOpenNewTab={() => setOpenRepoModalOpen(true)}
+        onOpenAuth={startDeviceAuth}
+        onLogout={logoutGitHub}
+        onOpenRepos={fetchRepositories}
+        onOpenSettings={() => handleOpenSettings("ai")}
+        onOpenNotifications={() => {}}
       />
 
       {/* Top Navigation Bar & GitKraken Action Toolbar */}
-      <header className="h-12 border-b border-[#30363d] bg-[#161b22] px-3 flex items-center justify-between shrink-0 z-30">
+      <header className="h-14 border-b border-[#30363d] bg-[#161b22] px-3 flex items-center justify-between shrink-0 z-30 select-none">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-            <h1 className="font-semibold text-white tracking-wide text-xs">Git-Manager</h1>
+          {/* Logo & Application Brand */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-[1px] shadow-sm flex items-center justify-center shrink-0">
+              <div className="w-full h-full bg-[#161b22] rounded-[7px] flex items-center justify-center">
+                <FolderGit2 className="w-4 h-4 text-blue-400" />
+              </div>
+            </div>
+
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-sm tracking-tight bg-gradient-to-r from-white via-[#c9d1d9] to-blue-300 bg-clip-text text-transparent">
+                  Git-Manager
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => handleOpenSettings("about")}
+                  className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#21262d] text-[#8b949e] hover:text-blue-300 hover:border-blue-500/40 border border-[#30363d] cursor-pointer transition-all"
+                  title="Git-Manager v0.1.0 (clic para ver actualizaciones y acerca de)"
+                >
+                  v0.1.0
+                </button>
+                <span className="text-[#484f58] font-thin">/</span>
+                {activeTab && (
+                  <span className="text-xs font-semibold text-blue-400 bg-blue-950/40 border border-blue-500/30 px-2 py-0.5 rounded font-mono">
+                    {activeTab.name}
+                  </span>
+                )}
+                {summary?.current_branch && (
+                  <Badge
+                    label={summary.current_branch}
+                    variant="purple"
+                    icon={<GitBranch className="w-3 h-3 text-purple-400" />}
+                  />
+                )}
+              </div>
+              {/* Project Path directly underneath (Flecha 3) */}
+              <p
+                className="text-[10px] text-[#8b949e] font-mono truncate max-w-sm hover:text-white transition-colors cursor-default"
+                title={`Ruta del proyecto: ${activeRepoPath}`}
+              >
+                {activeRepoPath}
+              </p>
+            </div>
           </div>
-          {activeTab && (
-            <span className="text-[11px] font-mono text-blue-400 bg-blue-950/40 border border-blue-500/30 px-2 py-0.5 rounded font-medium">
-              {activeTab.name}
-            </span>
-          )}
-          {summary?.current_branch && (
-            <Badge
-              label={summary.current_branch}
-              variant="purple"
-              icon={<GitBranch className="w-3 h-3 text-purple-400" />}
-            />
-          )}
         </div>
 
-        {/* Flecha 1: Action Toolbar (Fetch, Pull, Push, Branch, Stash) */}
+        {/* Flecha 6: Vertical GitKraken Action Toolbar with Terminal button */}
         <GitToolbar
           operating={toolbarOperating}
           activeOp={toolbarActiveOp}
           message={toolbarMessage}
           error={toolbarError}
+          isTerminalOpen={isTerminalOpen}
           onFetch={fetchRemote}
           onPull={pullRemote}
           onPush={pushRemote}
           onOpenCreateBranch={() => setBranchModalOpen(true)}
           onStash={stashChanges}
           onPopStash={popStash}
+          onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
           onClearNotification={clearToolbarNotification}
         />
 
-        {/* Right Section: GitHub User & Single Unified Refresh (Flecha 8, Badges removed Flecha 7) */}
+        {/* Right Section: Single Unified Refresh */}
         <div className="flex items-center gap-2">
-          {githubUser ? (
-            <div className="flex items-center gap-2 bg-[#0d1117] border border-[#30363d] rounded-full py-0.5 px-2.5 text-xs">
-              <img
-                src={githubUser.avatar_url}
-                alt={githubUser.login}
-                className="w-5 h-5 rounded-full border border-blue-500/50"
-              />
-              <span className="text-white font-mono font-medium text-[11px]">@{githubUser.login}</span>
-
-              <button
-                onClick={fetchRepositories}
-                className="text-[11px] text-blue-400 hover:text-blue-300 ml-1 flex items-center gap-1 font-sans hover:underline"
-                title="Ver tus repositorios públicos y privados"
-              >
-                <Cloud className="w-3 h-3" />
-                <span>Repositorios</span>
-              </button>
-
-              <button
-                onClick={logoutGitHub}
-                className="text-[#8b949e] hover:text-rose-400 p-0.5 ml-1 transition-colors"
-                title="Cerrar sesión de GitHub"
-              >
-                <LogOut className="w-3 h-3" />
-              </button>
-            </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={startDeviceAuth}
-              className="h-7 text-xs bg-[#21262d] hover:bg-[#30363d] text-white border-[#388bfd]/40"
-              icon={
-                <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                </svg>
-              }
-            >
-              Conectar con GitHub
-            </Button>
-          )}
-
           <Button
             size="sm"
             variant="secondary"
             icon={<RefreshCw className={`w-3.5 h-3.5 ${stagingLoading || commitsLoading ? "animate-spin" : ""}`} />}
             onClick={handleRefreshAll}
             title="Sincronizar todo el repositorio"
-            className="h-7 text-xs"
+            className="h-8 text-xs font-medium"
           >
             Sincronizar
           </Button>
@@ -438,24 +457,9 @@ export const App: React.FC = () => {
           {/* Left Sidebar: Navigation & Repositories */}
           <aside
             style={{ width: leftWidth }}
-            className="bg-[#0d1117] flex flex-col p-3 gap-4 shrink-0 overflow-hidden select-none"
+            className="bg-[#0d1117] flex flex-col p-3 gap-3 shrink-0 overflow-hidden select-none"
           >
-            <div>
-              <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider">
-                Repositorio Local
-              </span>
-              <div className="mt-1.5 p-2 rounded bg-[#161b22] border border-[#30363d] text-xs">
-                <div className="flex items-center gap-1.5 text-white font-medium">
-                  <FolderGit2 className="w-4 h-4 text-blue-400 shrink-0" />
-                  <span className="truncate">{activeTab?.name || "git-manager"}</span>
-                </div>
-                <p className="text-[#8b949e] text-[10px] truncate mt-1 font-mono">
-                  {summary?.path || activeRepoPath}
-                </p>
-              </div>
-            </div>
-
-          <nav className="flex flex-col gap-3 text-xs overflow-y-auto">
+            <nav className="flex flex-col gap-3 text-xs overflow-y-auto flex-1">
             {/* Local Branches Section with Folders */}
             <div className="flex flex-col gap-1">
               <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider mb-0.5">
@@ -651,6 +655,13 @@ export const App: React.FC = () => {
               />
             </div>
           )}
+
+          {/* Flecha 1: Embedded Linux Terminal Panel */}
+          <EmbeddedTerminal
+            repoPath={activeRepoPath}
+            isOpen={isTerminalOpen}
+            onClose={() => setIsTerminalOpen(false)}
+          />
         </main>
 
         {/* Flecha 3: Resizable Right Splitter */}
@@ -757,11 +768,12 @@ export const App: React.FC = () => {
         onClose={closeReposModal}
       />
 
-      {/* AI Assistant Configuration Modal */}
-      <AiConfigModal
+      {/* App Settings Modal (AI + About & Updates) */}
+      <AppSettingsModal
         isOpen={aiConfigModalOpen}
+        initialTab={settingsTab}
         currentConfig={aiConfig}
-        onSave={saveAiConfig}
+        onSaveAiConfig={saveAiConfig}
         onClose={closeAiConfigModal}
       />
 
@@ -774,16 +786,18 @@ export const App: React.FC = () => {
         onClose={closeConflictModal}
       />
 
-      {/* Drag & Drop Branch Merge / Rebase / Pull Modal */}
+      {/* Drag & Drop Branch Merge / Rebase / Pull / Push Modal */}
       <BranchMergeModal
         isOpen={mergeModal.isOpen}
         sourceBranch={mergeModal.sourceBranch}
         targetBranch={mergeModal.targetBranch}
-        isRemote={mergeModal.isRemote}
+        sourceIsRemote={mergeModal.sourceIsRemote}
+        targetIsRemote={mergeModal.targetIsRemote}
         onClose={() => setMergeModal((prev) => ({ ...prev, isOpen: false }))}
         onMerge={(source) => mergeBranch(source)}
         onRebase={(source) => rebaseBranch(source)}
         onPull={() => pullRemote()}
+        onPush={() => pushRemote()}
       />
 
       {/* Branch Right-Click Context Menu */}

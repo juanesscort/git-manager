@@ -8,7 +8,12 @@ interface BranchTreeViewProps {
   isRemote?: boolean;
   onSelectBranch?: (branchName: string) => void;
   onContextMenu?: (x: number, y: number, branchName: string, isHead: boolean, isRemote: boolean) => void;
-  onDropBranch?: (sourceBranch: string, targetBranch: string, isRemote: boolean) => void;
+  onDropBranch?: (
+    sourceBranch: string,
+    targetBranch: string,
+    sourceIsRemote: boolean,
+    targetIsRemote: boolean
+  ) => void;
 }
 
 interface TreeNode {
@@ -146,7 +151,7 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
           const source = e.dataTransfer.getData("application/git-branch");
           const sourceIsRemote = e.dataTransfer.getData("application/is-remote") === "true";
           if (source && source !== node.fullPath && onDropBranch) {
-            onDropBranch(source, node.fullPath, sourceIsRemote);
+            onDropBranch(source, node.fullPath, sourceIsRemote, isRemote);
           }
         }}
         onClick={() => onSelectBranch && onSelectBranch(node.fullPath)}

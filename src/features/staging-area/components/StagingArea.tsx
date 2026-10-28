@@ -1,5 +1,22 @@
-import React, { useState } from "react";
-import { Plus, Minus, Sparkles, RefreshCw, Layers, Settings, AlertTriangle, GitMerge } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import {
+  Plus,
+  Minus,
+  Sparkles,
+  RefreshCw,
+  Layers,
+  AlertTriangle,
+  GitMerge,
+  List,
+  FolderTree,
+  ArrowUpDown,
+  Folder,
+  FolderOpen,
+  ChevronRight,
+  ChevronDown,
+  FileCode,
+  X,
+} from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { FileItem } from "./FileItem";
@@ -25,6 +42,48 @@ interface StagingAreaProps {
   onOpenConflictResolver?: (path: string) => void;
 }
 
+interface StagingTreeNode {
+  name: string;
+  fullPath: string;
+  isFolder: boolean;
+  fileItem?: FileStatusItem;
+  children: Map<string, StagingTreeNode>;
+}
+
+function buildFileTree(files: FileStatusItem[]): StagingTreeNode[] {
+  const root = new Map<string, StagingTreeNode>();
+
+  for (const file of files) {
+    const parts = file.path.split("/");
+    let currentMap = root;
+    let accumulatedPath = "";
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      accumulatedPath = accumulatedPath ? `${accumulatedPath}/${part}` : part;
+      const isLeaf = i === parts.length - 1;
+
+      if (!currentMap.has(part)) {
+        currentMap.set(part, {
+          name: part,
+          fullPath: accumulatedPath,
+          isFolder: !isLeaf,
+          children: new Map(),
+          fileItem: isLeaf ? file : undefined,
+        });
+      }
+
+      const node = currentMap.get(part)!;
+      if (isLeaf) {
+        node.fileItem = file;
+      }
+      currentMap = node.children;
+    }
+  }
+
+  return Array.from(root.values());
+}
+
 export const StagingArea: React.FC<StagingAreaProps> = ({
   stagedFiles,
   unstagedFiles,
@@ -43,12 +102,29 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   onOpenAiConfig,
   onOpenConflictResolver,
 }) => {
-  const [commitMessage, setCommitMessage] = useState("");
+  const [commitTitle, setCommitTitle] = useState("");
+  const [commitDescription, setCommitDescription] = useState("");
+  const [viewMode, setViewMode] = useState<"path" | "tree">("path");
+  const [sortAsc, setSortAsc] = useState<boolean>(true);
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const toggleFolder = (folderPath: string) => {
+    setCollapsedFolders((prev) => ({
+      ...prev,
+      [folderPath]: !prev[folderPath],
+    }));
+  };
 
   const handleCommitSubmit = () => {
-    if (!commitMessage.trim()) return;
-    onCommit(commitMessage);
-    setCommitMessage("");
+    if (!commitTitle.trim()) return;
+    const fullMessage = commitDescription.trim()
+      ? `${commitTitle.trim()}\n\n${commitDescription.trim()}`
+      : commitTitle.trim();
+    onCommit(fullMessage);
+    setCommitTitle("");
+    setCommitDescription("");
+    setAiError(null);
   };
 
   const handleToggleFile = (path: string, staged: boolean) => {
@@ -60,12 +136,139 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   };
 
   const handleAiGenerate = async () => {
-    if (onGenerateAiCommit) {
+    setAiError(null);
+    if (!onGenerateAiCommit) return;
+
+    try {
       const generated = await onGenerateAiCommit();
       if (generated) {
-        setCommitMessage(generated);
+        let title = "";
+        let description = "";
+
+        if (generated.includes("TITLE:") && generated.includes("DESCRIPTION:")) {
+          const titleMatch = generated.match(/TITLE:\s*(.+)/i);
+          const descMatch = generated.match(/DESCRIPTION:\s*([\s\S]+)/i);
+          title = titleMatch ? titleMatch[1].trim() : "";
+          description = descMatch ? descMatch[1].trim() : "";
+        } else {
+          const lines = generated.trim().split("\n");
+          title = lines[0].replace(/^TITLE:\s*/i, "").trim();
+          description = lines.slice(1).join("\n").replace(/^DESCRIPTION:\s*/i, "").trim();
+        }
+
+        setCommitTitle(title);
+        setCommitDescription(description);
       }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setAiError(msg);
     }
+  };
+
+  // Sort files for Path Mode
+  const sortedStagedFiles = useMemo(() => {
+    return [...stagedFiles].sort((a, b) =>
+      sortAsc ? a.path.localeCompare(b.path) : b.path.localeCompare(a.path)
+    );
+  }, [stagedFiles, sortAsc]);
+
+  const sortedUnstagedFiles = useMemo(() => {
+    return [...unstagedFiles].sort((a, b) =>
+      sortAsc ? a.path.localeCompare(b.path) : b.path.localeCompare(a.path)
+    );
+  }, [unstagedFiles, sortAsc]);
+
+  // Build trees for Tree Mode
+  const stagedTree = useMemo(() => buildFileTree(stagedFiles), [stagedFiles]);
+  const unstagedTree = useMemo(() => buildFileTree(unstagedFiles), [unstagedFiles]);
+
+  const renderTreeNode = (
+    node: StagingTreeNode,
+    isStaged: boolean,
+    depth = 0
+  ): React.ReactNode => {
+    if (node.isFolder) {
+      const isCollapsed = !!collapsedFolders[`${isStaged ? "s" : "u"}-${node.fullPath}`];
+      const childCount = node.children.size;
+
+      return (
+        <div key={`folder-${node.fullPath}`} className="flex flex-col">
+          <div
+            onClick={() => toggleFolder(`${isStaged ? "s" : "u"}-${node.fullPath}`)}
+            style={{ paddingLeft: `${depth * 10 + 4}px` }}
+            className="flex items-center gap-1.5 py-1 px-1.5 rounded hover:bg-[#161b22] text-[#8b949e] hover:text-white cursor-pointer select-none text-xs group"
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-3 h-3 text-[#484f58] shrink-0" />
+            ) : (
+              <ChevronDown className="w-3 h-3 text-[#484f58] shrink-0" />
+            )}
+            {isCollapsed ? (
+              <Folder className="w-3.5 h-3.5 text-amber-500/80 shrink-0" />
+            ) : (
+              <FolderOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            )}
+            <span className="font-mono text-[11px] text-amber-200/90 truncate flex-1">
+              {node.name}
+            </span>
+            <span className="text-[9px] text-[#484f58] group-hover:text-[#8b949e]">
+              ({childCount})
+            </span>
+          </div>
+
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              {Array.from(node.children.values()).map((child) =>
+                renderTreeNode(child, isStaged, depth + 1)
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (!node.fileItem) return null;
+    const file = node.fileItem;
+    const isSelected = selectedFile?.path === file.path && selectedFile.staged === isStaged;
+
+    return (
+      <div
+        key={`file-${file.path}`}
+        style={{ paddingLeft: `${depth * 10 + 6}px` }}
+        onClick={() => handleToggleFile(file.path, isStaged)}
+        className={`flex items-center justify-between py-1 px-2 rounded text-xs cursor-pointer group select-none transition-colors ${
+          isSelected
+            ? "bg-[#1f6feb]/20 text-white font-medium border-l-2 border-l-blue-500"
+            : "text-[#c9d1d9] hover:bg-[#161b22]"
+        }`}
+      >
+        <div className="flex items-center gap-1.5 truncate flex-1 mr-2">
+          <FileCode className="w-3.5 h-3.5 text-blue-400/80 shrink-0" />
+          <span className="truncate font-mono text-[11px]">{node.name}</span>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isStaged) {
+                onUnstageFile(file.path);
+              } else {
+                onStageFile(file.path);
+              }
+            }}
+            className={`p-0.5 rounded transition-colors ${
+              isStaged
+                ? "hover:bg-rose-950/40 text-[#8b949e] hover:text-rose-400"
+                : "hover:bg-emerald-950/40 text-[#8b949e] hover:text-emerald-400"
+            }`}
+            title={isStaged ? "Quitar de preparados (Unstage)" : "Preparar archivo (Stage)"}
+          >
+            {isStaged ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -80,6 +283,53 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/30 font-medium">
           {stagedFiles.length + unstagedFiles.length} cambios
         </span>
+      </div>
+
+      {/* View Switcher: Path vs Tree, and Sort (Flechas 3 y 4) */}
+      <div className="h-8 border-b border-[#30363d]/70 px-3 bg-[#13171f] flex items-center justify-between shrink-0 text-xs select-none">
+        {/* Sort button (Path mode) */}
+        <div className="flex items-center gap-1.5">
+          {viewMode === "path" ? (
+            <button
+              onClick={() => setSortAsc(!sortAsc)}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
+              title={`Ordenar archivos: ${sortAsc ? "Ascendente (A-Z)" : "Descendente (Z-A)"}`}
+            >
+              <ArrowUpDown className="w-3 h-3 text-blue-400" />
+              <span>{sortAsc ? "A-Z" : "Z-A"}</span>
+            </button>
+          ) : (
+            <span className="text-[10px] text-[#484f58] font-mono">Jerarquía</span>
+          )}
+        </div>
+
+        {/* View Switcher Buttons */}
+        <div className="flex items-center bg-[#0d1117] p-0.5 rounded border border-[#30363d]">
+          <button
+            onClick={() => setViewMode("path")}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+              viewMode === "path"
+                ? "bg-[#21262d] text-white shadow-xs"
+                : "text-[#8b949e] hover:text-[#c9d1d9]"
+            }`}
+            title="Vista plana de archivos (Path)"
+          >
+            <List className="w-3 h-3 text-blue-400" />
+            <span>Path</span>
+          </button>
+          <button
+            onClick={() => setViewMode("tree")}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+              viewMode === "tree"
+                ? "bg-[#21262d] text-white shadow-xs"
+                : "text-[#8b949e] hover:text-[#c9d1d9]"
+            }`}
+            title="Vista de árbol por carpetas (Tree)"
+          >
+            <FolderTree className="w-3 h-3 text-emerald-400" />
+            <span>Tree</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Files Split View */}
@@ -118,7 +368,10 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               <span className="text-[11px] font-bold text-white uppercase tracking-wider">
                 Preparados (Staged)
               </span>
-              <Badge label={String(stagedFiles.length)} variant={stagedFiles.length > 0 ? "green" : "gray"} />
+              <Badge
+                label={String(stagedFiles.length)}
+                variant={stagedFiles.length > 0 ? "green" : "gray"}
+              />
             </div>
             {stagedFiles.length > 0 && (
               <button
@@ -136,8 +389,8 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               <p className="text-[11px] text-[#484f58] italic px-2 py-1">
                 Ningún archivo preparado para commit.
               </p>
-            ) : (
-              stagedFiles.map((file) => (
+            ) : viewMode === "path" ? (
+              sortedStagedFiles.map((file) => (
                 <FileItem
                   key={`staged-${file.path}`}
                   path={file.path}
@@ -152,6 +405,8 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   }
                 />
               ))
+            ) : (
+              stagedTree.map((node) => renderTreeNode(node, true))
             )}
           </div>
         </div>
@@ -184,8 +439,8 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               <p className="text-[11px] text-[#484f58] italic px-2 py-1">
                 El directorio de trabajo está limpio.
               </p>
-            ) : (
-              unstagedFiles.map((file) => (
+            ) : viewMode === "path" ? (
+              sortedUnstagedFiles.map((file) => (
                 <FileItem
                   key={`unstaged-${file.path}`}
                   path={file.path}
@@ -200,18 +455,36 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   }
                 />
               ))
+            ) : (
+              unstagedTree.map((node) => renderTreeNode(node, false))
             )}
           </div>
         </div>
       </div>
 
-      {/* Commit Box */}
+      {/* Commit Box: Title (Required) + Description (Optional) */}
       <div className="border-t border-[#30363d] bg-[#161b22] p-3 flex flex-col gap-2 shrink-0">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
-            Mensaje de Commit
-          </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
+              Título
+            </span>
+            <span className="text-[10px] text-rose-400 font-bold">*</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[10px] font-mono ${
+                commitTitle.length > 72
+                  ? "text-amber-400 font-bold"
+                  : commitTitle.length > 50
+                  ? "text-[#8b949e]"
+                  : "text-[#484f58]"
+              }`}
+            >
+              {commitTitle.length}/72
+            </span>
+
             <Button
               size="sm"
               variant="ghost"
@@ -219,42 +492,85 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               onClick={handleAiGenerate}
               className="text-amber-400 hover:text-amber-300 py-0.5 px-2 text-xs h-6 border border-amber-500/20 bg-amber-950/20"
               icon={
-                <Sparkles className={`w-3.5 h-3.5 ${aiGenerating ? "animate-spin text-amber-300" : ""}`} />
+                <Sparkles
+                  className={`w-3.5 h-3.5 ${aiGenerating ? "animate-spin text-amber-300" : ""}`}
+                />
               }
               title={
                 stagedFiles.length === 0
                   ? "Prepara archivos para generar con IA"
-                  : "Generar commit con IA (Conventional Commits)"
+                  : "Generar título y descripción con IA (Conventional Commits)"
               }
             >
               {aiGenerating ? "Analizando..." : "Generar IA"}
             </Button>
-
-            {onOpenAiConfig && (
-              <button
-                onClick={onOpenAiConfig}
-                className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors"
-                title="Configurar proveedor IA (Gemini / Ollama / OpenAI)"
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
         </div>
 
-        <textarea
-          value={commitMessage}
-          onChange={(e) => setCommitMessage(e.target.value)}
-          placeholder="feat: resumen del cambio..."
-          className="w-full h-20 bg-[#0d1117] border border-[#30363d] rounded p-2 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-none resize-none font-mono"
+        {/* AI Error Alert */}
+        {aiError && (
+          <div className="bg-rose-950/50 border border-rose-500/50 rounded-lg p-2.5 text-xs flex flex-col gap-1.5 animate-in fade-in duration-200">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-rose-300 font-semibold text-[11px]">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span>Error al generar commit con IA</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAiError(null)}
+                className="text-rose-400 hover:text-white p-0.5 rounded hover:bg-rose-900/50"
+                title="Cerrar alerta"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-[11px] text-rose-200 font-mono break-words leading-relaxed">
+              {aiError}
+            </p>
+            {onOpenAiConfig && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAiError(null);
+                  onOpenAiConfig();
+                }}
+                className="self-start text-[11px] font-medium text-amber-300 hover:text-amber-200 underline mt-0.5 cursor-pointer"
+              >
+                Abrir Ajustes de IA para corregir API Key o Modelo →
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Title Input (Obligatorio) */}
+        <input
+          type="text"
+          value={commitTitle}
+          onChange={(e) => setCommitTitle(e.target.value)}
+          placeholder="feat(alcance): resumen conciso del cambio..."
+          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2.5 py-1.5 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-none font-mono"
         />
+
+        {/* Description Textarea (Opcional) */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider">
+            Descripción (Opcional)
+          </span>
+          <textarea
+            value={commitDescription}
+            onChange={(e) => setCommitDescription(e.target.value)}
+            placeholder="Detalles adicionales, contexto o notas sobre este cambio..."
+            rows={3}
+            className="w-full bg-[#0d1117] border border-[#30363d] rounded p-2 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-none resize-none font-mono"
+          />
+        </div>
 
         <Button
           size="sm"
           variant="primary"
-          disabled={stagedFiles.length === 0 || !commitMessage.trim()}
+          disabled={stagedFiles.length === 0 || !commitTitle.trim()}
           onClick={handleCommitSubmit}
-          className="w-full"
+          className="w-full mt-1"
         >
           Commit a {currentBranch || "HEAD"} ({stagedFiles.length})
         </Button>

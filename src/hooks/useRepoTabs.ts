@@ -7,6 +7,7 @@ export interface RepoTab {
   name: string;
   path: string;
   currentBranch?: string | null;
+  pendingChanges?: number;
 }
 
 const STORAGE_TABS_KEY = "git_manager_tabs_v1";
@@ -70,7 +71,21 @@ export function useRepoTabs() {
     }
   }, [tabs, activeTabId, recentRepos]);
 
-  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+  const [repoPendingChanges, setRepoPendingChanges] = useState<Record<string, number>>({});
+
+  const setRepoPathChanges = useCallback((path: string, count: number) => {
+    setRepoPendingChanges((prev) => ({
+      ...prev,
+      [path]: count,
+    }));
+  }, []);
+
+  const tabsWithCounts = tabs.map((t) => ({
+    ...t,
+    pendingChanges: repoPendingChanges[t.path] ?? t.pendingChanges ?? 0,
+  }));
+
+  const activeTab = tabsWithCounts.find((t) => t.id === activeTabId) || tabsWithCounts[0];
 
   const addRecentRepo = useCallback((path: string) => {
     setRecentRepos((prev) => {
@@ -152,12 +167,18 @@ export function useRepoTabs() {
     );
   }, []);
 
+  const updateTabPendingChanges = useCallback((tabId: string, count: number) => {
+    setTabs((prev) =>
+      prev.map((t) => (t.id === tabId ? { ...t, pendingChanges: count } : t))
+    );
+  }, []);
+
   const clearRecentRepos = useCallback(() => {
     setRecentRepos([]);
   }, []);
 
   return {
-    tabs,
+    tabs: tabsWithCounts,
     activeTabId,
     activeTab,
     recentRepos,
@@ -165,6 +186,8 @@ export function useRepoTabs() {
     closeTab,
     switchTab,
     updateTabBranch,
+    updateTabPendingChanges,
+    setRepoPathChanges,
     clearRecentRepos,
   };
 }

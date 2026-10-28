@@ -5,12 +5,47 @@ use super::openai::OpenAiProvider;
 use super::traits::AiCommitProvider;
 use crate::models::ai_models::AiConfig;
 use keyring::Entry;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 const KEYRING_SERVICE: &str = "git-manager";
 const KEYRING_AI_KEY: &str = "ai_api_key";
+pub const DEFAULT_GEMINI_MODEL: &str = "gemini-3.5-flash-lite";
 
 static GLOBAL_AI_CONFIG: Mutex<Option<AiConfig>> = Mutex::new(None);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredAiSettings {
+    pub provider: String,
+    pub model: String,
+    pub base_url: Option<String>,
+}
+
+fn get_config_file_path() -> Option<PathBuf> {
+    let base = std::env::var("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".config")))
+        .ok()?;
+    Some(base.join("git-manager").join("ai_config.json"))
+}
+
+fn load_stored_settings() -> Option<StoredAiSettings> {
+    let path = get_config_file_path()?;
+    let content = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+fn persist_stored_settings(settings: &StoredAiSettings) {
+    if let Some(path) = get_config_file_path() {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Ok(json) = serde_json::to_string_pretty(settings) {
+            let _ = std::fs::write(path, json);
+        }
+    }
+}
 
 pub fn save_ai_settings(
     provider: String,
@@ -27,14 +62,26 @@ pub fn save_ai_settings(
     }
 
     let default_model = match provider.as_str() {
-        "gemini" => "gemini-2.5-flash".to_string(),
+        "gemini" => DEFAULT_GEMINI_MODEL.to_string(),
         "ollama" => "qwen2.5-coder".to_string(),
         _ => "gpt-4o-mini".to_string(),
     };
 
+    let chosen_model = model
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or(default_model);
+
+    // Persist model & provider to disk so settings survive app restarts
+    let stored = StoredAiSettings {
+        provider: provider.clone(),
+        model: chosen_model.clone(),
+        base_url: base_url.clone(),
+    };
+    persist_stored_settings(&stored);
+
     let cfg = AiConfig {
         provider,
-        model: model.unwrap_or(default_model),
+        model: chosen_model,
         base_url,
         has_api_key: get_ai_api_key().is_ok_and(|k| k.is_some()),
     };
@@ -48,18 +95,27 @@ pub fn save_ai_settings(
 }
 
 pub fn get_ai_settings() -> AiConfig {
-    let lock = GLOBAL_AI_CONFIG.lock().unwrap_or_else(|e| e.into_inner());
+    let mut lock = GLOBAL_AI_CONFIG.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(ref cfg) = *lock {
         let mut cloned = cfg.clone();
         cloned.has_api_key = get_ai_api_key().is_ok_and(|k| k.is_some());
         cloned
     } else {
-        AiConfig {
-            provider: "gemini".to_string(),
-            model: "gemini-2.5-flash".to_string(),
-            base_url: None,
+        // Try loading from persistent disk storage
+        let (provider, model, base_url) = if let Some(stored) = load_stored_settings() {
+            (stored.provider, stored.model, stored.base_url)
+        } else {
+            ("gemini".to_string(), DEFAULT_GEMINI_MODEL.to_string(), None)
+        };
+
+        let cfg = AiConfig {
+            provider,
+            model,
+            base_url,
             has_api_key: get_ai_api_key().is_ok_and(|k| k.is_some()),
-        }
+        };
+        *lock = Some(cfg.clone());
+        cfg
     }
 }
 
@@ -96,7 +152,7 @@ pub fn create_active_provider() -> Result<Box<dyn AiCommitProvider>, AiServiceEr
             )))
         }
         _ => {
-            // Default Gemini
+            // Default Gemini with automatic 3-level cascading failover
             let api_key = get_ai_api_key()?
                 .ok_or_else(|| AiServiceError::MissingApiKey("Gemini".to_string()))?;
             Ok(Box::new(GeminiProvider::new(api_key, Some(cfg.model))))

@@ -31,5 +31,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg1OEU3Q0FEMEFBNTI0NzAKUldSd0pLVUtyWHlPaGNjOS9DdmUzRlRCeDNrLzRrY3RZQko1ZWhYYjBSY3FNVXljTXZQVW1QRU0K",
+      "endpoints": [
+        "https://github.com/juanesscort/git-manager/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

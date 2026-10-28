@@ -184,3 +184,53 @@ pub async fn pick_folder_dialog_cmd() -> Result<Option<String>, String> {
 pub async fn clone_repo_cmd(clone_url: String, target_path: String) -> Result<String, String> {
     git_clone(&clone_url, &target_path).map_err(|e| e.to_string())
 }
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct TerminalExecResult {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: i32,
+    pub user: String,
+    pub hostname: String,
+}
+
+#[tauri::command]
+pub async fn exec_terminal_cmd(cwd: String, command: String) -> Result<TerminalExecResult, String> {
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(&command)
+        .current_dir(&cwd)
+        .output()
+        .map_err(|e| format!("Error ejecutando comando en terminal: {}", e))?;
+
+    let user = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    let hostname = std::process::Command::new("hostname")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "linux".to_string());
+
+    Ok(TerminalExecResult {
+        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        exit_code: output.status.code().unwrap_or(-1),
+        user,
+        hostname,
+    })
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct TerminalPromptInfo {
+    pub user: String,
+    pub hostname: String,
+}
+
+#[tauri::command]
+pub fn get_terminal_prompt_info() -> TerminalPromptInfo {
+    let user = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    let hostname = std::process::Command::new("hostname")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "linux".to_string());
+
+    TerminalPromptInfo { user, hostname }
+}

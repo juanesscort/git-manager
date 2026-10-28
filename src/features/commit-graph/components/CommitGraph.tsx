@@ -13,7 +13,12 @@ interface CommitGraphProps {
   onSelectCommit: (commit: CommitInfo) => void;
   onCheckoutBranch?: (branchName: string) => void;
   onBranchContextMenu?: (x: number, y: number, branchName: string, isHead: boolean, isRemote: boolean) => void;
-  onDropBranch?: (sourceBranch: string, targetBranch: string, isRemote: boolean) => void;
+  onDropBranch?: (
+    sourceBranch: string,
+    targetBranch: string,
+    sourceIsRemote: boolean,
+    targetIsRemote: boolean
+  ) => void;
 }
 
 interface CombinedBranch {
@@ -263,8 +268,9 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                                 const source = e.dataTransfer.getData("application/git-branch");
                                 const sourceIsRemote = e.dataTransfer.getData("application/is-remote") === "true";
                                 const targetName = b.localName || b.name;
+                                const targetIsRemote = !b.hasLocal && b.hasRemote;
                                 if (source && source !== targetName && onDropBranch) {
-                                  onDropBranch(source, targetName, sourceIsRemote);
+                                  onDropBranch(source, targetName, sourceIsRemote, targetIsRemote);
                                 }
                               }}
                               onContextMenu={(e) => {

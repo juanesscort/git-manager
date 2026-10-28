@@ -28,7 +28,7 @@ export function useAiAssistant() {
     }
   };
 
-  const generateCommit = async (repoPath: string): Promise<string | null> => {
+  const generateCommit = async (repoPath: string): Promise<string> => {
     setError(null);
     setGenerating(true);
     try {
@@ -37,12 +37,7 @@ export function useAiAssistant() {
     } catch (err: unknown) {
       const errMsg = typeof err === "string" ? err : JSON.stringify(err);
       setError(errMsg);
-
-      // If missing API key, automatically open config modal
-      if (errMsg.toLowerCase().includes("api key no configurada") || errMsg.toLowerCase().includes("missing")) {
-        setConfigModalOpen(true);
-      }
-      return null;
+      throw new Error(errMsg);
     } finally {
       setGenerating(false);
     }

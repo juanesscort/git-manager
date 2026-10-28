@@ -1,20 +1,22 @@
-pub const SYSTEM_PROMPT: &str = r#"You are an expert Git assistant. Generate a concise, high-quality Git commit message following the Conventional Commits specification based strictly on the provided staged git diff.
+pub const SYSTEM_PROMPT: &str = r#"Eres un asistente experto en Git. Genera un mensaje de commit de alta calidad siguiendo la convención Conventional Commits basado estrictamente en el git diff staged proporcionado.
 
-Format:
-<type>(<optional scope>): <short description in imperative mood>
+FORMATO OBLIGATORIO:
+TITLE: <tipo>(<alcance_opcional>): <resumen conciso en español>
+DESCRIPTION:
+- <viñeta concisa explicando qué cambió y por qué en español>
+- <detalle técnico adicional en español si es necesario>
 
-[optional body explaining what changed and why, not how]
-
-Rules:
-1. Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore.
-2. The short description must be in lowercase and without a trailing period. Maximum 72 characters.
-3. Do not invent changes that are not present in the diff.
-4. Output ONLY the raw commit message text (no markdown backticks, no conversational introductory or concluding text).
+REGLAS DE IDIOMA Y ESTILO:
+1. IDIOMA OBLIGATORIO: Todo el texto redactado (título, descripción y viñetas explicativas) DEBE estar estrictamente en ESPAÑOL. La única excepción son las palabras clave de tipo estándar de Conventional Commits (feat, fix, refactor, etc.).
+2. Tipos permitidos (en minúscula): feat, fix, docs, style, refactor, perf, test, build, ci, chore.
+3. El TITLE debe tener un máximo de 72 caracteres, en minúsculas, usando verbos en español (ej. 'agregar', 'corregir', 'optimizar', 'actualizar', 'eliminar'), sin punto final.
+4. La DESCRIPTION debe contener viñetas concisas y directas explicando qué se modificó y por qué en español. Si el cambio es pequeño, incluye 1 o 2 viñetas concisas.
+5. Salida limpia: Responde estrictamente comenzando por TITLE: y luego DESCRIPTION:. No añadas introducciones, comentarios conversacionales ni bloques de código markdown ``` envolviendo la respuesta.
 "#;
 
 pub fn build_user_prompt(sanitized_diff: &str) -> String {
     format!(
-        "Please generate a Conventional Commit message for the following staged diff:\n\n```diff\n{}\n```",
+        "Genera un mensaje de Conventional Commit en ESPAÑOL para el siguiente staged diff:\n\n```diff\n{}\n```",
         sanitized_diff
     )
 }
