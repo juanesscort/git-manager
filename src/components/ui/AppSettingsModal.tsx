@@ -12,17 +12,21 @@ import {
   RefreshCw,
   Info,
   Download,
-  FolderGit2,
   CheckCircle2,
   Cpu,
+  Sliders,
+  GitCommit,
 } from "lucide-react";
 import { Button } from "./Button";
 import { useAppUpdater } from "../../hooks/useAppUpdater";
+import logoImg from "../../assets/logo.png";
 
 interface AppSettingsModalProps {
   isOpen: boolean;
-  initialTab?: "ai" | "about";
+  initialTab?: "ai" | "appearance" | "about";
   currentConfig: AiConfig | null;
+  showCommitBody?: boolean;
+  onToggleShowCommitBody?: (show: boolean) => void;
   onSaveAiConfig: (config: SaveAiConfigRequest) => void;
   onClose: () => void;
 }
@@ -54,10 +58,12 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
   isOpen,
   initialTab = "ai",
   currentConfig,
+  showCommitBody = false,
+  onToggleShowCommitBody,
   onSaveAiConfig,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<"ai" | "about">(initialTab);
+  const [activeTab, setActiveTab] = useState<"ai" | "appearance" | "about">(initialTab);
   const [provider, setProvider] = useState<string>("gemini");
   const [apiKey, setApiKey] = useState<string>("");
   const [model, setModel] = useState<string>("");
@@ -130,6 +136,19 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 <span>Asistente IA</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("appearance")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors ${
+                  activeTab === "appearance"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-[#8b949e] hover:text-white"
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 text-cyan-300" />
+                <span>Vista & Grafo</span>
               </button>
 
               <button
@@ -377,26 +396,104 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
             </form>
           )}
 
-          {/* TAB 2: ACERCA DE GIT-MANAGER & ACTUALIZACIONES */}
+          {/* TAB 2: VISTA & GRAFO */}
+          {activeTab === "appearance" && (
+            <div className="flex flex-col gap-5 py-1">
+              <div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1 flex items-center gap-2">
+                  <GitCommit className="w-4 h-4 text-blue-400" />
+                  <span>Visualización del Grafo y Tabla</span>
+                </h3>
+                <p className="text-[11px] text-[#8b949e]">
+                  Personaliza cómo se presentan las ramas, etiquetas, commits y columnas en la vista principal.
+                </p>
+              </div>
+
+              {/* Option 1: Flecha 5 - Show commit extended description */}
+              <div className="bg-[#0d1117] border border-[#30363d] rounded-xl p-4 flex items-center justify-between gap-4 shadow-sm hover:border-blue-500/30 transition-colors">
+                <div className="flex flex-col gap-1 pr-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white text-xs">
+                      Mostrar descripción extendida en el grafo de commits
+                    </span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-950/70 border border-blue-500/40 text-blue-300">
+                      Vista Detallada
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#8b949e] leading-relaxed">
+                    Muestra el cuerpo/descripción explicativa de los commits debajo del título principal en la tabla central del grafo, cuando esté disponible.
+                  </p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={showCommitBody}
+                    onChange={(e) => onToggleShowCommitBody && onToggleShowCommitBody(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5.5 bg-[#21262d] peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:start-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                </label>
+              </div>
+
+              {/* Option 2: Column Widths persistence & reset */}
+              <div className="bg-[#0d1117] border border-[#30363d] rounded-xl p-4 flex items-center justify-between gap-4 shadow-sm">
+                <div className="flex flex-col gap-1">
+                  <span className="font-semibold text-white text-xs">
+                    Ancho de Columnas del Grafo
+                  </span>
+                  <p className="text-[11px] text-[#8b949e] leading-relaxed">
+                    Puedes ajustar interactivamente el ancho de las columnas arrastrando las líneas divisorias en el encabezado. Haz clic aquí si deseas restaurar los anchos por defecto.
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    localStorage.removeItem("gitmanager_col_branch_width");
+                    localStorage.removeItem("gitmanager_col_graph_width");
+                    window.location.reload();
+                  }}
+                  className="shrink-0 text-xs hover:border-amber-500/40 hover:text-amber-300"
+                  title="Restablecer anchos guardados"
+                >
+                  Restablecer
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-lg bg-blue-950/20 border border-blue-500/20 text-[#8b949e] text-[11px] flex items-center gap-2">
+                <Info className="w-4 h-4 text-blue-400 shrink-0" />
+                <span>
+                  Los cambios de visualización se guardan automáticamente en tu perfil de usuario local.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: ACERCA DE GIT-MANAGER & ACTUALIZACIONES */}
           {activeTab === "about" && (
             <div className="flex flex-col gap-5">
               {/* Hero Banner */}
               <div className="flex items-center gap-4 p-4 rounded-xl bg-[#0d1117] border border-[#30363d]">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-700 flex items-center justify-center p-0.5 shadow-lg shrink-0">
-                  <div className="w-full h-full bg-[#161b22] rounded-[10px] flex items-center justify-center">
-                    <FolderGit2 className="w-7 h-7 text-blue-400" />
+                  <div className="w-full h-full bg-[#161b22] rounded-[10px] flex items-center justify-center overflow-hidden p-1">
+                    <img src={logoImg} alt="GitManager Logo" className="w-full h-full object-contain" />
                   </div>
                 </div>
 
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-white tracking-tight">Git-Manager</h3>
+                    <h3 className="text-base font-bold text-white tracking-tight">GitManager</h3>
+                    <span className="text-[9px] font-extrabold tracking-wider px-1.5 py-0.2 rounded bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-600/20 text-amber-300 border border-amber-500/40 shadow-xs uppercase">
+                      PRO
+                    </span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-950/60 border border-blue-500/40 text-blue-300">
                       v0.1.0
                     </span>
                   </div>
                   <p className="text-[11px] text-[#8b949e] mt-0.5">
-                    Cliente de escritorio nativo de Git & GitHub con Asistente IA y Grafo Interactivo.
+                    Cliente de escritorio nativo de Git & GitHub con Asistente IA, Grafo Interactivo y Gestor de Tags.
                   </p>
                   <div className="flex items-center gap-3 mt-1.5 text-[10px] text-[#8b949e] font-mono">
                     <span className="flex items-center gap-1">

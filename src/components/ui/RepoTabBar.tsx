@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  FolderGit2,
   Plus,
   X,
   Bell,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { RepoTab } from "../../hooks/useRepoTabs";
 import { GitHubUser } from "../../types/git";
+import logoImg from "../../assets/logo.png";
 
 interface RepoTabBarProps {
   tabs: RepoTab[];
@@ -62,11 +62,19 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
               }`}
               title={`${tab.name} (${tab.path})`}
             >
-              <FolderGit2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  isActive ? "text-blue-400" : "text-[#8b949e] group-hover:text-blue-400"
-                }`}
-              />
+              {tab.customIcon ? (
+                <img
+                  src={tab.customIcon}
+                  alt=""
+                  className="w-3.5 h-3.5 shrink-0 object-contain"
+                />
+              ) : (
+                <img
+                  src={logoImg}
+                  alt=""
+                  className="w-3.5 h-3.5 shrink-0 object-contain drop-shadow-xs transition-opacity opacity-85 group-hover:opacity-100"
+                />
+              )}
 
               <span className="truncate font-sans text-xs">{tab.name}</span>
 

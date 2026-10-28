@@ -119,3 +119,20 @@ export interface ConflictedFileDetail {
   current_workdir_content: string;
   blocks: ConflictBlock[];
 }
+
+export interface GitTag {
+  name: string;
+  target_commit_id: string;
+  short_target_id: string;
+  message?: string | null;
+  tagger_name?: string | null;
+  tagger_email?: string | null;
+  timestamp?: number | null;
+  is_annotated: boolean;
+}
+
+export interface CreateTagRequest {
+  name: string;
+  target_commit: string;
+  message?: string;
+}

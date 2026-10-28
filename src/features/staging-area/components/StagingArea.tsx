@@ -16,11 +16,13 @@ import {
   ChevronDown,
   FileCode,
   X,
+  Maximize2,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { FileItem } from "./FileItem";
 import { FileStatusItem } from "../../../types/git";
+import { CommitEditorModal } from "./CommitEditorModal";
 
 interface StagingAreaProps {
   stagedFiles: FileStatusItem[];
@@ -108,6 +110,36 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   const [sortAsc, setSortAsc] = useState<boolean>(true);
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [aiError, setAiError] = useState<string | null>(null);
+  const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
+
+  // User adjustable commit box vertical height (Flecha 6)
+  const [commitBoxHeight, setCommitBoxHeight] = useState<number>(() => {
+    const saved = localStorage.getItem("gitmanager_commit_box_height");
+    return saved ? Math.max(170, Math.min(550, parseInt(saved, 10))) : 230;
+  });
+
+  const handleCommitBoxResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const startH = commitBoxHeight;
+    const onPointerMove = (ev: PointerEvent) => {
+      const delta = startY - ev.clientY;
+      const newH = Math.max(170, Math.min(550, startH + delta));
+      setCommitBoxHeight(newH);
+      localStorage.setItem("gitmanager_commit_box_height", newH.toString());
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
 
   const toggleFolder = (folderPath: string) => {
     setCollapsedFolders((prev) => ({
@@ -462,9 +494,21 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         </div>
       </div>
 
-      {/* Commit Box: Title (Required) + Description (Optional) */}
-      <div className="border-t border-[#30363d] bg-[#161b22] p-3 flex flex-col gap-2 shrink-0">
-        <div className="flex items-center justify-between">
+      {/* Resizable Divider between file trees and commit box (Flecha 6) */}
+      <div
+        onPointerDown={handleCommitBoxResizeStart}
+        className="h-1.5 w-full bg-[#30363d] hover:bg-blue-500 cursor-row-resize transition-colors shrink-0 z-20 flex items-center justify-center group select-none"
+        title="Arrastra para redimensionar verticalmente el panel de escritura de commits"
+      >
+        <div className="w-8 h-0.5 rounded bg-transparent group-hover:bg-blue-300 transition-colors pointer-events-none" />
+      </div>
+
+      {/* Commit Box: Title (Required) + Description (Optional) with Dynamic Height */}
+      <div
+        style={{ height: commitBoxHeight }}
+        className="bg-[#161b22] p-3 flex flex-col gap-2 shrink-0 overflow-hidden"
+      >
+        <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
               Título
@@ -504,12 +548,22 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
             >
               {aiGenerating ? "Analizando..." : "Generar IA"}
             </Button>
+
+            {/* Expand in Dedicated Modal Button (Flecha 6) */}
+            <button
+              type="button"
+              onClick={() => setIsCommitModalOpen(true)}
+              className="p-1 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors cursor-pointer"
+              title="Abrir editor de commits en modal ampliado (mayor espacio y libertad)"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
         {/* AI Error Alert */}
         {aiError && (
-          <div className="bg-rose-950/50 border border-rose-500/50 rounded-lg p-2.5 text-xs flex flex-col gap-1.5 animate-in fade-in duration-200">
+          <div className="bg-rose-950/50 border border-rose-500/50 rounded-lg p-2 text-xs flex flex-col gap-1 shrink-0 animate-in fade-in duration-200">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 text-rose-300 font-semibold text-[11px]">
                 <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
@@ -524,21 +578,9 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
-            <p className="text-[11px] text-rose-200 font-mono break-words leading-relaxed">
+            <p className="text-[10px] text-rose-200 font-mono break-words leading-tight">
               {aiError}
             </p>
-            {onOpenAiConfig && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAiError(null);
-                  onOpenAiConfig();
-                }}
-                className="self-start text-[11px] font-medium text-amber-300 hover:text-amber-200 underline mt-0.5 cursor-pointer"
-              >
-                Abrir Ajustes de IA para corregir API Key o Modelo →
-              </button>
-            )}
           </div>
         )}
 
@@ -548,20 +590,19 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           value={commitTitle}
           onChange={(e) => setCommitTitle(e.target.value)}
           placeholder="feat(alcance): resumen conciso del cambio..."
-          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2.5 py-1.5 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-none font-mono"
+          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2.5 py-1.5 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden font-mono shrink-0"
         />
 
-        {/* Description Textarea (Opcional) */}
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider">
+        {/* Description Textarea (Opcional) - Flexible to expand with height */}
+        <div className="flex flex-col gap-1 flex-1 min-h-0">
+          <span className="text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider shrink-0">
             Descripción (Opcional)
           </span>
           <textarea
             value={commitDescription}
             onChange={(e) => setCommitDescription(e.target.value)}
             placeholder="Detalles adicionales, contexto o notas sobre este cambio..."
-            rows={3}
-            className="w-full bg-[#0d1117] border border-[#30363d] rounded p-2 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-none resize-none font-mono"
+            className="w-full flex-1 min-h-[40px] bg-[#0d1117] border border-[#30363d] rounded p-2 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-hidden resize-none font-mono leading-relaxed"
           />
         </div>
 
@@ -570,11 +611,31 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           variant="primary"
           disabled={stagedFiles.length === 0 || !commitTitle.trim()}
           onClick={handleCommitSubmit}
-          className="w-full mt-1"
+          className="w-full mt-0.5 shrink-0"
         >
           Commit a {currentBranch || "HEAD"} ({stagedFiles.length})
         </Button>
       </div>
+
+      {/* Dedicated Pop-out Modal for Free & Spacious Commit Writing (Flecha 6) */}
+      <CommitEditorModal
+        isOpen={isCommitModalOpen}
+        commitTitle={commitTitle}
+        commitDescription={commitDescription}
+        stagedFiles={stagedFiles}
+        currentBranch={currentBranch}
+        aiGenerating={aiGenerating}
+        aiError={aiError}
+        onChangeTitle={setCommitTitle}
+        onChangeDescription={setCommitDescription}
+        onGenerateAiCommit={handleAiGenerate}
+        onCommit={() => {
+          handleCommitSubmit();
+          setIsCommitModalOpen(false);
+        }}
+        onClose={() => setIsCommitModalOpen(false)}
+        onOpenAiConfig={onOpenAiConfig}
+      />
     </aside>
   );
 };

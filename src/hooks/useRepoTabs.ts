@@ -8,6 +8,7 @@ export interface RepoTab {
   path: string;
   currentBranch?: string | null;
   pendingChanges?: number;
+  customIcon?: string;
 }
 
 const STORAGE_TABS_KEY = "git_manager_tabs_v1";

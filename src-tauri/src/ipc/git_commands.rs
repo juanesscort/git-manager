@@ -10,9 +10,11 @@ use crate::core::git_engine::{
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
     status::get_repo_statuses,
+    tags::{create_tag, delete_tag, list_tags},
 };
 use crate::models::git_models::{
-    BranchesSummary, CommitFileChange, CommitInfo, DiffDelta, FileStatusItem, RepoSummary,
+    BranchesSummary, CommitFileChange, CommitInfo, DiffDelta, FileStatusItem, GitTagDto,
+    RepoSummary,
 };
 
 #[tauri::command]
@@ -233,4 +235,27 @@ pub fn get_terminal_prompt_info() -> TerminalPromptInfo {
         .unwrap_or_else(|_| "linux".to_string());
 
     TerminalPromptInfo { user, hostname }
+}
+
+#[tauri::command]
+pub async fn get_repo_tags_cmd(path: String) -> Result<Vec<GitTagDto>, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    list_tags(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_tag_cmd(
+    path: String,
+    name: String,
+    target_commit: String,
+    message: Option<String>,
+) -> Result<GitTagDto, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    create_tag(&repo, &name, &target_commit, message.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_tag_cmd(path: String, name: String) -> Result<(), String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    delete_tag(&repo, &name).map_err(|e| e.to_string())
 }

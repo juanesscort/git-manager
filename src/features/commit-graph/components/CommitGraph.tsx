@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import { GraphNode, LANE_COLORS } from "../hooks/useCommitGraph";
-import { CommitInfo, BranchesSummary, BranchInfo } from "../../../types/git";
-import { GitCommit, Calendar, Cloud, Check, Monitor } from "lucide-react";
+import { CommitInfo, BranchesSummary, BranchInfo, GitTag } from "../../../types/git";
+import { GitCommit, Calendar, Cloud, Check, Monitor, Tag as TagIcon } from "lucide-react";
 
 interface CommitGraphProps {
   nodes: GraphNode[];
   selectedCommit: CommitInfo | null;
   loading: boolean;
   branches?: BranchesSummary;
+  tags?: GitTag[];
+  showCommitBody?: boolean;
   githubAvatarUrl?: string | null;
   githubLogin?: string | null;
   onSelectCommit: (commit: CommitInfo) => void;
@@ -68,6 +70,8 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   selectedCommit,
   loading,
   branches,
+  tags,
+  showCommitBody = false,
   githubAvatarUrl,
   githubLogin,
   onSelectCommit,
@@ -75,6 +79,61 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   onDropBranch,
 }) => {
   const [dragOverBadge, setDragOverBadge] = useState<string | null>(null);
+
+  // User adjustable column widths with persistent localStorage
+  const [branchColWidth, setBranchColWidth] = useState<number>(() => {
+    const saved = localStorage.getItem("gitmanager_col_branch_width");
+    return saved ? Math.max(110, Math.min(460, parseInt(saved, 10))) : 210;
+  });
+
+  const [graphColWidth, setGraphColWidth] = useState<number>(() => {
+    const saved = localStorage.getItem("gitmanager_col_graph_width");
+    return saved ? Math.max(60, Math.min(400, parseInt(saved, 10))) : 100;
+  });
+
+  const handleBranchResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = branchColWidth;
+    const onPointerMove = (ev: PointerEvent) => {
+      const newW = Math.max(110, Math.min(460, startW + (ev.clientX - startX)));
+      setBranchColWidth(newW);
+      localStorage.setItem("gitmanager_col_branch_width", newW.toString());
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
+
+  const handleGraphResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = graphColWidth;
+    const onPointerMove = (ev: PointerEvent) => {
+      const newW = Math.max(60, Math.min(400, startW + (ev.clientX - startX)));
+      setGraphColWidth(newW);
+      localStorage.setItem("gitmanager_col_graph_width", newW.toString());
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
 
   if (loading && nodes.length === 0) {
     return (
@@ -169,26 +228,82 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
     }
   }
 
+  // Pre-calculate tags map by target_commit_id
+  const commitTagsMap = new Map<string, GitTag[]>();
+  if (tags && tags.length > 0) {
+    for (const tag of tags) {
+      const list = commitTagsMap.get(tag.target_commit_id) || [];
+      list.push(tag);
+      commitTagsMap.set(tag.target_commit_id, list);
+    }
+  }
+
   // Graph geometry
   const maxLane = Math.max(...nodes.map((n) => Math.max(n.lane, ...(n.parentLanes || []))), 0);
   const laneSpacing = 20;
-  const svgWidth = Math.max(38, (maxLane + 1) * laneSpacing + 10);
-  const rowHeight = 28;
+  const minSvgWidth = Math.max(38, (maxLane + 1) * laneSpacing + 10);
+  const finalGraphWidth = Math.max(graphColWidth, minSvgWidth);
+  const rowHeight = showCommitBody ? 42 : 28;
   const cy = rowHeight / 2;
   const nodeRadius = 9; // 18px diameter avatar
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#010409]">
-      {/* Table Header - GitKraken styled */}
-      <div className="h-7 border-b border-[#30363d] bg-[#161b22] px-3 flex items-center text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider shrink-0 select-none">
-        <div className="w-52 shrink-0 px-2 text-right">BRANCH / TAG</div>
-        <div style={{ width: svgWidth }} className="shrink-0 text-center">
-          GRAPH
+      {/* Table Header - Centered & in Spanish with Resizable Column Handles (Flechas 1 y 2) */}
+      <div className="h-7 border-b border-[#30363d] bg-[#161b22] flex items-center text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider shrink-0 select-none">
+        {/* 1. RAMA / ETIQUETA */}
+        <div
+          style={{ width: branchColWidth }}
+          className="shrink-0 text-center font-bold px-1 truncate"
+        >
+          RAMA / ETIQUETA
         </div>
-        <div className="flex-1 px-3">COMMIT MESSAGE</div>
-        <div className="w-32 px-2">AUTHOR</div>
-        <div className="w-24 px-2">DATE</div>
-        <div className="w-18 px-2 text-right">HASH</div>
+
+        {/* Resizer 1 between RAMA / ETIQUETA and GRAFO */}
+        <div
+          onPointerDown={handleBranchResizeStart}
+          className="w-2 h-full -mx-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 shrink-0 z-20 flex items-center justify-center transition-colors group"
+          title="Arrastra para redimensionar la columna de Ramas / Etiquetas"
+        >
+          <div className="w-[1px] h-3 bg-[#30363d] group-hover:bg-blue-300 transition-colors pointer-events-none" />
+        </div>
+
+        {/* 2. GRAFO */}
+        <div
+          style={{ width: finalGraphWidth }}
+          className="shrink-0 text-center font-bold px-1 truncate"
+        >
+          GRAFO
+        </div>
+
+        {/* Resizer 2 between GRAFO and MENSAJE DE COMMIT */}
+        <div
+          onPointerDown={handleGraphResizeStart}
+          className="w-2 h-full -mx-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 shrink-0 z-20 flex items-center justify-center transition-colors group"
+          title="Arrastra para redimensionar la columna del Grafo"
+        >
+          <div className="w-[1px] h-3 bg-[#30363d] group-hover:bg-blue-300 transition-colors pointer-events-none" />
+        </div>
+
+        {/* 3. MENSAJE DE COMMIT */}
+        <div className="flex-1 text-center font-bold px-3 truncate">
+          MENSAJE DE COMMIT
+        </div>
+
+        {/* 4. AUTOR */}
+        <div className="w-32 shrink-0 text-center font-bold px-2 truncate">
+          AUTOR
+        </div>
+
+        {/* 5. FECHA */}
+        <div className="w-24 shrink-0 text-center font-bold px-2 truncate">
+          FECHA
+        </div>
+
+        {/* 6. HASH */}
+        <div className="w-20 shrink-0 text-center font-bold px-2 truncate">
+          HASH
+        </div>
       </div>
 
       {/* Commit List with GitKraken-styled Graph and Lane Backgrounds */}
@@ -198,7 +313,14 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
             const { commit, lane, color, parentLanes = [], activeLanes = [] } = node;
             const isSelected = selectedCommit?.oid === commit.oid;
             const commitBadges = commitBranchesMap.get(commit.oid) || [];
+            const commitTags = commitTagsMap.get(commit.oid) || [];
+            const hasBadgesOrTags = commitBadges.length > 0 || commitTags.length > 0;
             const isHead = commitBadges.some((b) => b.isHead);
+
+            const commitBody =
+              commit.message.length > commit.summary.length
+                ? commit.message.substring(commit.summary.length).trim()
+                : "";
 
             const dateStr = new Date(commit.timestamp * 1000).toLocaleDateString(undefined, {
               month: "short",
@@ -229,11 +351,15 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                     : "hover:bg-white/[0.04] text-[#c9d1d9]"
                 }`}
               >
-                {/* 1. BRANCH / TAG Column with horizontal connector line */}
-                <div className="w-52 shrink-0 h-full flex items-center justify-end px-2 overflow-hidden select-none">
-                  {commitBadges.length > 0 && (
+                {/* 1. BRANCH / TAG Column with seamless horizontal connector line (Flecha 3) */}
+                <div
+                  style={{ width: branchColWidth }}
+                  className="shrink-0 h-full flex items-center justify-end pl-2 pr-0 overflow-hidden select-none"
+                >
+                  {hasBadgesOrTags && (
                     <div className="flex items-center w-full justify-end">
-                      <div className="flex items-center gap-1 shrink-0 max-w-[calc(100%-8px)] overflow-hidden">
+                      <div className="flex items-center gap-1 shrink-0 max-w-[calc(100%-6px)] overflow-hidden">
+                        {/* Branch Badges */}
                         {commitBadges.map((b) => {
                           const isBadgeDragTarget = dragOverBadge === b.name;
 
@@ -319,9 +445,21 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                             </div>
                           );
                         })}
+
+                        {/* Git Tags Badges */}
+                        {commitTags.map((tag) => (
+                          <div
+                            key={`tag-${tag.name}`}
+                            className="flex items-center gap-1 h-5 px-1.5 rounded text-[10px] font-mono border shrink-0 bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-xs select-none"
+                            title={`Etiqueta: ${tag.name}${tag.message ? ` - ${tag.message}` : ""}`}
+                          >
+                            <TagIcon className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                            <span className="truncate max-w-[85px]">{tag.name}</span>
+                          </div>
+                        ))}
                       </div>
 
-                      {/* Horizontal connector line to the right edge */}
+                      {/* Seamless horizontal connector line meeting the exact boundary */}
                       <div
                         className="flex-1 h-[2px] min-w-[6px]"
                         style={{ backgroundColor: color, opacity: 0.85 }}
@@ -332,10 +470,10 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
 
                 {/* 2. GRAPH Column with Bezier Curves & Profile Picture Avatars */}
                 <div
-                  style={{ width: svgWidth, height: rowHeight }}
+                  style={{ width: finalGraphWidth, height: rowHeight }}
                   className="shrink-0 relative overflow-visible"
                 >
-                  <svg width={svgWidth} height={rowHeight} className="overflow-visible">
+                  <svg width={finalGraphWidth} height={rowHeight} className="overflow-visible">
                     <defs>
                       <clipPath id={`avatar-clip-${commit.oid}`}>
                         <circle cx={cx} cy={cy} r={nodeRadius} />
@@ -408,7 +546,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                       })}
 
                     {/* Horizontal branch connector line from column boundary to commit node */}
-                    {commitBadges.length > 0 && (
+                    {hasBadgesOrTags && (
                       <line
                         x1={0}
                         y1={cy}
@@ -456,34 +594,47 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                   </svg>
                 </div>
 
-                {/* 3. COMMIT MESSAGE Column with left color accent line */}
+                {/* 3. COMMIT MESSAGE Column with left color accent line & Optional Description (Flecha 5) */}
                 <div
                   className="flex items-center flex-1 px-3 min-w-0 border-l-2 h-full overflow-hidden"
                   style={{ borderLeftColor: color }}
                 >
-                  <span className="font-mono text-white text-xs truncate">
-                    {commit.summary}
-                  </span>
-                  {commit.parent_oids.length > 1 && (
-                    <span className="ml-2 px-1.5 py-0.2 bg-purple-950/60 text-purple-300 border border-purple-800 rounded text-[9px] shrink-0 font-sans">
-                      Merge
-                    </span>
-                  )}
+                  <div className="flex flex-col justify-center min-w-0 py-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-white text-xs truncate">
+                        {commit.summary}
+                      </span>
+                      {commit.parent_oids.length > 1 && (
+                        <span className="px-1.5 py-0.2 bg-purple-950/60 text-purple-300 border border-purple-800 rounded text-[9px] shrink-0 font-sans">
+                          Merge
+                        </span>
+                      )}
+                    </div>
+
+                    {showCommitBody && commitBody && (
+                      <p
+                        className="text-[11px] text-[#8b949e] font-sans truncate max-w-2xl opacity-75 mt-0.5"
+                        title={commitBody}
+                      >
+                        {commitBody}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* 4. AUTHOR Column */}
-                <div className="w-32 px-2 truncate flex items-center gap-1.5 text-[11px] text-[#8b949e]">
+                <div className="w-32 shrink-0 px-2 truncate flex items-center justify-center gap-1.5 text-[11px] text-[#8b949e]">
                   <span className="truncate">{commit.author_name}</span>
                 </div>
 
                 {/* 5. DATE Column */}
-                <div className="w-24 px-2 flex items-center gap-1 text-[11px] text-[#8b949e] truncate">
+                <div className="w-24 shrink-0 px-2 flex items-center justify-center gap-1 text-[11px] text-[#8b949e] truncate">
                   <Calendar className="w-3 h-3 text-[#484f58] shrink-0" />
                   <span className="truncate">{dateStr}</span>
                 </div>
 
                 {/* 6. HASH Column */}
-                <div className="w-18 px-2 text-right">
+                <div className="w-20 shrink-0 px-2 text-center">
                   <span className="font-mono text-[10px] bg-[#161b22] px-1.5 py-0.5 rounded border border-[#30363d] text-blue-400">
                     {commit.short_oid}
                   </span>

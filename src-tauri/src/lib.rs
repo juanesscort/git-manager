@@ -13,7 +13,7 @@ use ipc::git_commands::{
     get_diff_cmd, get_repo_branches_cmd, get_repo_info, get_repo_status, get_terminal_prompt_info,
     git_fetch_cmd, git_merge_cmd, git_pull_cmd, git_push_cmd, git_rebase_cmd, git_stash_cmd,
     git_stash_pop_cmd, pick_folder_dialog_cmd, rename_branch_cmd, stage_all_cmd, stage_file_cmd,
-    unstage_all_cmd, unstage_file_cmd,
+    unstage_all_cmd, unstage_file_cmd, create_tag_cmd, delete_tag_cmd, get_repo_tags_cmd,
 };
 use ipc::github_commands::{
     check_github_session, get_github_repositories, logout_github_session, poll_github_device_token,
@@ -67,6 +67,9 @@ pub fn run() {
             check_repo_conflicts,
             get_conflict_file_detail,
             resolve_conflict_file_cmd,
+            get_repo_tags_cmd,
+            create_tag_cmd,
+            delete_tag_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

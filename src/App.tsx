@@ -9,7 +9,12 @@ import {
   Split,
   Maximize2,
   X,
+  Cloud,
+  Tag,
+  Plus,
 } from "lucide-react";
+import logoImg from "./assets/logo.png";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Badge } from "./components/ui/Badge";
 import { Button } from "./components/ui/Button";
 import { Splitter } from "./components/ui/Splitter";
@@ -19,12 +24,18 @@ import { BranchContextMenu, BranchContextMenuState } from "./components/ui/Branc
 import { RepoTabBar } from "./components/ui/RepoTabBar";
 import { OpenRepoModal } from "./components/ui/OpenRepoModal";
 import { EmbeddedTerminal } from "./components/ui/EmbeddedTerminal";
+import { AccordionSection } from "./components/ui/AccordionSection";
+import { TagListView } from "./features/commit-graph/components/TagListView";
+import { CreateTagModal } from "./features/commit-graph/components/CreateTagModal";
 import { useRepoTabs } from "./hooks/useRepoTabs";
 import { GitToolbar } from "./features/git-ops/components/GitToolbar";
 import { useGitToolbar } from "./hooks/useGitToolbar";
 import { useRepo } from "./hooks/useRepo";
 import { useStaging } from "./features/staging-area/hooks/useStaging";
 import { useCommitGraph } from "./features/commit-graph/hooks/useCommitGraph";
+import { useBranches } from "./features/commit-graph/hooks/useBranches";
+import { useTags } from "./features/commit-graph/hooks/useTags";
+import { useCommitDetails } from "./features/commit-graph/hooks/useCommitDetails";
 import { useGitHub } from "./features/github-sync/hooks/useGitHub";
 import { useAiAssistant } from "./features/ai-assistant/hooks/useAiAssistant";
 import { useConflictResolver } from "./features/conflict-resolver/hooks/useConflictResolver";
@@ -33,8 +44,6 @@ import { CommitGraph } from "./features/commit-graph/components/CommitGraph";
 import { BranchTreeView } from "./features/commit-graph/components/BranchTreeView";
 import { DiffViewer } from "./features/staging-area/components/DiffViewer";
 import { CommitDetailsPanel } from "./features/commit-graph/components/CommitDetailsPanel";
-import { useBranches } from "./features/commit-graph/hooks/useBranches";
-import { useCommitDetails } from "./features/commit-graph/hooks/useCommitDetails";
 import { GitHubAuthModal } from "./features/github-sync/components/GitHubAuthModal";
 import { RemoteReposModal } from "./features/github-sync/components/RemoteReposModal";
 import { AppSettingsModal } from "./components/ui/AppSettingsModal";
@@ -109,9 +118,18 @@ export const App: React.FC = () => {
     closeConfigModal: closeAiConfigModal,
   } = useAiAssistant();
 
-  const [settingsTab, setSettingsTab] = useState<"ai" | "about">("ai");
+  const [settingsTab, setSettingsTab] = useState<"ai" | "appearance" | "about">("ai");
 
-  const handleOpenSettings = (tab: "ai" | "about" = "ai") => {
+  const [showCommitBody, setShowCommitBody] = useState<boolean>(() => {
+    return localStorage.getItem("gitmanager_show_commit_body") === "true";
+  });
+
+  const handleToggleShowCommitBody = (show: boolean) => {
+    setShowCommitBody(show);
+    localStorage.setItem("gitmanager_show_commit_body", show ? "true" : "false");
+  };
+
+  const handleOpenSettings = (tab: "ai" | "appearance" | "about" = "ai") => {
     setSettingsTab(tab);
     openAiConfigModal();
   };
@@ -125,6 +143,30 @@ export const App: React.FC = () => {
   } = useCommitGraph(repoPath);
 
   const { branches, refreshBranches } = useBranches(repoPath);
+
+  const {
+    tags,
+    createTag,
+    deleteTag,
+  } = useTags(activeRepoPath);
+
+  const [createTagModalOpen, setCreateTagModalOpen] = useState(false);
+  const [targetCommitForTag, setTargetCommitForTag] = useState<{ oid: string; summary?: string }>({
+    oid: "HEAD",
+  });
+
+  // Sync native OS window title with GitManager PRO and current project
+  useEffect(() => {
+    try {
+      const win = getCurrentWindow();
+      const title = activeTab
+        ? `GitManager PRO v0.1.0 - [${activeTab.name}]`
+        : "GitManager PRO v0.1.0";
+      win.setTitle(title);
+    } catch {
+      // Ignored outside desktop window context
+    }
+  }, [activeTab]);
 
   const {
     files: commitFiles,
@@ -333,26 +375,31 @@ export const App: React.FC = () => {
         <div className="flex items-center gap-3">
           {/* Logo & Application Brand */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-[1px] shadow-sm flex items-center justify-center shrink-0">
-              <div className="w-full h-full bg-[#161b22] rounded-[7px] flex items-center justify-center">
-                <FolderGit2 className="w-4 h-4 text-blue-400" />
-              </div>
-            </div>
+            <img
+              src={logoImg}
+              alt="GitManager"
+              className="h-10 w-10 object-contain shrink-0 filter drop-shadow-[0_0_12px_rgba(56,189,248,0.45)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] transition-transform hover:scale-105 cursor-pointer"
+              onClick={() => handleOpenSettings("about")}
+              title="GitManager PRO"
+            />
 
             <div className="flex flex-col">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <h1 className="font-bold text-sm tracking-tight bg-gradient-to-r from-white via-[#c9d1d9] to-blue-300 bg-clip-text text-transparent">
-                  Git-Manager
+                  GitManager
                 </h1>
+                <span className="text-[9px] font-extrabold tracking-wider px-1.5 py-0.2 rounded bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-600/20 text-amber-300 border border-amber-500/40 shadow-xs uppercase select-none">
+                  PRO
+                </span>
                 <button
                   type="button"
                   onClick={() => handleOpenSettings("about")}
-                  className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#21262d] text-[#8b949e] hover:text-blue-300 hover:border-blue-500/40 border border-[#30363d] cursor-pointer transition-all"
-                  title="Git-Manager v0.1.0 (clic para ver actualizaciones y acerca de)"
+                  className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#21262d] text-[#8b949e] hover:text-blue-300 hover:border-blue-500/40 border border-[#30363d] cursor-pointer transition-all"
+                  title="GitManager PRO v0.1.0 (clic para ver actualizaciones y acerca de)"
                 >
                   v0.1.0
                 </button>
-                <span className="text-[#484f58] font-thin">/</span>
+                <span className="text-[#484f58] font-thin mx-0.5">/</span>
                 {activeTab && (
                   <span className="text-xs font-semibold text-blue-400 bg-blue-950/40 border border-blue-500/30 px-2 py-0.5 rounded font-mono">
                     {activeTab.name}
@@ -459,33 +506,72 @@ export const App: React.FC = () => {
             style={{ width: leftWidth }}
             className="bg-[#0d1117] flex flex-col p-3 gap-3 shrink-0 overflow-hidden select-none"
           >
-            <nav className="flex flex-col gap-3 text-xs overflow-y-auto flex-1">
-            {/* Local Branches Section with Folders */}
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider mb-0.5">
-                Ramas Locales ({branches.local.length})
-              </span>
-              <BranchTreeView
-                branches={branches.local}
-                currentBranch={currentBranchName}
-                onContextMenu={handleOpenBranchContextMenu}
-                onDropBranch={handleDropBranch}
-              />
-            </div>
+            <nav className="flex flex-col gap-2 text-xs overflow-y-auto flex-1 no-scrollbar">
+              {/* 1. Local Branches Accordion */}
+              <AccordionSection
+                title="Ramas Locales"
+                count={branches.local.length}
+                icon={<GitBranch className="w-3.5 h-3.5 text-blue-400" />}
+                defaultOpen={true}
+              >
+                <BranchTreeView
+                  branches={branches.local}
+                  currentBranch={currentBranchName}
+                  onContextMenu={handleOpenBranchContextMenu}
+                  onDropBranch={handleDropBranch}
+                />
+              </AccordionSection>
 
-            {/* Remote Branches Section with Folders */}
-            <div className="flex flex-col gap-1 pt-1 border-t border-[#30363d]/50">
-              <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider mb-0.5">
-                Ramas Remotas ({branches.remote.length})
-              </span>
-              <BranchTreeView
-                branches={branches.remote}
-                isRemote={true}
-                onContextMenu={handleOpenBranchContextMenu}
-                onDropBranch={handleDropBranch}
-              />
-            </div>
-          </nav>
+              {/* 2. Remote Branches Accordion */}
+              <AccordionSection
+                title="Ramas Remotas"
+                count={branches.remote.length}
+                icon={<Cloud className="w-3.5 h-3.5 text-purple-400" />}
+                defaultOpen={true}
+              >
+                <BranchTreeView
+                  branches={branches.remote}
+                  isRemote={true}
+                  onContextMenu={handleOpenBranchContextMenu}
+                  onDropBranch={handleDropBranch}
+                />
+              </AccordionSection>
+
+              {/* 3. Tags / Etiquetas Accordion (Flecha 4) */}
+              <AccordionSection
+                title="Etiquetas (Tags)"
+                count={tags.length}
+                icon={<Tag className="w-3.5 h-3.5 text-emerald-400" />}
+                defaultOpen={true}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetCommitForTag({ oid: "HEAD" });
+                      setCreateTagModalOpen(true);
+                    }}
+                    className="p-1 rounded text-[#8b949e] hover:text-emerald-400 hover:bg-[#161b22] transition-colors cursor-pointer"
+                    title="Crear nueva etiqueta sobre HEAD"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                }
+              >
+                <TagListView
+                  tags={tags}
+                  onSelectTag={(targetCommitId) => {
+                    const node = graphNodes.find((n) => n.commit.oid === targetCommitId);
+                    if (node) {
+                      setSelectedCommit(node.commit);
+                    }
+                    setActiveCenterTab("graph");
+                  }}
+                  onDeleteTag={async (name) => {
+                    await deleteTag(name);
+                  }}
+                />
+              </AccordionSection>
+            </nav>
         </aside>
 
         {/* Flecha 2: Resizable Left Splitter */}
@@ -587,6 +673,8 @@ export const App: React.FC = () => {
                       selectedCommit={selectedCommit}
                       loading={commitsLoading}
                       branches={branches}
+                      tags={tags}
+                      showCommitBody={showCommitBody}
                       githubAvatarUrl={githubUser?.avatar_url}
                       githubLogin={githubUser?.login}
                       onSelectCommit={handleSelectCommit}
@@ -604,6 +692,8 @@ export const App: React.FC = () => {
                       selectedCommit={selectedCommit}
                       loading={commitsLoading}
                       branches={branches}
+                      tags={tags}
+                      showCommitBody={showCommitBody}
                       githubAvatarUrl={githubUser?.avatar_url}
                       githubLogin={githubUser?.login}
                       onSelectCommit={handleSelectCommit}
@@ -647,6 +737,8 @@ export const App: React.FC = () => {
                 selectedCommit={selectedCommit}
                 loading={commitsLoading}
                 branches={branches}
+                tags={tags}
+                showCommitBody={showCommitBody}
                 githubAvatarUrl={githubUser?.avatar_url}
                 githubLogin={githubUser?.login}
                 onSelectCommit={handleSelectCommit}
@@ -746,6 +838,17 @@ export const App: React.FC = () => {
         }}
       />
 
+      {/* Create Tag Modal */}
+      <CreateTagModal
+        isOpen={createTagModalOpen}
+        targetCommitOid={targetCommitForTag.oid}
+        targetCommitSummary={targetCommitForTag.summary}
+        onClose={() => setCreateTagModalOpen(false)}
+        onCreateTag={async (name, target, msg) => {
+          return await createTag(name, target, msg);
+        }}
+      />
+
       {/* GitHub Authentication Modal */}
       <GitHubAuthModal
         isOpen={authModalOpen}
@@ -768,11 +871,13 @@ export const App: React.FC = () => {
         onClose={closeReposModal}
       />
 
-      {/* App Settings Modal (AI + About & Updates) */}
+      {/* App Settings Modal (AI + Appearance & Graph + About & Updates) */}
       <AppSettingsModal
         isOpen={aiConfigModalOpen}
         initialTab={settingsTab}
         currentConfig={aiConfig}
+        showCommitBody={showCommitBody}
+        onToggleShowCommitBody={handleToggleShowCommitBody}
         onSaveAiConfig={saveAiConfig}
         onClose={closeAiConfigModal}
       />

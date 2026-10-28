@@ -157,3 +157,47 @@ fn test_git_clone_local() {
         crate::core::git_engine::get_repo_summary(&cloned_repo).expect("summary of cloned repo");
     assert!(!cloned_summary.is_empty);
 }
+
+#[test]
+fn test_tags_creation_listing_deletion() {
+    let (temp_dir, repo) = setup_temp_repo();
+    let file_path = temp_dir.path().join("tag_test.txt");
+    fs::write(&file_path, "version 0.1.0\n").expect("write file");
+    stage_file(&repo, "tag_test.txt").expect("stage file");
+    let commit_oid = create_commit(&repo, "feat: tag target", None, None).expect("commit");
+
+    // 1. Initially no tags
+    let initial_tags = list_tags(&repo).expect("list empty tags");
+    assert_eq!(initial_tags.len(), 0);
+
+    // 2. Create lightweight tag
+    let tag_light =
+        create_tag(&repo, "v0.1.0-light", &commit_oid, None).expect("create lightweight tag");
+    assert_eq!(tag_light.name, "v0.1.0-light");
+    assert!(!tag_light.is_annotated);
+
+    // 3. Create annotated tag
+    let tag_annotated = create_tag(
+        &repo,
+        "v0.1.0",
+        &commit_oid,
+        Some("First official release of GitManager PRO"),
+    )
+    .expect("create annotated tag");
+    assert_eq!(tag_annotated.name, "v0.1.0");
+    assert!(tag_annotated.is_annotated);
+    assert_eq!(
+        tag_annotated.message.as_deref(),
+        Some("First official release of GitManager PRO")
+    );
+
+    // 4. List tags: should contain 2 tags
+    let tags = list_tags(&repo).expect("list tags");
+    assert_eq!(tags.len(), 2);
+
+    // 5. Delete lightweight tag
+    delete_tag(&repo, "v0.1.0-light").expect("delete tag");
+    let tags_after_delete = list_tags(&repo).expect("list tags after delete");
+    assert_eq!(tags_after_delete.len(), 1);
+    assert_eq!(tags_after_delete[0].name, "v0.1.0");
+}

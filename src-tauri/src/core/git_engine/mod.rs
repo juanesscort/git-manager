@@ -9,6 +9,7 @@ pub mod remote_ops;
 pub mod repository;
 pub mod staging;
 pub mod status;
+pub mod tags;
 
 #[cfg(test)]
 mod tests;
@@ -27,3 +28,4 @@ pub use remote_ops::{
 pub use repository::{get_repo_summary, open_repository};
 pub use staging::{stage_all, stage_file, unstage_all, unstage_file};
 pub use status::get_repo_statuses;
+pub use tags::{create_tag, delete_tag, list_tags};

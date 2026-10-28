@@ -21,7 +21,9 @@ export function useAppUpdater() {
     setStatus("checking");
     setError(null);
     try {
-      const update = await check();
+      const token = localStorage.getItem("github_token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const update = await check({ headers });
       if (update && update.available) {
         setUpdateObj(update);
         setStatus("available");

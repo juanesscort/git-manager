@@ -68,3 +68,22 @@ pub struct CommitFileChange {
     pub lines_added: usize,
     pub lines_deleted: usize,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitTagDto {
+    pub name: String,
+    pub target_commit_id: String,
+    pub short_target_id: String,
+    pub message: Option<String>,
+    pub tagger_name: Option<String>,
+    pub tagger_email: Option<String>,
+    pub timestamp: Option<i64>,
+    pub is_annotated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateTagRequest {
+    pub name: String,
+    pub target_commit: String,
+    pub message: Option<String>,
+}
