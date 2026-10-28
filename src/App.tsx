@@ -584,6 +584,7 @@ export const App: React.FC = () => {
                       loading={commitsLoading}
                       branches={branches}
                       githubAvatarUrl={githubUser?.avatar_url}
+                      githubLogin={githubUser?.login}
                       onSelectCommit={handleSelectCommit}
                       onBranchContextMenu={handleOpenBranchContextMenu}
                       onDropBranch={handleDropBranch}
@@ -600,6 +601,7 @@ export const App: React.FC = () => {
                       loading={commitsLoading}
                       branches={branches}
                       githubAvatarUrl={githubUser?.avatar_url}
+                      githubLogin={githubUser?.login}
                       onSelectCommit={handleSelectCommit}
                       onBranchContextMenu={handleOpenBranchContextMenu}
                       onDropBranch={handleDropBranch}
@@ -642,6 +644,7 @@ export const App: React.FC = () => {
                 loading={commitsLoading}
                 branches={branches}
                 githubAvatarUrl={githubUser?.avatar_url}
+                githubLogin={githubUser?.login}
                 onSelectCommit={handleSelectCommit}
                 onBranchContextMenu={handleOpenBranchContextMenu}
                 onDropBranch={handleDropBranch}
