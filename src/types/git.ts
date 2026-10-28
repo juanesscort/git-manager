@@ -39,6 +39,25 @@ export interface DiffDelta {
   lines_deleted: number;
 }
 
+export interface BranchInfo {
+  name: string;
+  is_head: boolean;
+  target_oid: string;
+  is_remote: boolean;
+}
+
+export interface BranchesSummary {
+  local: BranchInfo[];
+  remote: BranchInfo[];
+}
+
+export interface CommitFileChange {
+  path: string;
+  status: FileStatusKind;
+  lines_added: number;
+  lines_deleted: number;
+}
+
 export interface DeviceAuthResponse {
   device_code: string;
   user_code: string;

@@ -106,3 +106,30 @@ fn test_diff_calculation() {
     let full_patch = get_staged_diff_full(&repo).expect("Get full patch");
     assert!(full_patch.contains("+Line 3 added"));
 }
+
+#[test]
+fn test_branches_and_commit_changes() {
+    let (temp_dir, repo) = setup_temp_repo();
+    let file_path = temp_dir.path().join("file.txt");
+    fs::write(&file_path, "Hello world\n").expect("write file");
+
+    stage_file(&repo, "file.txt").expect("stage file");
+    let oid = create_commit(&repo, "feat: init", None, None).expect("commit");
+
+    // Test branches
+    let branches = get_branches(&repo).expect("get branches");
+    assert_eq!(branches.local.len(), 1);
+    assert!(branches.local[0].is_head);
+
+    // Test commit changed files
+    let changes = get_commit_changed_files(&repo, &oid).expect("get commit files");
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].path, "file.txt");
+    assert_eq!(changes[0].status, FileStatusKind::Added);
+    assert_eq!(changes[0].lines_added, 1);
+
+    // Test commit file diff
+    let file_diff = get_commit_file_diff(&repo, &oid, "file.txt").expect("get commit file diff");
+    assert_eq!(file_diff.path, "file.txt");
+    assert!(file_diff.patch.contains("+Hello world"));
+}

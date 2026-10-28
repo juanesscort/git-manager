@@ -1,12 +1,15 @@
 use crate::core::git_engine::{
     commit::create_commit,
-    diff::get_file_diff,
+    diff::{get_commit_changed_files, get_commit_file_diff, get_file_diff},
+    get_branches,
     history::get_commit_history,
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
     status::get_repo_statuses,
 };
-use crate::models::git_models::{CommitInfo, DiffDelta, FileStatusItem, RepoSummary};
+use crate::models::git_models::{
+    BranchesSummary, CommitFileChange, CommitInfo, DiffDelta, FileStatusItem, RepoSummary,
+};
 
 #[tauri::command]
 pub async fn get_repo_info(path: String) -> Result<RepoSummary, String> {
@@ -67,4 +70,29 @@ pub async fn get_commits_cmd(
 ) -> Result<Vec<CommitInfo>, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
     get_commit_history(&repo, max_count.unwrap_or(50)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_repo_branches_cmd(path: String) -> Result<BranchesSummary, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    get_branches(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_commit_files_cmd(
+    path: String,
+    commit_oid: String,
+) -> Result<Vec<CommitFileChange>, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    get_commit_changed_files(&repo, &commit_oid).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_commit_file_diff_cmd(
+    path: String,
+    commit_oid: String,
+    relative_path: String,
+) -> Result<DiffDelta, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    get_commit_file_diff(&repo, &commit_oid, &relative_path).map_err(|e| e.to_string())
 }

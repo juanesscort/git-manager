@@ -1,5 +1,6 @@
 //! Motor local de operaciones Git utilizando libgit2 (git2-rs).
 
+pub mod branches;
 pub mod commit;
 pub mod diff;
 pub mod errors;
@@ -11,8 +12,11 @@ pub mod status;
 #[cfg(test)]
 mod tests;
 
+pub use branches::get_branches;
 pub use commit::create_commit;
-pub use diff::{get_file_diff, get_staged_diff_full};
+pub use diff::{
+    get_commit_changed_files, get_commit_file_diff, get_file_diff, get_staged_diff_full,
+};
 pub use errors::GitEngineError;
 pub use history::get_commit_history;
 pub use repository::{get_repo_summary, open_repository};

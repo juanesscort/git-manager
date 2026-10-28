@@ -8,8 +8,9 @@ use ipc::conflict_commands::{
     check_repo_conflicts, get_conflict_file_detail, resolve_conflict_file_cmd,
 };
 use ipc::git_commands::{
-    commit_changes_cmd, get_commits_cmd, get_diff_cmd, get_repo_info, get_repo_status,
-    stage_all_cmd, stage_file_cmd, unstage_all_cmd, unstage_file_cmd,
+    commit_changes_cmd, get_commit_file_diff_cmd, get_commit_files_cmd, get_commits_cmd,
+    get_diff_cmd, get_repo_branches_cmd, get_repo_info, get_repo_status, stage_all_cmd,
+    stage_file_cmd, unstage_all_cmd, unstage_file_cmd,
 };
 use ipc::github_commands::{
     check_github_session, get_github_repositories, logout_github_session, poll_github_device_token,
@@ -37,6 +38,9 @@ pub fn run() {
             get_diff_cmd,
             commit_changes_cmd,
             get_commits_cmd,
+            get_repo_branches_cmd,
+            get_commit_files_cmd,
+            get_commit_file_diff_cmd,
             start_github_device_flow,
             poll_github_device_token,
             save_github_token_cmd,

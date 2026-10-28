@@ -46,3 +46,25 @@ pub struct DiffDelta {
     pub lines_added: usize,
     pub lines_deleted: usize,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchInfo {
+    pub name: String,
+    pub is_head: bool,
+    pub target_oid: String,
+    pub is_remote: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchesSummary {
+    pub local: Vec<BranchInfo>,
+    pub remote: Vec<BranchInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitFileChange {
+    pub path: String,
+    pub status: FileStatusKind,
+    pub lines_added: usize,
+    pub lines_deleted: usize,
+}
