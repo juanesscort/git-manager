@@ -204,6 +204,35 @@ pub fn create_branch(
 }
 
 pub fn delete_branch(repo: &Repository, branch_name: &str) -> Result<(), GitEngineError> {
+    if branch_name.starts_with("origin/") {
+        let clean_name = branch_name.strip_prefix("origin/").unwrap_or(branch_name);
+        let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+        let output = Command::new("git")
+            .args(["push", "origin", "--delete", clean_name])
+            .current_dir(workdir)
+            .output()
+            .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            let out = String::from_utf8_lossy(&output.stdout);
+            let raw_err = if !err.trim().is_empty() {
+                err.trim()
+            } else {
+                out.trim()
+            };
+            return Err(GitEngineError::GitCommandError(raw_err.to_string()));
+        }
+
+        // Prune deleted remote branches locally
+        let _ = Command::new("git")
+            .args(["fetch", "--prune"])
+            .current_dir(workdir)
+            .output();
+
+        return Ok(());
+    }
+
     let is_current_head = repo
         .head()
         .ok()

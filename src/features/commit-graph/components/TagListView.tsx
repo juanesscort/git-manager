@@ -152,16 +152,27 @@ export const TagListView: React.FC<TagListViewProps> = ({
           {onPushTag && (
             <button
               type="button"
+              disabled={contextMenu.tag.is_remote}
               onClick={() => {
-                if (contextMenu.tag) onPushTag(contextMenu.tag.name);
+                if (contextMenu.tag && !contextMenu.tag.is_remote) {
+                  onPushTag(contextMenu.tag.name);
+                }
                 setContextMenu({ isOpen: false, x: 0, y: 0, tag: null });
               }}
-              className="w-full text-left px-3 py-1.5 hover:bg-[#21262d] flex items-center gap-2 text-[#c9d1d9] hover:text-white transition-colors cursor-pointer"
+              className={`w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${
+                contextMenu.tag.is_remote
+                  ? "text-[#484f58] opacity-50 cursor-not-allowed"
+                  : "text-[#c9d1d9] hover:text-white hover:bg-[#21262d] cursor-pointer"
+              }`}
             >
-              <UploadCloud className="w-3.5 h-3.5 text-amber-400" />
+              <UploadCloud
+                className={`w-3.5 h-3.5 ${
+                  contextMenu.tag.is_remote ? "text-[#484f58]" : "text-amber-400"
+                }`}
+              />
               <span>
                 {contextMenu.tag.is_remote
-                  ? "Volver a subir a GitHub"
+                  ? "Etiqueta ya subida a GitHub"
                   : "Subir etiqueta a GitHub"}
               </span>
             </button>

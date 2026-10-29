@@ -17,7 +17,14 @@ interface CommitGraphProps {
   onSelectWip?: () => void;
   onSelectCommit: (commit: CommitInfo) => void;
   onCheckoutBranch?: (branchName: string) => void;
-  onBranchContextMenu?: (x: number, y: number, branchName: string, isHead: boolean, isRemote: boolean) => void;
+  onBranchContextMenu?: (
+    x: number,
+    y: number,
+    branchName: string,
+    isHead: boolean,
+    isRemote: boolean,
+    commitOid?: string
+  ) => void;
   onDropBranch?: (
     sourceBranch: string,
     targetBranch: string,
@@ -580,9 +587,23 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                                 e.stopPropagation();
                                 if (onBranchContextMenu) {
                                   if (b.hasLocal && b.localName) {
-                                    onBranchContextMenu(e.clientX, e.clientY, b.localName, b.isHead, false);
+                                    onBranchContextMenu(
+                                      e.clientX,
+                                      e.clientY,
+                                      b.localName,
+                                      b.isHead,
+                                      false,
+                                      node.commit.oid
+                                    );
                                   } else if (b.remoteName) {
-                                    onBranchContextMenu(e.clientX, e.clientY, b.remoteName, false, true);
+                                    onBranchContextMenu(
+                                      e.clientX,
+                                      e.clientY,
+                                      b.remoteName,
+                                      false,
+                                      true,
+                                      node.commit.oid
+                                    );
                                   }
                                 }
                               }}

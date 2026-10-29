@@ -25,6 +25,7 @@ pub struct RepoSummary {
     pub is_empty: bool,
     pub is_bare: bool,
     pub head_commit_oid: Option<String>,
+    pub remote_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

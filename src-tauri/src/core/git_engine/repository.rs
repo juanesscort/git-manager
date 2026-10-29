@@ -36,11 +36,18 @@ pub fn get_repo_summary(repo: &Repository) -> Result<RepoSummary, GitEngineError
         }
     }
 
+    let remote_url = if let Ok(remote) = repo.find_remote("origin") {
+        remote.url().ok().map(|s| s.to_string())
+    } else {
+        None
+    };
+
     Ok(RepoSummary {
         path,
         current_branch,
         is_empty,
         is_bare,
         head_commit_oid,
+        remote_url,
     })
 }

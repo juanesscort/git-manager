@@ -19,6 +19,7 @@ export interface RepoSummary {
   is_empty: boolean;
   is_bare: boolean;
   head_commit_oid?: string | null;
+  remote_url?: string | null;
 }
 
 export interface CommitInfo {

@@ -467,7 +467,8 @@ export const App: React.FC = () => {
     y: number,
     branchName: string,
     isHead: boolean,
-    isRemote: boolean
+    isRemote: boolean,
+    commitOid?: string
   ) => {
     setContextMenuState({
       isOpen: true,
@@ -476,6 +477,7 @@ export const App: React.FC = () => {
       branchName,
       isHead,
       isRemote,
+      commitOid,
     });
   };
 
@@ -1190,6 +1192,7 @@ export const App: React.FC = () => {
       <BranchContextMenu
         state={contextMenuState}
         currentBranch={currentBranchName}
+        remoteUrl={summary?.remote_url}
         hasUncommittedChanges={hasUncommittedChanges}
         onClose={() => setContextMenuState((prev) => ({ ...prev, isOpen: false }))}
         onCheckout={(branchName) => checkoutBranch(branchName)}
@@ -1197,6 +1200,15 @@ export const App: React.FC = () => {
         onRebase={(branchName) => rebaseBranch(branchName)}
         onRename={(oldName, newName) => renameBranch(oldName, newName)}
         onDelete={(branchName) => deleteBranch(branchName)}
+        onCreateBranchHere={(_commitOid, _baseBranch) => {
+          setBranchModalOpen(true);
+        }}
+        onCreateTagHere={(commitOid) => {
+          setTargetCommitForTag({ oid: commitOid });
+          setCreateTagModalOpen(true);
+        }}
+        onPull={() => pullRemote()}
+        onPush={() => pushRemote()}
       />
 
       {/* Open / Clone Repository Modal */}
