@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Tag, X, GitCommit } from "lucide-react";
+import { Tag, X, GitCommit, UploadCloud } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 
 interface CreateTagModalProps {
@@ -7,7 +7,12 @@ interface CreateTagModalProps {
   targetCommitOid?: string;
   targetCommitSummary?: string;
   onClose: () => void;
-  onCreateTag: (name: string, targetCommit: string, message?: string) => Promise<boolean>;
+  onCreateTag: (
+    name: string,
+    targetCommit: string,
+    message?: string,
+    pushToRemote?: boolean
+  ) => Promise<boolean>;
 }
 
 export const CreateTagModal: React.FC<CreateTagModalProps> = ({
@@ -19,6 +24,7 @@ export const CreateTagModal: React.FC<CreateTagModalProps> = ({
 }) => {
   const [tagName, setTagName] = useState("");
   const [tagMessage, setTagMessage] = useState("");
+  const [pushToRemote, setPushToRemote] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,9 +37,15 @@ export const CreateTagModal: React.FC<CreateTagModalProps> = ({
     setSubmitting(true);
     setError(null);
     try {
-      await onCreateTag(tagName.trim(), targetCommitOid, tagMessage.trim() ? tagMessage.trim() : undefined);
+      await onCreateTag(
+        tagName.trim(),
+        targetCommitOid,
+        tagMessage.trim() ? tagMessage.trim() : undefined,
+        pushToRemote
+      );
       setTagName("");
       setTagMessage("");
+      setPushToRemote(false);
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -126,6 +138,24 @@ export const CreateTagModal: React.FC<CreateTagModalProps> = ({
             <p className="text-[10px] text-[#8b949e] mt-1">
               Si dejas el mensaje vacío, se creará un <em>tag ligero (lightweight)</em>.
             </p>
+          </div>
+
+          {/* Checkbox: Push tag to remote (GitHub) immediately */}
+          <div className="flex items-center gap-2 p-2 rounded bg-[#0d1117] border border-[#30363d]/70">
+            <input
+              type="checkbox"
+              id="push-tag-remote"
+              checked={pushToRemote}
+              onChange={(e) => setPushToRemote(e.target.checked)}
+              className="w-4 h-4 rounded border-[#30363d] bg-[#161b22] text-emerald-500 focus:ring-0 cursor-pointer"
+            />
+            <label
+              htmlFor="push-tag-remote"
+              className="text-xs text-[#c9d1d9] cursor-pointer select-none flex items-center gap-1.5"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-sky-400" />
+              <span>Subir etiqueta al remoto (GitHub) inmediatamente</span>
+            </label>
           </div>
 
           {/* Buttons */}

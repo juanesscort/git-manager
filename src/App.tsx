@@ -177,9 +177,12 @@ export const App: React.FC = () => {
   const {
     tags,
     refreshTags,
+    pushTag,
     createTag,
     deleteTag,
   } = useTags(activeRepoPath);
+
+  const [pushingTag, setPushingTag] = useState<string | null>(null);
 
   const [createTagModalOpen, setCreateTagModalOpen] = useState(false);
   const [targetCommitForTag, setTargetCommitForTag] = useState<{ oid: string; summary?: string }>({
@@ -396,7 +399,20 @@ export const App: React.FC = () => {
     mergeBranch,
     rebaseBranch,
     clearNotification: clearToolbarNotification,
+    setNotification: setToolbarNotification,
   } = useGitToolbar(repoPath, handleRefreshAll);
+
+  const handlePushTag = async (tagName: string) => {
+    setPushingTag(tagName);
+    try {
+      const msg = await pushTag(tagName);
+      setToolbarNotification(msg || `Etiqueta '${tagName}' subida a GitHub`);
+    } catch (err: unknown) {
+      setToolbarNotification(null, err instanceof Error ? err.message : String(err));
+    } finally {
+      setPushingTag(null);
+    }
+  };
 
   // Keep each repository's pending changes counter updated without leaking between tabs (Flecha 5)
   const pendingChangesCount = stagedFiles.length + unstagedFiles.length;
@@ -721,6 +737,26 @@ export const App: React.FC = () => {
                 count={branches.remote.length}
                 icon={<Cloud className="w-3.5 h-3.5 text-purple-400" />}
                 defaultOpen={true}
+                action={
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetchRemote();
+                    }}
+                    disabled={toolbarOperating}
+                    className="p-1 rounded text-[#8b949e] hover:text-purple-400 hover:bg-[#161b22] transition-colors cursor-pointer"
+                    title="Sincronizar ramas remotas con GitHub (Fetch & Prune)"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 ${
+                        toolbarOperating && toolbarActiveOp === "fetch"
+                          ? "animate-spin text-purple-400"
+                          : ""
+                      }`}
+                    />
+                  </button>
+                }
               >
                 <BranchTreeView
                   branches={branches.remote}
@@ -781,6 +817,8 @@ export const App: React.FC = () => {
                   onDeleteTag={async (name) => {
                     await deleteTag(name);
                   }}
+                  onPushTag={handlePushTag}
+                  pushingTag={pushingTag}
                 />
               </AccordionSection>
             </nav>
@@ -1087,8 +1125,8 @@ export const App: React.FC = () => {
         targetCommitOid={targetCommitForTag.oid}
         targetCommitSummary={targetCommitForTag.summary}
         onClose={() => setCreateTagModalOpen(false)}
-        onCreateTag={async (name, target, msg) => {
-          return await createTag(name, target, msg);
+        onCreateTag={async (name, target, msg, pushToRemote) => {
+          return await createTag(name, target, msg, pushToRemote);
         }}
       />
 

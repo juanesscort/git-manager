@@ -144,6 +144,7 @@ export interface GitTag {
   tagger_email?: string | null;
   timestamp?: number | null;
   is_annotated: boolean;
+  is_remote?: boolean;
 }
 
 export interface CreateTagRequest {

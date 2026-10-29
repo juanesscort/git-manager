@@ -10,11 +10,11 @@ use ipc::conflict_commands::{
 use ipc::git_commands::{
     checkout_branch_cmd, clone_repo_cmd, commit_changes_cmd, create_branch_cmd, create_tag_cmd,
     delete_branch_cmd, delete_tag_cmd, exec_terminal_cmd, get_commit_file_diff_cmd,
-    get_commit_files_cmd, get_commits_cmd, get_diff_cmd, get_file_media_cmd, get_repo_branches_cmd,
-    get_repo_info, get_repo_status, get_repo_tags_cmd, get_terminal_prompt_info, git_fetch_cmd,
-    git_merge_cmd, git_pull_cmd, git_push_cmd, git_rebase_cmd, git_stash_cmd, git_stash_pop_cmd,
-    pick_folder_dialog_cmd, rename_branch_cmd, stage_all_cmd, stage_file_cmd, unstage_all_cmd,
-    unstage_file_cmd,
+    get_commit_files_cmd, get_commits_cmd, get_diff_cmd, get_file_media_cmd, get_remote_tags_cmd,
+    get_repo_branches_cmd, get_repo_info, get_repo_status, get_repo_tags_cmd,
+    get_terminal_prompt_info, git_fetch_cmd, git_merge_cmd, git_pull_cmd, git_push_cmd,
+    git_rebase_cmd, git_stash_cmd, git_stash_pop_cmd, pick_folder_dialog_cmd, push_tag_cmd,
+    rename_branch_cmd, stage_all_cmd, stage_file_cmd, unstage_all_cmd, unstage_file_cmd,
 };
 use ipc::github_commands::{
     check_github_session, get_github_repositories, logout_github_session, poll_github_device_token,
@@ -72,6 +72,8 @@ pub fn run() {
             get_repo_tags_cmd,
             create_tag_cmd,
             delete_tag_cmd,
+            push_tag_cmd,
+            get_remote_tags_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

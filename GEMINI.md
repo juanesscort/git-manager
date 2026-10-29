@@ -85,3 +85,9 @@ Tanto el backend como el frontend deben seguir un diseño modular estricto y des
    * `cargo clippy -- -D warnings`
    * `cargo fmt --check`
    * `npm run lint` / `tsc --noEmit`
+
+---
+
+## 7. Comunicación y Estilo de Respuestas
+* **Prohibidas las explicaciones extensas y el palabreo:** Toda respuesta debe ser estrictamente puntual, directa al grano y concisa.
+* **Claridad ante todo:** Las respuestas deben ser técnicas, nítidas, bien formateadas y fáciles de entender sin rodeos innecesarios.
