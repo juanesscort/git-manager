@@ -53,6 +53,9 @@ pub struct BranchInfo {
     pub is_head: bool,
     pub target_oid: String,
     pub is_remote: bool,
+    pub upstream_name: Option<String>,
+    pub ahead: usize,
+    pub behind: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,4 +89,17 @@ pub struct CreateTagRequest {
     pub name: String,
     pub target_commit: String,
     pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileMediaPreview {
+    pub path: String,
+    pub mime_type: String,
+    pub data_base64: String,
+    pub old_data_base64: Option<String>,
+    pub size_bytes: usize,
+    pub old_size_bytes: Option<usize>,
+    pub is_svg: bool,
+    pub is_lottie: bool,
+    pub is_image: bool,
 }

@@ -19,6 +19,10 @@ interface GitToolbarProps {
   message: string | null;
   error: string | null;
   isTerminalOpen?: boolean;
+  aheadCount?: number;
+  behindCount?: number;
+  hasUpstream?: boolean;
+  hasUncommittedChanges?: boolean;
   onFetch: () => void;
   onPull: () => void;
   onPush: () => void;
@@ -35,6 +39,10 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
   message,
   error,
   isTerminalOpen = false,
+  aheadCount = 0,
+  behindCount = 0,
+  hasUpstream = false,
+  hasUncommittedChanges = false,
   onFetch,
   onPull,
   onPush,
@@ -45,6 +53,34 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
   onClearNotification,
 }) => {
   const [stashMenuOpen, setStashMenuOpen] = useState(false);
+
+  // Push is disabled if already operating, or if there is an upstream and aheadCount === 0
+  const isPushDisabled = operating || (hasUpstream && aheadCount === 0);
+  const pushTitle = operating
+    ? "Operación en progreso..."
+    : hasUpstream
+    ? aheadCount > 0
+      ? `Push: Subir ${aheadCount} commit(s) pendientes al repositorio remoto`
+      : "Al día: No hay commits locales nuevos para subir (Push)"
+    : "Push: Publicar rama actual en el repositorio remoto";
+
+  // Pull is disabled if operating, or if no upstream exists, or if behindCount === 0
+  const isPullDisabled = operating || !hasUpstream || behindCount === 0;
+  const pullTitle = operating
+    ? "Operación en progreso..."
+    : !hasUpstream
+    ? "No hay una rama remota rastreada para hacer Pull"
+    : behindCount > 0
+    ? `Pull: Incorporar ${behindCount} commit(s) nuevos del repositorio remoto`
+    : "Al día: No hay commits nuevos en el repositorio remoto (Pull)";
+
+  // Stash is disabled if operating or no uncommitted changes
+  const isStashDisabled = operating || !hasUncommittedChanges;
+  const stashTitle = operating
+    ? "Operación en progreso..."
+    : !hasUncommittedChanges
+    ? "No hay cambios pendientes de preparar o confirmar para guardar en Stash"
+    : "Stash: Apartar cambios en curso para limpiar el árbol de trabajo";
 
   return (
     <div className="flex items-center gap-1 relative select-none">
@@ -66,30 +102,44 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
       {/* Pull Button */}
       <button
         onClick={onPull}
-        disabled={operating}
-        title="Pull: Traer e incorporar cambios de la rama remota"
-        className="flex flex-col items-center justify-center h-10 px-2.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] transition-all min-w-[46px] group disabled:opacity-50"
+        disabled={isPullDisabled}
+        title={pullTitle}
+        className="flex flex-col items-center justify-center h-10 px-2.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] transition-all min-w-[46px] group disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed relative"
       >
-        <ArrowDownCircle
-          className={`w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform ${
-            operating && activeOp === "Pull" ? "animate-pulse" : ""
-          }`}
-        />
+        <div className="relative">
+          <ArrowDownCircle
+            className={`w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform ${
+              operating && activeOp === "Pull" ? "animate-pulse" : ""
+            } ${isPullDisabled ? "text-gray-500" : ""}`}
+          />
+          {behindCount > 0 && (
+            <span className="absolute -top-1.5 -right-2 bg-emerald-500 text-black text-[9px] font-bold px-1 rounded-full font-mono leading-tight shadow-xs">
+              {behindCount}
+            </span>
+          )}
+        </div>
         <span className="text-[10px] font-medium tracking-tight mt-0.5">Pull</span>
       </button>
 
       {/* Push Button */}
       <button
         onClick={onPush}
-        disabled={operating}
-        title="Push: Subir commits locales al repositorio remoto"
-        className="flex flex-col items-center justify-center h-10 px-2.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] transition-all min-w-[46px] group disabled:opacity-50"
+        disabled={isPushDisabled}
+        title={pushTitle}
+        className="flex flex-col items-center justify-center h-10 px-2.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] transition-all min-w-[46px] group disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed relative"
       >
-        <ArrowUpCircle
-          className={`w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform ${
-            operating && activeOp === "Push" ? "animate-pulse" : ""
-          }`}
-        />
+        <div className="relative">
+          <ArrowUpCircle
+            className={`w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform ${
+              operating && activeOp === "Push" ? "animate-pulse" : ""
+            } ${isPushDisabled ? "text-gray-500" : ""}`}
+          />
+          {aheadCount > 0 && (
+            <span className="absolute -top-1.5 -right-2 bg-indigo-500 text-white text-[9px] font-bold px-1 rounded-full font-mono leading-tight shadow-xs">
+              {aheadCount}
+            </span>
+          )}
+        </div>
         <span className="text-[10px] font-medium tracking-tight mt-0.5">Push</span>
       </button>
 
@@ -111,14 +161,14 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
         <div className="flex items-center h-10 rounded hover:bg-[#21262d] transition-colors group">
           <button
             onClick={onStash}
-            disabled={operating}
-            title="Stash: Guardar temporalmente cambios del directorio de trabajo"
-            className="flex flex-col items-center justify-center h-full px-2 text-[#8b949e] hover:text-[#c9d1d9] min-w-[44px]"
+            disabled={isStashDisabled}
+            title={stashTitle}
+            className="flex flex-col items-center justify-center h-full px-2 text-[#8b949e] hover:text-[#c9d1d9] min-w-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Archive
               className={`w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform ${
                 operating && activeOp?.includes("Stash") ? "animate-pulse" : ""
-              }`}
+              } ${isStashDisabled ? "text-gray-500" : ""}`}
             />
             <span className="text-[10px] font-medium tracking-tight mt-0.5">Stash</span>
           </button>
@@ -218,15 +268,40 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
       )}
 
       {error && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-950 border border-rose-500/50 text-rose-200 text-xs shadow-xl animate-in fade-in slide-in-from-top-1 duration-150">
-          <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-          <span className="truncate max-w-sm">{error}</span>
-          <button
-            onClick={onClearNotification}
-            className="p-0.5 hover:text-white rounded ml-1 transition-colors"
-          >
-            <X className="w-3 h-3" />
-          </button>
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 flex flex-col p-3 rounded-lg bg-[#161b22] border border-rose-500/50 text-rose-200 text-xs shadow-2xl animate-in fade-in slide-in-from-top-1 duration-150 min-w-[340px] max-w-xl">
+          <div className="flex items-start justify-between gap-2 mb-1.5 border-b border-rose-500/20 pb-1.5">
+            <div className="flex items-center gap-2 font-semibold text-rose-300">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>Notificación de Operación Git</span>
+            </div>
+            <button
+              onClick={onClearNotification}
+              className="p-1 hover:text-white rounded hover:bg-[#21262d] text-[#8b949e] transition-colors"
+              title="Cerrar notificación"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="font-mono text-[11px] text-[#c9d1d9] whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto pr-1">
+            {error}
+          </div>
+          <div className="mt-2 pt-1.5 border-t border-[#30363d]/50 flex justify-end gap-2 items-center">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(error);
+                onClearNotification();
+              }}
+              className="text-[10px] text-[#8b949e] hover:text-white underline mr-1"
+            >
+              Copiar detalle
+            </button>
+            <button
+              onClick={onClearNotification}
+              className="px-2.5 py-0.5 rounded bg-[#21262d] hover:bg-[#30363d] text-white text-[11px] transition-colors font-medium border border-[#30363d]"
+            >
+              Entendido
+            </button>
+          </div>
         </div>
       )}
     </div>

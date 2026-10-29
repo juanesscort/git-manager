@@ -489,7 +489,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                       PRO
                     </span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-950/60 border border-blue-500/40 text-blue-300">
-                      v0.1.0
+                      v{__APP_VERSION__}
                     </span>
                   </div>
                   <p className="text-[11px] text-[#8b949e] mt-0.5">
@@ -547,7 +547,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                 {updateStatus === "up-to-date" && (
                   <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-lg flex items-center gap-2.5 text-emerald-300 text-xs">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>¡Estás al día! Tienes instalada la versión más reciente de Git-Manager (v0.1.0).</span>
+                    <span>¡Estás al día! Tienes instalada la versión más reciente de Git-Manager (v{__APP_VERSION__}).</span>
                   </div>
                 )}
 
@@ -603,7 +603,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                     <div>
                       <span className="font-semibold text-amber-300">Nota de Actualización: </span>
                       {updateError?.includes("404") || updateError?.includes("release")
-                        ? "Aún no se ha publicado una versión en GitHub Releases para comparar. Esta versión v0.1.0 es la inicial."
+                        ? `Aún no se ha publicado una versión en GitHub Releases para comparar. Esta versión v${__APP_VERSION__} es la actual.`
                         : `No se pudo conectar al servicio de releases: ${updateError}`}
                     </div>
                   </div>

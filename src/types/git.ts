@@ -44,6 +44,21 @@ export interface BranchInfo {
   is_head: boolean;
   target_oid: string;
   is_remote: boolean;
+  upstream_name?: string | null;
+  ahead?: number;
+  behind?: number;
+}
+
+export interface FileMediaPreview {
+  path: string;
+  mime_type: string;
+  data_base64: string;
+  old_data_base64?: string | null;
+  size_bytes: number;
+  old_size_bytes?: number | null;
+  is_svg: boolean;
+  is_lottie: boolean;
+  is_image: boolean;
 }
 
 export interface BranchesSummary {

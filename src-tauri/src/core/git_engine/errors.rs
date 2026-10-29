@@ -28,4 +28,7 @@ pub enum GitEngineError {
 
     #[error("No se pudo resolver el commit con OID: {0}")]
     CommitNotFound(String),
+
+    #[error("{0}")]
+    GitCommandError(String),
 }

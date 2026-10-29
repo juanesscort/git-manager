@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   GitBranch,
   RefreshCw,
@@ -12,9 +12,12 @@ import {
   Cloud,
   Tag,
   Plus,
+  AlertTriangle,
+  ArrowUpCircle,
 } from "lucide-react";
 import logoImg from "./assets/logo.png";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { Badge } from "./components/ui/Badge";
 import { Button } from "./components/ui/Button";
 import { Splitter } from "./components/ui/Splitter";
@@ -48,8 +51,18 @@ import { GitHubAuthModal } from "./features/github-sync/components/GitHubAuthMod
 import { RemoteReposModal } from "./features/github-sync/components/RemoteReposModal";
 import { AppSettingsModal } from "./components/ui/AppSettingsModal";
 import { ConflictResolverModal } from "./features/conflict-resolver/components/ConflictResolverModal";
-import { CommitInfo } from "./types/git";
+import { useAppUpdater } from "./hooks/useAppUpdater";
+import { CommitInfo, DiffDelta } from "./types/git";
 import "./App.css";
+
+export interface OpenDiffTab {
+  id: string;
+  path: string;
+  name: string;
+  type: "staging" | "commit";
+  staged?: boolean;
+  commitOid?: string;
+}
 
 export const App: React.FC = () => {
   // Multi-project Tabs management
@@ -84,9 +97,15 @@ export const App: React.FC = () => {
   const [rightWidth, setRightWidth] = useState<number>(340);
   const [diffHeight, setDiffHeight] = useState<number>(320);
 
-  // Center Area display mode (Flecha 6)
+  // Center Area display mode & Multi-tab Diff Management (Flecha 1)
   const [centerViewMode, setCenterViewMode] = useState<"full" | "split">("full");
-  const [activeCenterTab, setActiveCenterTab] = useState<"graph" | "diff">("graph");
+  const [activeCenterTab, setActiveCenterTab] = useState<string>("graph");
+  const [openDiffTabs, setOpenDiffTabs] = useState<OpenDiffTab[]>([]);
+  const [tabLimitWarning, setTabLimitWarning] = useState<string | null>(null);
+  const [isWipSelected, setIsWipSelected] = useState<boolean>(false);
+  const [diffCache, setDiffCache] = useState<Record<string, DiffDelta>>({});
+  const [diffLoadingMap, setDiffLoadingMap] = useState<Record<string, boolean>>({});
+  const tabWarningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [branchModalOpen, setBranchModalOpen] = useState<boolean>(false);
 
   const {
@@ -135,6 +154,17 @@ export const App: React.FC = () => {
   };
 
   const {
+    status: appUpdateStatus,
+    updateObj: appUpdateObj,
+    checkForUpdates: checkAppForUpdates,
+  } = useAppUpdater();
+
+  useEffect(() => {
+    // Check for updates in the background on startup (silent)
+    checkAppForUpdates();
+  }, [checkAppForUpdates]);
+
+  const {
     graphNodes,
     selectedCommit,
     loading: commitsLoading,
@@ -161,8 +191,8 @@ export const App: React.FC = () => {
     try {
       const win = getCurrentWindow();
       const title = activeTab
-        ? `GitManager PRO v0.1.0 - [${activeTab.name}]`
-        : "GitManager PRO v0.1.0";
+        ? `GitManager PRO v${__APP_VERSION__} - [${activeTab.name}]`
+        : `GitManager PRO v${__APP_VERSION__}`;
       win.setTitle(title);
     } catch {
       // Ignored outside desktop window context
@@ -172,18 +202,11 @@ export const App: React.FC = () => {
   const {
     files: commitFiles,
     loading: commitFilesLoading,
-    selectedFile: commitSelectedFile,
-    fileDiff: commitFileDiff,
-    diffLoading: commitDiffLoading,
-    selectFile: selectCommitFile,
   } = useCommitDetails(repoPath, selectedCommit);
 
   const {
     stagedFiles,
     unstagedFiles,
-    selectedFile,
-    diff,
-    diffLoading,
     loading: stagingLoading,
     refreshStatuses,
     stageFile,
@@ -191,8 +214,6 @@ export const App: React.FC = () => {
     stageAll,
     unstageAll,
     commitChanges,
-    loadDiff,
-    clearSelectedFile,
   } = useStaging(repoPath, () => {
     refreshCommits();
     refreshRepo();
@@ -222,6 +243,96 @@ export const App: React.FC = () => {
     checkConflicts();
   }, [checkConflicts, repoPath]);
 
+  const loadTabDiff = async (tab: OpenDiffTab) => {
+    if (diffCache[tab.id]) return;
+    setDiffLoadingMap((prev) => ({ ...prev, [tab.id]: true }));
+    try {
+      if (tab.type === "commit" && tab.commitOid) {
+        const delta = await invoke<DiffDelta>("get_commit_file_diff_cmd", {
+          path: repoPath,
+          commitOid: tab.commitOid,
+          relativePath: tab.path,
+        });
+        setDiffCache((prev) => ({ ...prev, [tab.id]: delta }));
+      } else {
+        const delta = await invoke<DiffDelta>("get_diff_cmd", {
+          path: repoPath,
+          relativePath: tab.path,
+          staged: Boolean(tab.staged),
+        });
+        setDiffCache((prev) => ({ ...prev, [tab.id]: delta }));
+      }
+    } catch (err: unknown) {
+      setDiffCache((prev) => ({
+        ...prev,
+        [tab.id]: {
+          path: tab.path,
+          patch: `Error al calcular diff: ${typeof err === "string" ? err : JSON.stringify(err)}`,
+          lines_added: 0,
+          lines_deleted: 0,
+        },
+      }));
+    } finally {
+      setDiffLoadingMap((prev) => ({ ...prev, [tab.id]: false }));
+    }
+  };
+
+  const openFileTab = (
+    file: { path: string; staged?: boolean; commitOid?: string; type: "staging" | "commit" },
+    autoSwitch: boolean = false
+  ) => {
+    const fileName = file.path.split("/").pop() || file.path;
+    const tabId =
+      file.type === "commit"
+        ? `commit:${file.commitOid || "head"}:${file.path}`
+        : `staging:${file.staged ? "staged" : "unstaged"}:${file.path}`;
+
+    const existingIndex = openDiffTabs.findIndex((t) => t.id === tabId);
+    if (existingIndex !== -1) {
+      if (autoSwitch) {
+        setActiveCenterTab(tabId);
+      }
+      return;
+    }
+
+    if (openDiffTabs.length >= 5) {
+      setTabLimitWarning(
+        "Límite de 5 archivos alcanzado. Cierra al menos una pestaña para poder abrir otra."
+      );
+      if (tabWarningTimeoutRef.current) {
+        clearTimeout(tabWarningTimeoutRef.current);
+      }
+      tabWarningTimeoutRef.current = setTimeout(() => {
+        setTabLimitWarning(null);
+      }, 4500);
+      return;
+    }
+
+    const newTab: OpenDiffTab = {
+      id: tabId,
+      path: file.path,
+      name: fileName,
+      type: file.type,
+      staged: file.staged,
+      commitOid: file.commitOid,
+    };
+
+    setOpenDiffTabs((prev) => [...prev, newTab]);
+    loadTabDiff(newTab);
+
+    if (autoSwitch) {
+      setActiveCenterTab(tabId);
+    }
+  };
+
+  const closeDiffTab = (tabId: string) => {
+    setOpenDiffTabs((prev) => prev.filter((t) => t.id !== tabId));
+    if (activeCenterTab === tabId) {
+      setActiveCenterTab("graph");
+    }
+    setTabLimitWarning(null);
+  };
+
   const handleRefreshAll = () => {
     refreshRepo();
     refreshStatuses();
@@ -229,14 +340,41 @@ export const App: React.FC = () => {
     checkConflicts();
     refreshBranches();
     refreshTags();
+    // Actualizar diffs de pestañas abiertas
+    openDiffTabs.forEach((tab) => {
+      if (tab.type === "commit" && tab.commitOid) {
+        invoke<DiffDelta>("get_commit_file_diff_cmd", {
+          path: repoPath,
+          commitOid: tab.commitOid,
+          relativePath: tab.path,
+        })
+          .then((delta) => setDiffCache((prev) => ({ ...prev, [tab.id]: delta })))
+          .catch(() => {});
+      } else {
+        invoke<DiffDelta>("get_diff_cmd", {
+          path: repoPath,
+          relativePath: tab.path,
+          staged: Boolean(tab.staged),
+        })
+          .then((delta) => setDiffCache((prev) => ({ ...prev, [tab.id]: delta })))
+          .catch(() => {});
+      }
+    });
   };
 
   const handleSelectWip = () => {
     setSelectedCommit(null);
+    setIsWipSelected((prev) => !prev);
     const first = stagedFiles[0] || unstagedFiles[0];
     if (first) {
-      loadDiff(first.path, first.staged_status !== null && first.staged_status !== undefined);
-      setActiveCenterTab("diff");
+      openFileTab(
+        {
+          path: first.path,
+          staged: first.staged_status !== null && first.staged_status !== undefined,
+          type: "staging",
+        },
+        false
+      );
     }
   };
 
@@ -328,45 +466,64 @@ export const App: React.FC = () => {
   const hasUncommittedChanges = stagedFiles.length > 0 || unstagedFiles.length > 0;
 
   const currentBranchName = summary?.current_branch || "main";
+  const currentBranchInfo = branches.local.find((b) => b.is_head || b.name === currentBranchName);
+  const aheadCount = currentBranchInfo?.ahead ?? 0;
+  const behindCount = currentBranchInfo?.behind ?? 0;
+  const hasUpstream = Boolean(currentBranchInfo?.upstream_name);
 
-  // Flecha 5: Toggle commit selection on click
+  // Toggle commit selection on click (or deselect)
   const handleSelectCommit = (commit: CommitInfo) => {
+    setIsWipSelected(false);
     if (selectedCommit?.oid === commit.oid) {
       setSelectedCommit(null);
-      selectCommitFile("");
-      setActiveCenterTab("graph");
     } else {
       setSelectedCommit(commit);
-      clearSelectedFile();
     }
   };
 
-  // Flecha 6: Central Diff Viewer resolution
-  const isCommitDiffActive = selectedCommit !== null && !!commitSelectedFile;
-  const isStagingDiffActive = selectedCommit === null && !!selectedFile;
-  const hasActiveDiff = isCommitDiffActive || isStagingDiffActive;
+  // Navigate to branch tip commit on graph without checkout
+  const handleSelectBranchCommit = (_branchName: string, targetOid: string) => {
+    setActiveCenterTab("graph");
+    setIsWipSelected(false);
+    const node = graphNodes.find((n) => n.commit.oid === targetOid);
+    if (node) {
+      setSelectedCommit(node.commit);
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`commit-row-${targetOid}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 50);
+  };
 
-  const activeDiffPath = isCommitDiffActive ? commitSelectedFile : selectedFile?.path || null;
-  const activeDiff = isCommitDiffActive ? commitFileDiff : diff;
-  const activeDiffLoading = isCommitDiffActive ? commitDiffLoading : diffLoading;
+  // Multi-tab Active Tab & Diff resolution
+  const currentActiveTab = openDiffTabs.find((t) => t.id === activeCenterTab) || null;
+  const currentDiff = currentActiveTab ? diffCache[currentActiveTab.id] || null : null;
+  const currentDiffLoading = currentActiveTab ? Boolean(diffLoadingMap[currentActiveTab.id]) : false;
 
-  // Reset commit/file selections when active tab changes
+  const splitActiveTab =
+    currentActiveTab || (openDiffTabs.length > 0 ? openDiffTabs[openDiffTabs.length - 1] : null);
+  const splitDiff = splitActiveTab ? diffCache[splitActiveTab.id] || null : null;
+  const splitDiffLoading = splitActiveTab ? Boolean(diffLoadingMap[splitActiveTab.id]) : false;
+
+  // Auto-revert split view to full view if no diff tabs remain open
+  useEffect(() => {
+    if (openDiffTabs.length === 0 && centerViewMode === "split") {
+      setCenterViewMode("full");
+    }
+  }, [openDiffTabs.length, centerViewMode]);
+
+  // Reset commit/file selections and tabs when active repo changes
   useEffect(() => {
     setSelectedCommit(null);
-    selectCommitFile("");
-    clearSelectedFile();
+    setIsWipSelected(false);
+    setOpenDiffTabs([]);
+    setDiffCache({});
+    setDiffLoadingMap({});
+    setTabLimitWarning(null);
     setActiveCenterTab("graph");
   }, [activeTabId]);
-
-  const handleCloseDiff = () => {
-    if (isCommitDiffActive) {
-      selectCommitFile("");
-    }
-    if (isStagingDiffActive) {
-      clearSelectedFile();
-    }
-    setActiveCenterTab("graph");
-  };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0d1117] text-[#c9d1d9] select-none overflow-hidden">
@@ -411,31 +568,46 @@ export const App: React.FC = () => {
                   type="button"
                   onClick={() => handleOpenSettings("about")}
                   className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#21262d] text-[#8b949e] hover:text-blue-300 hover:border-blue-500/40 border border-[#30363d] cursor-pointer transition-all"
-                  title="GitManager PRO v0.1.0 (clic para ver actualizaciones y acerca de)"
+                  title={`GitManager PRO v${__APP_VERSION__} (clic para ver actualizaciones y acerca de)`}
                 >
-                  v0.1.0
+                  v{__APP_VERSION__}
                 </button>
-                <span className="text-[#484f58] font-thin mx-0.5">/</span>
+
+                {appUpdateStatus === "available" && appUpdateObj && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSettings("about")}
+                    className="flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 animate-pulse hover:bg-emerald-500/25 transition-all cursor-pointer shadow-xs ml-1"
+                    title={`¡Nueva versión v${appUpdateObj.version} disponible! Clic para instalar`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <ArrowUpCircle className="w-3 h-3 text-emerald-400" />
+                    <span>Actualización v{appUpdateObj.version}</span>
+                  </button>
+                )}
+                <span className="text-[#484f58] font-thin mx-1">/</span>
                 {activeTab && (
-                  <span className="text-xs font-semibold text-blue-400 bg-blue-950/40 border border-blue-500/30 px-2 py-0.5 rounded font-mono">
-                    {activeTab.name}
-                  </span>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-[#8b949e] text-[11px] font-sans font-medium">Repositorio:</span>
+                    <span
+                      className="font-mono text-xs px-2 py-0.5 rounded bg-[#1f6feb]/20 text-[#58a6ff] border border-blue-500/30 font-semibold truncate max-w-[150px]"
+                      title={`Repositorio: ${activeTab.name} (${activeTab.path})`}
+                    >
+                      {activeTab.name}
+                    </span>
+                  </div>
                 )}
                 {summary?.current_branch && (
-                  <Badge
-                    label={summary.current_branch}
-                    variant="purple"
-                    icon={<GitBranch className="w-3 h-3 text-purple-400" />}
-                  />
+                  <div className="flex items-center gap-1.5 text-xs ml-1.5">
+                    <span className="text-[#8b949e] text-[11px] font-sans font-medium">Rama:</span>
+                    <Badge
+                      label={summary.current_branch}
+                      variant="purple"
+                      icon={<GitBranch className="w-3 h-3 text-purple-400" />}
+                    />
+                  </div>
                 )}
               </div>
-              {/* Project Path directly underneath (Flecha 3) */}
-              <p
-                className="text-[10px] text-[#8b949e] font-mono truncate max-w-sm hover:text-white transition-colors cursor-default"
-                title={`Ruta del proyecto: ${activeRepoPath}`}
-              >
-                {activeRepoPath}
-              </p>
             </div>
           </div>
         </div>
@@ -447,6 +619,10 @@ export const App: React.FC = () => {
           message={toolbarMessage}
           error={toolbarError}
           isTerminalOpen={isTerminalOpen}
+          aheadCount={aheadCount}
+          behindCount={behindCount}
+          hasUpstream={hasUpstream}
+          hasUncommittedChanges={hasUncommittedChanges}
           onFetch={fetchRemote}
           onPull={pullRemote}
           onPush={pushRemote}
@@ -533,6 +709,7 @@ export const App: React.FC = () => {
                 <BranchTreeView
                   branches={branches.local}
                   currentBranch={currentBranchName}
+                  onSelectBranch={handleSelectBranchCommit}
                   onContextMenu={handleOpenBranchContextMenu}
                   onDropBranch={handleDropBranch}
                 />
@@ -548,6 +725,7 @@ export const App: React.FC = () => {
                 <BranchTreeView
                   branches={branches.remote}
                   isRemote={true}
+                  onSelectBranch={handleSelectBranchCommit}
                   onContextMenu={handleOpenBranchContextMenu}
                   onDropBranch={handleDropBranch}
                 />
@@ -591,7 +769,14 @@ export const App: React.FC = () => {
                     if (node) {
                       setSelectedCommit(node.commit);
                     }
+                    setIsWipSelected(false);
                     setActiveCenterTab("graph");
+                    setTimeout(() => {
+                      const el = document.getElementById(`commit-row-${targetCommitId}`);
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }
+                    }, 50);
                   }}
                   onDeleteTag={async (name) => {
                     await deleteTag(name);
@@ -610,177 +795,192 @@ export const App: React.FC = () => {
 
         {/* Center Canvas: Commit Graph & Central Diff Viewer (Flecha 6 & Flecha 4) */}
         <main className="flex-1 flex flex-col bg-[#010409] overflow-hidden min-w-0">
-          {hasActiveDiff ? (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Center Tab Header */}
-              <div className="h-9 px-3 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0 select-none">
-                <div className="flex items-center gap-1">
-                  {/* Tab 1: Commit Graph */}
-                  <button
-                    onClick={() => setActiveCenterTab("graph")}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      activeCenterTab === "graph"
-                        ? "bg-[#21262d] text-white border border-[#30363d]"
-                        : "text-[#8b949e] hover:text-white"
-                    }`}
-                  >
-                    <GitGraph className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Grafo de Commits</span>
-                  </button>
+          {/* Permanent Center Tab Header (Flecha 1) */}
+          <div className="h-9 px-3 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0 select-none">
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
+              {/* Permanent Tab 1: Commit Graph */}
+              <button
+                onClick={() => setActiveCenterTab("graph")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors shrink-0 ${
+                  activeCenterTab === "graph"
+                    ? "bg-[#21262d] text-white border border-[#30363d] shadow-xs"
+                    : "text-[#8b949e] hover:text-white hover:bg-[#21262d]/50"
+                }`}
+              >
+                <GitGraph className="w-3.5 h-3.5 text-blue-400" />
+                <span>Grafo de Commits</span>
+              </button>
 
-                  {/* Tab 2: Diff File Tab */}
+              {/* Dynamic Open Diff Tabs (Up to 5) */}
+              {openDiffTabs.map((tab) => {
+                const isActive = activeCenterTab === tab.id;
+                return (
                   <div
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium border transition-colors ${
-                      activeCenterTab === "diff"
-                        ? "bg-[#1f6feb]/20 border-blue-500/50 text-white"
-                        : "bg-[#21262d] border-[#30363d] text-[#8b949e] hover:text-white"
+                    key={tab.id}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border transition-colors shrink-0 ${
+                      isActive
+                        ? "bg-[#1f6feb]/20 border-blue-500/50 text-white shadow-xs"
+                        : "bg-[#21262d]/70 border-[#30363d] text-[#8b949e] hover:text-white hover:bg-[#21262d]"
                     }`}
                   >
                     <button
-                      onClick={() => setActiveCenterTab("diff")}
-                      className="flex items-center gap-1.5"
+                      onClick={() => setActiveCenterTab(tab.id)}
+                      className="flex items-center gap-1.5 max-w-[170px] truncate"
+                      title={tab.path}
                     >
-                      <FileText className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="font-mono truncate max-w-xs">{activeDiffPath}</span>
+                      <FileText
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          tab.type === "commit"
+                            ? "text-purple-400"
+                            : tab.staged
+                            ? "text-emerald-400"
+                            : "text-amber-400"
+                        }`}
+                      />
+                      <span className="font-mono text-xs truncate">{tab.name}</span>
                     </button>
                     <button
-                      onClick={handleCloseDiff}
-                      className="ml-1 p-0.5 hover:text-rose-400 rounded text-[#8b949e] transition-colors"
-                      title="Cerrar diff y volver al grafo"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeDiffTab(tab.id);
+                      }}
+                      className="ml-1 p-0.5 hover:text-rose-400 rounded text-[#8b949e] hover:bg-[#30363d] transition-colors"
+                      title={`Cerrar ${tab.name}`}
                     >
                       <X className="w-3 h-3" />
                     </button>
                   </div>
-                </div>
+                );
+              })}
+            </div>
 
-                {/* View Mode Controls (Split vs Fullscreen) */}
-                <div className="flex items-center gap-1">
-                  {centerViewMode === "full" ? (
-                    <button
-                      onClick={() => setCenterViewMode("split")}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
-                      title="Dividir pantalla: Ver Grafo y Diff simultáneamente"
-                    >
-                      <Split className="w-3 h-3" />
-                      <span>Dividir</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setCenterViewMode("full")}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
-                      title="Pantalla Completa para el Diff"
-                    >
-                      <Maximize2 className="w-3 h-3" />
-                      <span>Maximizar</span>
-                    </button>
-                  )}
-
+            {/* View Mode Controls (Split vs Fullscreen) - Visible when diff tabs are open */}
+            {openDiffTabs.length > 0 && (
+              <div className="flex items-center gap-1 shrink-0 ml-2">
+                {centerViewMode === "full" ? (
                   <button
-                    onClick={handleCloseDiff}
-                    className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#21262d] transition-colors ml-1"
-                    title="Cerrar diff"
+                    onClick={() => setCenterViewMode("split")}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
+                    title="Dividir pantalla: Ver Grafo y Diff simultáneamente"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <Split className="w-3 h-3" />
+                    <span>Dividir</span>
                   </button>
-                </div>
-              </div>
-
-              {/* Tab Content depending on Full vs Split */}
-              {centerViewMode === "full" ? (
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  {activeCenterTab === "diff" ? (
-                    <DiffViewer
-                      diff={activeDiff}
-                      loading={activeDiffLoading}
-                      onClose={handleCloseDiff}
-                    />
-                  ) : (
-                    <CommitGraph
-                      nodes={graphNodes}
-                      selectedCommit={selectedCommit}
-                      loading={commitsLoading}
-                      branches={branches}
-                      tags={tags}
-                      showCommitBody={showCommitBody}
-                      githubAvatarUrl={githubUser?.avatar_url}
-                      githubLogin={githubUser?.login}
-                      wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
-                      isWipSelected={selectedCommit === null}
-                      onSelectWip={handleSelectWip}
-                      onSelectCommit={handleSelectCommit}
-                      onBranchContextMenu={handleOpenBranchContextMenu}
-                      onDropBranch={handleDropBranch}
-                    />
-                  )}
-                </div>
-              ) : (
-                /* Split View: Commit Graph on top, Draggable Splitter, DiffViewer on bottom (Flecha 4) */
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="flex-1 flex flex-col overflow-hidden min-h-[120px]">
-                    <CommitGraph
-                      nodes={graphNodes}
-                      selectedCommit={selectedCommit}
-                      loading={commitsLoading}
-                      branches={branches}
-                      tags={tags}
-                      showCommitBody={showCommitBody}
-                      githubAvatarUrl={githubUser?.avatar_url}
-                      githubLogin={githubUser?.login}
-                      wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
-                      isWipSelected={selectedCommit === null}
-                      onSelectWip={handleSelectWip}
-                      onSelectCommit={handleSelectCommit}
-                      onBranchContextMenu={handleOpenBranchContextMenu}
-                      onDropBranch={handleDropBranch}
-                    />
-                  </div>
-
-                  {/* Flecha 4: Horizontal Resizable Splitter */}
-                  <Splitter
-                    direction="horizontal"
-                    title="Arrastra para cambiar la altura del visor de diferencias"
-                    onDrag={(e) =>
-                      setDiffHeight(
-                        Math.min(
-                          Math.max(window.innerHeight - e.clientY, 140),
-                          window.innerHeight - 200
-                        )
-                      )
-                    }
-                  />
-
-                  <div
-                    style={{ height: diffHeight }}
-                    className="shrink-0 flex flex-col overflow-hidden bg-[#0d1117]"
+                ) : (
+                  <button
+                    onClick={() => setCenterViewMode("full")}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
+                    title="Pantalla Completa para el Diff"
                   >
-                    <DiffViewer
-                      diff={activeDiff}
-                      loading={activeDiffLoading}
-                      onClose={handleCloseDiff}
-                    />
-                  </div>
-                </div>
+                    <Maximize2 className="w-3 h-3" />
+                    <span>Maximizar</span>
+                  </button>
+                )}
+                {/* Flecha 2: Global X button removed as requested */}
+              </div>
+            )}
+          </div>
+
+          {/* 5-Tabs Maximum Limit Alert Notification */}
+          {tabLimitWarning && (
+            <div className="bg-amber-950/80 border-b border-amber-600/40 text-amber-200 px-3 py-1.5 text-xs flex items-center justify-between shrink-0 animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{tabLimitWarning}</span>
+              </div>
+              <button
+                onClick={() => setTabLimitWarning(null)}
+                className="text-amber-400 hover:text-amber-100 text-xs px-1 font-semibold"
+              >
+                Entendido
+              </button>
+            </div>
+          )}
+
+          {/* Canvas Body (Full View vs Split View) */}
+          {centerViewMode === "full" ? (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {activeCenterTab !== "graph" && currentActiveTab ? (
+                <DiffViewer
+                  diff={currentDiff}
+                  loading={currentDiffLoading}
+                  repoPath={activeRepoPath}
+                  commitOid={currentActiveTab.commitOid}
+                  staged={currentActiveTab.staged}
+                  onClose={() => closeDiffTab(currentActiveTab.id)}
+                />
+              ) : (
+                <CommitGraph
+                  nodes={graphNodes}
+                  selectedCommit={selectedCommit}
+                  loading={commitsLoading}
+                  branches={branches}
+                  tags={tags}
+                  showCommitBody={showCommitBody}
+                  githubAvatarUrl={githubUser?.avatar_url}
+                  githubLogin={githubUser?.login}
+                  wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
+                  isWipSelected={isWipSelected}
+                  onSelectWip={handleSelectWip}
+                  onSelectCommit={handleSelectCommit}
+                  onBranchContextMenu={handleOpenBranchContextMenu}
+                  onDropBranch={handleDropBranch}
+                />
               )}
             </div>
           ) : (
-            /* Default: Full Commit Graph Canvas */
+            /* Split View: Commit Graph on top, Draggable Splitter, DiffViewer on bottom */
             <div className="flex-1 flex flex-col overflow-hidden">
-              <CommitGraph
-                nodes={graphNodes}
-                selectedCommit={selectedCommit}
-                loading={commitsLoading}
-                branches={branches}
-                tags={tags}
-                showCommitBody={showCommitBody}
-                githubAvatarUrl={githubUser?.avatar_url}
-                githubLogin={githubUser?.login}
-                wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
-                isWipSelected={selectedCommit === null}
-                onSelectWip={handleSelectWip}
-                onSelectCommit={handleSelectCommit}
-                onBranchContextMenu={handleOpenBranchContextMenu}
-                onDropBranch={handleDropBranch}
+              <div className="flex-1 flex flex-col overflow-hidden min-h-[120px]">
+                <CommitGraph
+                  nodes={graphNodes}
+                  selectedCommit={selectedCommit}
+                  loading={commitsLoading}
+                  branches={branches}
+                  tags={tags}
+                  showCommitBody={showCommitBody}
+                  githubAvatarUrl={githubUser?.avatar_url}
+                  githubLogin={githubUser?.login}
+                  wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
+                  isWipSelected={isWipSelected}
+                  onSelectWip={handleSelectWip}
+                  onSelectCommit={handleSelectCommit}
+                  onBranchContextMenu={handleOpenBranchContextMenu}
+                  onDropBranch={handleDropBranch}
+                />
+              </div>
+
+              {/* Horizontal Resizable Splitter */}
+              <Splitter
+                direction="horizontal"
+                title="Arrastra para cambiar la altura del visor de diferencias"
+                onDrag={(e) =>
+                  setDiffHeight(
+                    Math.min(
+                      Math.max(window.innerHeight - e.clientY, 140),
+                      window.innerHeight - 200
+                    )
+                  )
+                }
               />
+
+              <div
+                style={{ height: diffHeight }}
+                className="shrink-0 flex flex-col overflow-hidden bg-[#0d1117]"
+              >
+                <DiffViewer
+                  diff={splitDiff}
+                  loading={splitDiffLoading}
+                  repoPath={activeRepoPath}
+                  commitOid={splitActiveTab?.commitOid}
+                  staged={splitActiveTab?.staged}
+                  onClose={() => {
+                    if (splitActiveTab) {
+                      closeDiffTab(splitActiveTab.id);
+                    }
+                  }}
+                />
+              </div>
             </div>
           )}
 
@@ -811,20 +1011,17 @@ export const App: React.FC = () => {
               commit={selectedCommit}
               files={commitFiles}
               loading={commitFilesLoading}
-              selectedFilePath={commitSelectedFile}
+              selectedFilePath={
+                currentActiveTab?.commitOid === selectedCommit.oid ? currentActiveTab.path : null
+              }
               onSelectFile={(path) => {
-                if (commitSelectedFile === path) {
-                  selectCommitFile("");
-                  setActiveCenterTab("graph");
-                } else {
-                  selectCommitFile(path);
-                  setActiveCenterTab("diff");
+                if (path) {
+                  openFileTab({ path, commitOid: selectedCommit.oid, type: "commit" }, false);
                 }
               }}
               onClose={() => {
                 setSelectedCommit(null);
-                selectCommitFile("");
-                setActiveCenterTab("graph");
+                setIsWipSelected(true);
               }}
             />
           ) : (
@@ -832,7 +1029,11 @@ export const App: React.FC = () => {
               stagedFiles={stagedFiles}
               unstagedFiles={unstagedFiles}
               conflictedFiles={conflictedFiles}
-              selectedFile={selectedFile}
+              selectedFile={
+                currentActiveTab?.type === "staging"
+                  ? { path: currentActiveTab.path, staged: Boolean(currentActiveTab.staged) }
+                  : null
+              }
               currentBranch={currentBranchName}
               loading={stagingLoading}
               aiGenerating={aiGenerating}
@@ -845,12 +1046,8 @@ export const App: React.FC = () => {
               onStageAll={stageAll}
               onUnstageAll={unstageAll}
               onSelectFile={(path, staged) => {
-                if (!path) {
-                  clearSelectedFile();
-                  setActiveCenterTab("graph");
-                } else {
-                  loadDiff(path, staged);
-                  setActiveCenterTab("diff");
+                if (path) {
+                  openFileTab({ path, staged, type: "staging" }, false);
                 }
               }}
               onCommit={async (message, tag, tagMessage) => {

@@ -25,9 +25,17 @@ pub fn list_tags(repo: &Repository) -> Result<Vec<GitTagDto>, GitEngineError> {
                     };
 
                     let tagger = tag_obj.tagger();
-                    let tagger_name = tagger.as_ref().and_then(|t| t.name().ok().map(|s| s.to_string()));
-                    let tagger_email = tagger.as_ref().and_then(|t| t.email().ok().map(|s| s.to_string()));
-                    let msg = tag_obj.message().ok().flatten().map(|m| m.trim().to_string());
+                    let tagger_name = tagger
+                        .as_ref()
+                        .and_then(|t| t.name().ok().map(|s| s.to_string()));
+                    let tagger_email = tagger
+                        .as_ref()
+                        .and_then(|t| t.email().ok().map(|s| s.to_string()));
+                    let msg = tag_obj
+                        .message()
+                        .ok()
+                        .flatten()
+                        .map(|m| m.trim().to_string());
 
                     tags.push(GitTagDto {
                         name: name_str.to_string(),
@@ -76,7 +84,9 @@ pub fn create_tag(
 ) -> Result<GitTagDto, GitEngineError> {
     let clean_name = name.trim();
     if clean_name.is_empty() {
-        return Err(GitEngineError::InvalidPath("Nombre de etiqueta vacío".to_string()));
+        return Err(GitEngineError::InvalidPath(
+            "Nombre de etiqueta vacío".to_string(),
+        ));
     }
 
     let target_oid = if target_commit.trim().is_empty() || target_commit == "HEAD" {
@@ -113,7 +123,11 @@ pub fn create_tag(
         target_commit_id,
         short_target_id,
         message: message.map(|m| m.trim().to_string()),
-        tagger_name: if is_annotated { Some("GitManager".to_string()) } else { None },
+        tagger_name: if is_annotated {
+            Some("GitManager".to_string())
+        } else {
+            None
+        },
         tagger_email: None,
         timestamp: Some(chrono_like_now()),
         is_annotated,
@@ -123,7 +137,9 @@ pub fn create_tag(
 pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitEngineError> {
     let clean_name = name.trim();
     if clean_name.is_empty() {
-        return Err(GitEngineError::InvalidPath("Nombre de etiqueta vacío".to_string()));
+        return Err(GitEngineError::InvalidPath(
+            "Nombre de etiqueta vacío".to_string(),
+        ));
     }
     repo.tag_delete(clean_name)?;
     Ok(())

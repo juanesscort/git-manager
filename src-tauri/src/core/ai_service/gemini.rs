@@ -22,7 +22,8 @@ fn normalize_gemini_model(raw_model: &str) -> String {
     // Match official high-quota identifiers
     if lower.contains("3.5-flash-lite") || (lower.contains("3.5") && lower.contains("lite")) {
         "gemini-3.5-flash-lite".to_string()
-    } else if lower.contains("3.1-flash-lite") || (lower.contains("3.1") && lower.contains("lite")) {
+    } else if lower.contains("3.1-flash-lite") || (lower.contains("3.1") && lower.contains("lite"))
+    {
         "gemini-3.1-flash-lite".to_string()
     } else if lower.contains("flash-lite-latest") {
         "gemini-flash-lite-latest".to_string()
@@ -144,13 +145,18 @@ impl AiCommitProvider for GeminiProvider {
                         }
                     }
 
-                    let friendly_msg = if let Ok(parsed) = serde_json::from_str::<Value>(&body_text) {
-                        parsed["error"]["message"].as_str().unwrap_or(&body_text).to_string()
+                    let friendly_msg = if let Ok(parsed) = serde_json::from_str::<Value>(&body_text)
+                    {
+                        parsed["error"]["message"]
+                            .as_str()
+                            .unwrap_or(&body_text)
+                            .to_string()
                     } else {
                         body_text.clone()
                     };
 
-                    last_error_msg = format!("{} (HTTP {}): {}", current_model, status, friendly_msg);
+                    last_error_msg =
+                        format!("{} (HTTP {}): {}", current_model, status, friendly_msg);
 
                     // Check if error is unrecoverable (invalid key)
                     let is_invalid_key = status.as_u16() == 400

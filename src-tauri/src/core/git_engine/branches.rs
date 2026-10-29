@@ -18,11 +18,31 @@ pub fn get_branches(repo: &Repository) -> Result<BranchesSummary, GitEngineError
                 .map(|o| o.to_string())
                 .unwrap_or_default();
 
+            let mut ahead = 0;
+            let mut behind = 0;
+            let mut upstream_name = None;
+
+            if let Ok(upstream) = branch.upstream() {
+                if let Ok(Some(u_name)) = upstream.name() {
+                    upstream_name = Some(u_name.to_string());
+                }
+                if let (Some(local_oid), Some(upstream_oid)) =
+                    (branch.get().target(), upstream.get().target())
+                    && let Ok((a, b)) = repo.graph_ahead_behind(local_oid, upstream_oid)
+                {
+                    ahead = a;
+                    behind = b;
+                }
+            }
+
             local_branches.push(BranchInfo {
                 name,
                 is_head,
                 target_oid,
                 is_remote: false,
+                upstream_name,
+                ahead,
+                behind,
             });
         }
     }
@@ -47,6 +67,9 @@ pub fn get_branches(repo: &Repository) -> Result<BranchesSummary, GitEngineError
                 is_head: false,
                 target_oid,
                 is_remote: true,
+                upstream_name: None,
+                ahead: 0,
+                behind: 0,
             });
         }
     }

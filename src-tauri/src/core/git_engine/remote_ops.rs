@@ -8,11 +8,17 @@ pub fn git_fetch(repo: &Repository) -> Result<String, GitEngineError> {
         .arg("fetch")
         .current_dir(workdir)
         .output()
-        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(GitEngineError::InvalidPath(format!("git fetch: {}", err)));
+        let out = String::from_utf8_lossy(&output.stdout);
+        let raw_err = if !err.trim().is_empty() {
+            err.trim()
+        } else {
+            out.trim()
+        };
+        return Err(GitEngineError::GitCommandError(raw_err.to_string()));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -20,15 +26,39 @@ pub fn git_fetch(repo: &Repository) -> Result<String, GitEngineError> {
 
 pub fn git_pull(repo: &Repository) -> Result<String, GitEngineError> {
     let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    // Use --no-rebase so divergent branches merge cleanly by default
     let output = Command::new("git")
-        .arg("pull")
+        .args(["pull", "--no-rebase"])
         .current_dir(workdir)
         .output()
-        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(GitEngineError::InvalidPath(format!("git pull: {}", err)));
+        let out = String::from_utf8_lossy(&output.stdout);
+        let raw_err = if !err.trim().is_empty() {
+            err.trim()
+        } else {
+            out.trim()
+        };
+
+        let helpful_msg = if raw_err.contains("CONFLICT") || raw_err.contains("conflict") {
+            format!(
+                "Conflicto durante el Pull: Existen cambios incompatibles entre el repositorio remoto y local.\n\n👉 Se han detectado conflictos. Usa el resolvedor visual para solucionarlos.\n\nDetalle técnico:\n{}",
+                raw_err
+            )
+        } else if raw_err.contains("no upstream branch")
+            || raw_err.contains("no tracking information")
+        {
+            format!(
+                "La rama actual no tiene una rama remota rastreada para hacer Pull.\n\nDetalle técnico:\n{}",
+                raw_err
+            )
+        } else {
+            raw_err.to_string()
+        };
+
+        return Err(GitEngineError::GitCommandError(helpful_msg));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -36,15 +66,74 @@ pub fn git_pull(repo: &Repository) -> Result<String, GitEngineError> {
 
 pub fn git_push(repo: &Repository) -> Result<String, GitEngineError> {
     let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
-    let output = Command::new("git")
-        .arg("push")
-        .current_dir(workdir)
-        .output()
-        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+
+    // Check if the active branch has an upstream configured
+    let head_branch_name: Option<String> = repo
+        .head()
+        .ok()
+        .and_then(|h| h.shorthand().ok().map(|s| s.to_string()));
+
+    let has_upstream = if let Some(ref b_name) = head_branch_name {
+        repo.find_branch(b_name, git2::BranchType::Local)
+            .ok()
+            .and_then(|b| b.upstream().ok())
+            .is_some()
+    } else {
+        false
+    };
+
+    let output = if has_upstream {
+        Command::new("git")
+            .arg("push")
+            .current_dir(workdir)
+            .output()
+            .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?
+    } else if let Some(ref b_name) = head_branch_name {
+        // Automatically publish new local branch with upstream tracking
+        Command::new("git")
+            .args(["push", "-u", "origin", b_name])
+            .current_dir(workdir)
+            .output()
+            .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?
+    } else {
+        Command::new("git")
+            .arg("push")
+            .current_dir(workdir)
+            .output()
+            .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?
+    };
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(GitEngineError::InvalidPath(format!("git push: {}", err)));
+        let out = String::from_utf8_lossy(&output.stdout);
+        let raw_err = if !err.trim().is_empty() {
+            err.trim()
+        } else {
+            out.trim()
+        };
+
+        let helpful_msg = if raw_err.contains("non-fast-forward")
+            || raw_err.contains("Updates were rejected because the remote contains work")
+        {
+            format!(
+                "Push rechazado (non-fast-forward): El repositorio remoto contiene commits nuevos que no tienes localmente.\n\n👉 Solución: Haz clic en el botón 'Pull' para descargar y fusionar los cambios remotos antes de hacer Push.\n\nDetalle técnico:\n{}",
+                raw_err
+            )
+        } else if raw_err.contains("no upstream branch") {
+            format!(
+                "La rama actual no tiene una rama remota asociada (upstream).\n\nDetalle técnico:\n{}",
+                raw_err
+            )
+        } else if raw_err.contains("Permission to") && raw_err.contains("denied") {
+            format!(
+                "Permiso denegado por GitHub para escribir en el repositorio remoto.\n\nDetalle técnico:\n{}",
+                raw_err
+            )
+        } else {
+            raw_err.to_string()
+        };
+
+        return Err(GitEngineError::GitCommandError(helpful_msg));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -56,11 +145,14 @@ pub fn git_stash(repo: &Repository) -> Result<String, GitEngineError> {
         .args(["stash", "push", "-m", "Git-Manager Quick Stash"])
         .current_dir(workdir)
         .output()
-        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(GitEngineError::InvalidPath(format!("git stash: {}", err)));
+        return Err(GitEngineError::GitCommandError(format!(
+            "git stash: {}",
+            err
+        )));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -72,11 +164,11 @@ pub fn git_stash_pop(repo: &Repository) -> Result<String, GitEngineError> {
         .args(["stash", "pop"])
         .current_dir(workdir)
         .output()
-        .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(GitEngineError::InvalidPath(format!(
+        return Err(GitEngineError::GitCommandError(format!(
             "git stash pop: {}",
             err
         )));
@@ -180,7 +272,10 @@ pub fn git_merge(
                 .map_err(|e| GitEngineError::InvalidPath(e.to_string()))?;
             if !checkout_output.status.success() {
                 let err = String::from_utf8_lossy(&checkout_output.stderr);
-                return Err(GitEngineError::InvalidPath(format!("git checkout {}: {}", target, err)));
+                return Err(GitEngineError::InvalidPath(format!(
+                    "git checkout {}: {}",
+                    target, err
+                )));
             }
         }
     }

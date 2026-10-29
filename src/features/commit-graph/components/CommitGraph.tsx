@@ -336,13 +336,13 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
               style={{
                 height: rowHeight,
                 backgroundColor: isWipSelected
-                  ? "rgba(245, 158, 11, 0.22)"
-                  : "rgba(245, 158, 11, 0.06)",
+                  ? "rgba(245, 158, 11, 0.28)"
+                  : "rgba(245, 158, 11, 0.04)",
               }}
-              className={`flex items-center text-xs cursor-pointer border-b border-amber-500/20 transition-colors group select-none ${
+              className={`flex items-center text-xs cursor-pointer border-b transition-all group select-none ${
                 isWipSelected
-                  ? "text-white font-medium"
-                  : "hover:bg-amber-500/[0.10] text-[#c9d1d9]"
+                  ? "text-white font-semibold border-amber-500/50 shadow-xs"
+                  : "hover:bg-amber-500/[0.08] text-[#c9d1d9] border-[#21262d]/40"
               }`}
             >
               {/* 1. BRANCH / TAG Column with seamless horizontal connector line */}
@@ -515,6 +515,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
             return (
               <div
                 key={commit.oid}
+                id={`commit-row-${commit.oid}`}
                 onClick={() => onSelectCommit(commit)}
                 style={{
                   height: rowHeight,

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitManager PRO — Cliente Nativo de Git & GitHub con Asistente IA para Linux</title>
+  <meta name="description" content="Cliente de escritorio nativo de Git y GitHub para Linux. Grafo interactivo, asistente inteligente de commits con IA, visor multimedia de diffs y resolvedor 3-way merge. 100% gratuito.">
+  <link rel="icon" type="image/png" href="logo.png">
+
+  <!-- Tailwind CSS Play CDN & Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #090d16;
+      color: #e6edf3;
+      font-family: 'Inter', sans-serif;
+    }
+    .glow-cyan {
+      box-shadow: 0 0 50px -10px rgba(56, 189, 248, 0.35);
+    }
+    .glow-logo {
+      filter: drop-shadow(0 0 35px rgba(56, 189, 248, 0.45)) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.8));
+    }
+    .grid-pattern {
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+    .gradient-border {
+      position: relative;
+      border-radius: 1rem;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(59, 130, 246, 0.1), rgba(255, 255, 255, 0.05));
+      padding: 1px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+
+  <!-- Ambient Background Gradients -->
+  <div class="fixed inset-0 grid-pattern pointer-events-none z-0"></div>
+  <div class="fixed -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[450px] bg-gradient-to-tr from-sky-600/20 via-blue-600/15 to-indigo-600/10 rounded-full blur-3xl pointer-events-none z-0"></div>
+  <div class="fixed top-1/3 -right-40 w-[500px] h-[400px] bg-purple-600/10 rounded-full blur-3xl pointer-events-none z-0"></div>
+
+  <!-- Navigation -->
+  <header class="relative z-20 w-full border-b border-[#21262d] bg-[#0d1117]/80 backdrop-blur-md sticky top-0">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="logo.png" alt="GitManager Logo" class="w-9 h-9 object-contain drop-shadow-md">
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-sky-300 bg-clip-text text-transparent">
+            GitManager
+          </span>
+          <span class="text-[10px] font-extrabold tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase">
+            PRO
+          </span>
+        </div>
+      </div>
+
+      <nav class="flex items-center gap-4 text-sm font-medium">
+        <a href="#caracteristicas" class="text-slate-400 hover:text-white transition-colors hidden sm:inline">Características</a>
+        <a href="#instalacion" class="text-slate-400 hover:text-white transition-colors hidden sm:inline">Instalación</a>
+        <a id="nav-release-badge" href="https://github.com/juanesscort/git-manager/releases" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-xs font-mono font-semibold px-2.5 py-1 rounded-full bg-[#161b22] border border-[#30363d] text-sky-400 hover:border-sky-500/50 transition-all">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="version-label">v0.2.0</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="relative z-10 flex-1">
+    <section class="max-w-5xl mx-auto px-4 pt-16 pb-20 text-center flex flex-col items-center">
+      
+      <!-- Top Badge -->
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-950/60 border border-sky-500/30 text-sky-300 text-xs font-medium mb-8">
+        <span class="flex h-2 w-2 rounded-full bg-sky-400"></span>
+        <span>Cliente Nativo para Linux • Motor Rust & Tauri v2</span>
+      </div>
+
+      <!-- App Logo Display -->
+      <div class="mb-6 relative">
+        <img src="logo.png" alt="GitManager PRO" class="w-28 h-28 sm:w-36 sm:h-36 object-contain glow-logo transition-transform duration-300 hover:scale-105">
+      </div>
+
+      <!-- Main Headline -->
+      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-4xl leading-[1.15]">
+        El control total de tus repositorios Git, <span class="bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-400 bg-clip-text text-transparent">potenciado con IA</span>.
+      </h1>
+
+      <!-- Subtitle -->
+      <p class="mt-6 text-base sm:text-lg text-slate-300 max-w-2xl leading-relaxed">
+        Diseñado para Linux. Grafo interactivo en tiempo real, generador de commits semánticos con Gemini, visor multimedia de diferencias y resolución de conflictos en 3 vías. Sin suscripciones ni restricciones.
+      </p>
+
+      <!-- Download CTAs -->
+      <div class="mt-10 flex flex-col sm:flex-row items-center gap-4 w-full justify-center max-w-md">
+        <!-- .DEB Button -->
+        <a id="download-deb-btn" href="https://github.com/juanesscort/git-manager/releases/latest/download/GitManager_0.2.0_amd64.deb" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-semibold text-sm shadow-lg shadow-sky-600/30 transition-all hover:scale-[1.02] cursor-pointer">
+          <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+          <div class="text-left">
+            <div class="leading-none text-xs text-sky-100 font-normal">Descargar para Linux</div>
+            <div class="leading-tight font-bold">Paquete .deb</div>
+          </div>
+        </a>
+
+        <!-- .AppImage Button -->
+        <a id="download-appimage-btn" href="https://github.com/juanesscort/git-manager/releases/latest/download/GitManager_0.2.0_amd64.AppImage" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3.5 rounded-xl bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-white font-semibold text-sm transition-all hover:scale-[1.02] cursor-pointer">
+          <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <div class="text-left">
+            <div class="leading-none text-xs text-slate-400 font-normal">Universal Linux</div>
+            <div class="leading-tight font-bold">AppImage</div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Quick Requirements & Info -->
+      <div class="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 font-mono">
+        <span>Ubuntu 20.04+, Debian 11+, Mint, Pop!_OS, Arch</span>
+        <span>•</span>
+        <span>Arquitectura x86_64</span>
+        <span>•</span>
+        <span class="text-emerald-400">Actualizador automático integrado</span>
+      </div>
+
+      <!-- Quick Install Box -->
+      <div id="instalacion" class="mt-12 w-full max-w-xl text-left">
+        <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-4 shadow-xl">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-[#21262d] text-xs text-slate-400 font-mono">
+            <span>Instalación rápida en terminal</span>
+            <span class="text-[10px] text-slate-400">Debian / Ubuntu / Mint</span>
+          </div>
+          <div class="flex items-center justify-between font-mono text-xs sm:text-sm text-sky-300 bg-[#0d1117] p-3 rounded-lg border border-[#30363d]/60">
+            <code class="overflow-x-auto whitespace-nowrap">sudo dpkg -i GitManager_*_amd64.deb</code>
+            <button onclick="navigator.clipboard.writeText('sudo dpkg -i GitManager_*_amd64.deb'); this.innerText='¡Copiado!'; setTimeout(() => this.innerText='Copiar', 2000)" class="ml-3 px-2.5 py-1 text-xs bg-[#21262d] hover:bg-[#30363d] text-slate-300 rounded border border-[#30363d] cursor-pointer transition-colors shrink-0">
+              Copiar
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section id="caracteristicas" class="max-w-6xl mx-auto px-4 py-16 border-t border-[#21262d]">
+      <div class="text-center mb-14">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+          Diseñado para desarrolladores exigentes
+        </h2>
+        <p class="mt-2 text-sm text-slate-400 max-w-lg mx-auto">
+          Todo lo que amas de clientes como GitKraken, con la velocidad de Rust y cero límites comerciales.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <!-- Card 1: Grafo Visual -->
+        <div class="bg-[#161b22]/70 border border-[#30363d] rounded-2xl p-6 hover:border-sky-500/40 transition-all flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-sky-950/80 border border-sky-500/30 flex items-center justify-center text-sky-400 mb-4 font-bold text-lg">
+              ☊
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">Grafo Interactivo & Fila WIP</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Visualiza ramas locales y remotas con colores distintivos, visualización de trabajo en progreso (WIP), historial completo de commits y navegación con un clic.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[#21262d] text-[11px] text-sky-400 font-mono">
+            Rápido con libgit2 nativo
+          </div>
+        </div>
+
+        <!-- Card 2: Asistente IA -->
+        <div class="bg-[#161b22]/70 border border-[#30363d] rounded-2xl p-6 hover:border-sky-500/40 transition-all flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-amber-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4 font-bold text-lg">
+              ✨
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">Asistente Inteligente de Commits</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Genera mensajes Conventional Commits claros y precisos analizando solo los cambios preparados. Conexión nativa con Google Gemini, OpenAI o tu modelo local Ollama.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[#21262d] text-[11px] text-amber-400 font-mono">
+            Failover automático de 4 niveles
+          </div>
+        </div>
+
+        <!-- Card 3: Visor Multimedia -->
+        <div class="bg-[#161b22]/70 border border-[#30363d] rounded-2xl p-6 hover:border-sky-500/40 transition-all flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-purple-950/80 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-4 font-bold text-lg">
+              🖼
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">Visor Multimedia & Diffs Grandes</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Comparación de imágenes lado a lado (2-Up) y modo cebolla (Onion Skin). Soporte para SVG y animaciones Lottie. Paginación segura para diffs de miles de líneas.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[#21262d] text-[11px] text-purple-400 font-mono">
+            Cero cuelgues de interfaz
+          </div>
+        </div>
+
+        <!-- Card 4: 3-Way Merge -->
+        <div class="bg-[#161b22]/70 border border-[#30363d] rounded-2xl p-6 hover:border-sky-500/40 transition-all flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-950/80 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-4 font-bold text-lg">
+              ⇄
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">Resolvedor Visual 3-Way Merge</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Detecta y resuelve conflictos entre ramas en un visor interactivo de tres paneles: local, entrante y resultado fusionado, con vista previa en vivo.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[#21262d] text-[11px] text-emerald-400 font-mono">
+            Fusión segura y limpia
+          </div>
+        </div>
+
+        <!-- Card 5: Gestión de Tags & Ramas -->
+        <div class="bg-[#161b22]/70 border border-[#30363d] rounded-2xl p-6 hover:border-sky-500/40 transition-all flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-4 font-bold text-lg">
+              🏷
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">Gestor de Tags & Ramas</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Crea tags ligeros y anotados con un clic en cualquier commit o directamente al commitear. Crea, renombra, elimina y fusiona ramas con protección visual.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[#21262d] text-[11px] text-cyan-400 font-mono">
+            Integración completa con Git
+          </div>
+        </div>
+
+        <!-- Card 6: Privacidad y Actualizador -->
+        <div class="bg-[#161b22]/70 border border-[#30363d] rounded-2xl p-6 hover:border-sky-500/40 transition-all flex flex-col justify-between">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4 font-bold text-lg">
+              🛡
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">Seguridad & Auto-Actualización</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Tus credenciales y llaves SSH se custodian con el llavero nativo del sistema (Secret Service). Las actualizaciones se verifican con firmas Minisign.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[#21262d] text-[11px] text-rose-400 font-mono">
+            Keyring nativo de Linux
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="relative z-10 border-t border-[#21262d] bg-[#0d1117] py-8 text-center text-xs text-slate-400">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <img src="logo.png" alt="Logo" class="w-6 h-6 object-contain">
+        <span class="text-white font-semibold">GitManager PRO</span>
+        <span>— Hecho con Rust, Tauri v2 y React</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="https://github.com/juanesscort/git-manager" target="_blank" rel="noopener noreferrer" class="hover:text-white transition-colors">
+          Repositorio en GitHub
+        </a>
+        <span>•</span>
+        <a href="https://github.com/juanesscort/git-manager/releases" target="_blank" rel="noopener noreferrer" class="hover:text-white transition-colors">
+          Historial de Versiones
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Dynamic Release Resolver Script -->
+  <script>
+    // Dynamically query GitHub API for the latest release version & assets
+    (async function initReleaseLinks() {
+      try {
+        const repo = 'juanesscort/git-manager';
+        const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`);
+        if (!res.ok) return;
+        const release = await res.json();
+        const tag = release.tag_name || 'v0.2.0';
+        
+        const label = document.getElementById('version-label');
+        if (label) label.innerText = tag;
+
+        // Find .deb asset
+        const debAsset = release.assets?.find(a => a.name.endsWith('.deb'));
+        const appImageAsset = release.assets?.find(a => a.name.endsWith('.AppImage'));
+
+        if (debAsset) {
+          const debBtn = document.getElementById('download-deb-btn');
+          if (debBtn) debBtn.href = debAsset.browser_download_url;
+        }
+
+        if (appImageAsset) {
+          const appImageBtn = document.getElementById('download-appimage-btn');
+          if (appImageBtn) appImageBtn.href = appImageAsset.browser_download_url;
+        }
+      } catch (e) {
+        console.warn('Usando enlaces estáticos para descargas:', e);
+      }
+    })();
+  </script>
+</body>
+</html>

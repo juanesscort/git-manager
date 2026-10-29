@@ -1,7 +1,7 @@
 use crate::core::git_engine::{
     commit::create_commit,
     diff::{get_commit_changed_files, get_commit_file_diff, get_file_diff},
-    get_branches,
+    get_branches, get_file_media_preview,
     history::get_commit_history,
     remote_ops::{
         checkout_branch, create_branch, delete_branch, git_clone, git_fetch, git_merge, git_pull,
@@ -13,8 +13,8 @@ use crate::core::git_engine::{
     tags::{create_tag, delete_tag, list_tags},
 };
 use crate::models::git_models::{
-    BranchesSummary, CommitFileChange, CommitInfo, DiffDelta, FileStatusItem, GitTagDto,
-    RepoSummary,
+    BranchesSummary, CommitFileChange, CommitInfo, DiffDelta, FileMediaPreview, FileStatusItem,
+    GitTagDto, RepoSummary,
 };
 
 #[tauri::command]
@@ -101,6 +101,18 @@ pub async fn get_commit_file_diff_cmd(
 ) -> Result<DiffDelta, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
     get_commit_file_diff(&repo, &commit_oid, &relative_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_file_media_cmd(
+    path: String,
+    relative_path: String,
+    commit_oid: Option<String>,
+    staged: Option<bool>,
+) -> Result<FileMediaPreview, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    get_file_media_preview(&repo, &relative_path, commit_oid.as_deref(), staged)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
