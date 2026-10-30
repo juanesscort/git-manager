@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { GitTag } from "../../../types/git";
+import { UnifiedGitTag } from "../../../types/git";
 
 export function useTags(repoPath: string | null) {
-  const [tags, setTags] = useState<GitTag[]>([]);
+  const [tags, setTags] = useState<UnifiedGitTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,18 +15,12 @@ export function useTags(repoPath: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const [data, remoteNames] = await Promise.all([
-        invoke<GitTag[]>("get_repo_tags_cmd", { path: repoPath }),
-        invoke<string[]>("get_remote_tags_cmd", { path: repoPath }).catch(() => [] as string[]),
-      ]);
-      const remoteSet = new Set(remoteNames);
-      const enriched = data.map((t) => ({
-        ...t,
-        is_remote: remoteSet.has(t.name),
-      }));
-      setTags(enriched);
+      const data = await invoke<UnifiedGitTag[]>("list_unified_tags_cmd", {
+        path: repoPath,
+      });
+      setTags(data);
     } catch (err: unknown) {
-      console.warn("Error cargando etiquetas:", err);
+      console.warn("Error cargando etiquetas unificadas:", err);
       setError(typeof err === "string" ? err : JSON.stringify(err));
     } finally {
       setLoading(false);
@@ -51,6 +45,24 @@ export function useTags(repoPath: string | null) {
     [repoPath, fetchTags]
   );
 
+  const fetchTag = useCallback(
+    async (name: string): Promise<string> => {
+      if (!repoPath) return "";
+      try {
+        const msg = await invoke<string>("fetch_tag_cmd", {
+          path: repoPath,
+          tagName: name,
+        });
+        await fetchTags();
+        return msg;
+      } catch (err: unknown) {
+        console.error("Error descargando etiqueta a local:", err);
+        throw err;
+      }
+    },
+    [repoPath, fetchTags]
+  );
+
   const createTag = useCallback(
     async (
       name: string,
@@ -60,7 +72,7 @@ export function useTags(repoPath: string | null) {
     ): Promise<boolean> => {
       if (!repoPath) return false;
       try {
-        await invoke<GitTag>("create_tag_cmd", {
+        await invoke("create_tag_cmd", {
           path: repoPath,
           name,
           targetCommit,
@@ -87,15 +99,21 @@ export function useTags(repoPath: string | null) {
   );
 
   const deleteTag = useCallback(
-    async (name: string): Promise<boolean> => {
-      if (!repoPath) return false;
+    async (
+      name: string,
+      deleteLocal = true,
+      deleteRemote = false
+    ): Promise<string> => {
+      if (!repoPath) return "";
       try {
-        await invoke("delete_tag_cmd", {
+        const msg = await invoke<string>("delete_tag_cmd", {
           path: repoPath,
           name,
+          deleteLocal,
+          deleteRemote,
         });
         await fetchTags();
-        return true;
+        return msg;
       } catch (err: unknown) {
         console.error("Error eliminando etiqueta:", err);
         throw err;
@@ -113,7 +131,7 @@ export function useTags(repoPath: string | null) {
     ): Promise<boolean> => {
       if (!repoPath) return false;
       try {
-        await invoke<GitTag>("update_tag_cmd", {
+        await invoke("update_tag_cmd", {
           path: repoPath,
           oldName,
           newName,
@@ -140,6 +158,7 @@ export function useTags(repoPath: string | null) {
     error,
     refreshTags: fetchTags,
     pushTag,
+    fetchTag,
     createTag,
     updateTag,
     deleteTag,

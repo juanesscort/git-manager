@@ -27,6 +27,9 @@ import { BranchContextMenu, BranchContextMenuState } from "./components/ui/Branc
 import { CommitContextMenu, CommitContextMenuState } from "./components/ui/CommitContextMenu";
 import { CreatePullRequestModal } from "./features/github-sync/components/CreatePullRequestModal";
 import { PullRequestHubModal } from "./features/github-sync/components/pr-hub/PullRequestHubModal";
+import { ActionsHubModal } from "./features/github-sync/components/actions-hub/ActionsHubModal";
+import { ReleaseWizardModal } from "./features/git-ops/components/ReleaseWizardModal";
+import { useGitHubActions } from "./features/github-sync/hooks/useGitHubActions";
 import { RepoTabBar } from "./components/ui/RepoTabBar";
 import { OpenRepoModal } from "./components/ui/OpenRepoModal";
 import { EmbeddedTerminal } from "./components/ui/EmbeddedTerminal";
@@ -61,7 +64,7 @@ import { RemoteReposModal } from "./features/github-sync/components/RemoteReposM
 import { AppSettingsModal } from "./components/ui/AppSettingsModal";
 import { ConflictResolverModal } from "./features/conflict-resolver/components/ConflictResolverModal";
 import { useAppUpdater } from "./hooks/useAppUpdater";
-import { CommitInfo, DiffDelta, PullRequestItem, GitTag } from "./types/git";
+import { CommitInfo, DiffDelta, PullRequestItem, UnifiedGitTag } from "./types/git";
 import "./App.css";
 
 export interface OpenDiffTab {
@@ -238,6 +241,7 @@ export const App: React.FC = () => {
     tags,
     refreshTags,
     pushTag,
+    fetchTag,
     createTag,
     updateTag,
     deleteTag,
@@ -247,10 +251,40 @@ export const App: React.FC = () => {
 
   const [createTagModalOpen, setCreateTagModalOpen] = useState(false);
   const [tagDetailsModalOpen, setTagDetailsModalOpen] = useState(false);
-  const [selectedTagForModal, setSelectedTagForModal] = useState<GitTag | null>(null);
+  const [tagModalInitialDelete, setTagModalInitialDelete] = useState(false);
+  const [selectedTagForModal, setSelectedTagForModal] = useState<UnifiedGitTag | null>(null);
   const [targetCommitForTag, setTargetCommitForTag] = useState<{ oid: string; summary?: string }>({
     oid: "HEAD",
   });
+
+  const [actionsHubOpen, setActionsHubOpen] = useState(false);
+  const [releaseWizardOpen, setReleaseWizardOpen] = useState(false);
+  const [isGitManagerRepo, setIsGitManagerRepo] = useState(false);
+
+  // Check if current repo is Git-Manager
+  useEffect(() => {
+    if (!activeRepoPath) {
+      setIsGitManagerRepo(false);
+      return;
+    }
+    invoke<boolean>("is_git_manager_repo_cmd", { path: activeRepoPath })
+      .then((isGm) => setIsGitManagerRepo(isGm))
+      .catch(() => setIsGitManagerRepo(false));
+  }, [activeRepoPath]);
+
+  // Actions Repo Slug and Hook
+  const actionsRepoSlug = useMemo(() => {
+    if (!summary?.remote_url) return "";
+    let clean = summary.remote_url.trim();
+    if (clean.startsWith("git@github.com:")) {
+      clean = clean.replace("git@github.com:", "");
+    } else if (clean.startsWith("https://github.com/")) {
+      clean = clean.replace("https://github.com/", "");
+    }
+    return clean.replace(/\.git$/, "");
+  }, [summary?.remote_url]);
+
+  const { activeRunsCount, latestRunStatus } = useGitHubActions(actionsRepoSlug);
 
   // Sync native OS window title with GitManager PRO and current project
   useEffect(() => {
@@ -776,6 +810,9 @@ export const App: React.FC = () => {
           aheadCount={aheadCount}
           behindCount={behindCount}
           openPrCount={openPrCount}
+          activeRunsCount={activeRunsCount}
+          actionsStatus={latestRunStatus}
+          isGitManagerRepo={isGitManagerRepo}
           hasUpstream={hasUpstream}
           hasUncommittedChanges={hasUncommittedChanges}
           onFetch={fetchRemote}
@@ -786,6 +823,9 @@ export const App: React.FC = () => {
           onPopStash={popStash}
           onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
           onOpenPullRequests={() => setPrHubOpen(true)}
+          onOpenActions={() => setActionsHubOpen(true)}
+          onOpenReleaseWizard={() => setReleaseWizardOpen(true)}
+          onShowBanner={(err) => setToolbarNotification(null, err)}
           onClearNotification={clearToolbarNotification}
         />
 
@@ -955,13 +995,26 @@ export const App: React.FC = () => {
                     }, 50);
                   }}
                   onOpenTagDetails={(tag) => {
+                    setTagModalInitialDelete(false);
                     setSelectedTagForModal(tag);
                     setTagDetailsModalOpen(true);
                   }}
-                  onDeleteTag={async (name) => {
-                    await deleteTag(name);
+                  onOpenDeleteTag={(tag) => {
+                    setTagModalInitialDelete(true);
+                    setSelectedTagForModal(tag);
+                    setTagDetailsModalOpen(true);
+                  }}
+                  onDeleteTag={async (name, deleteLocal, deleteRemote) => {
+                    await deleteTag(name, deleteLocal, deleteRemote);
                   }}
                   onPushTag={handlePushTag}
+                  onFetchTag={async (name) => {
+                    try {
+                      await fetchTag(name);
+                    } catch (err) {
+                      console.error("Error al descargar tag:", err);
+                    }
+                  }}
                   pushingTag={pushingTag}
                 />
               </AccordionSection>
@@ -1305,9 +1358,11 @@ export const App: React.FC = () => {
       <TagDetailsModal
         isOpen={tagDetailsModalOpen}
         tag={selectedTagForModal}
+        initialShowDeleteConfirm={tagModalInitialDelete}
         onClose={() => {
           setTagDetailsModalOpen(false);
           setSelectedTagForModal(null);
+          setTagModalInitialDelete(false);
         }}
         onUpdateTag={async (oldName, newName, targetCommit, message) => {
           return await updateTag(oldName, newName, targetCommit, message);
@@ -1315,8 +1370,15 @@ export const App: React.FC = () => {
         onPushTag={(name) => {
           handlePushTag(name);
         }}
-        onDeleteTag={async (name) => {
-          await deleteTag(name);
+        onFetchTag={async (name) => {
+          try {
+            await fetchTag(name);
+          } catch (err) {
+            console.error("Error al descargar etiqueta:", err);
+          }
+        }}
+        onDeleteTag={async (name, deleteLocal, deleteRemote) => {
+          await deleteTag(name, deleteLocal, deleteRemote);
           setTagDetailsModalOpen(false);
           setSelectedTagForModal(null);
         }}
@@ -1447,6 +1509,27 @@ export const App: React.FC = () => {
           setPrHubOpen(false);
           setHubSelectedPrNumber(null);
           refreshPrCount();
+        }}
+      />
+
+      {/* GitHub Actions Hub Modal */}
+      <ActionsHubModal
+        isOpen={actionsHubOpen}
+        remoteUrl={summary?.remote_url}
+        onClose={() => setActionsHubOpen(false)}
+      />
+
+      {/* Release Wizard Modal (Exclusive for Git-Manager Repo) */}
+      <ReleaseWizardModal
+        isOpen={releaseWizardOpen}
+        repoPath={activeRepoPath}
+        currentBranch={summary?.current_branch}
+        openPrCount={openPrCount}
+        activeRunsCount={activeRunsCount}
+        onClose={() => setReleaseWizardOpen(false)}
+        onReleaseSuccess={(_ver) => {
+          handleRefreshAll();
+          setActionsHubOpen(true);
         }}
       />
 

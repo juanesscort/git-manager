@@ -1,13 +1,15 @@
 use crate::core::github_client::{
-    CreatePullRequestPayload, CreatedPullRequestResponse, GITHUB_CLIENT_ID, create_pull_request,
-    delete_saved_token, get_pull_request_checks, get_pull_request_details,
-    get_repository_permissions, get_saved_token, get_user_profile, get_user_repositories,
-    list_repository_pulls, merge_pull_request, poll_access_token, request_device_code,
-    submit_pull_request_review,
+    CreatePullRequestPayload, CreatedPullRequestResponse, GITHUB_CLIENT_ID, cancel_workflow_run,
+    create_pull_request, delete_saved_token, dispatch_workflow, get_pull_request_checks,
+    get_pull_request_details, get_repository_permissions, get_saved_token, get_user_profile,
+    get_user_repositories, get_workflow_job_logs, list_repository_pulls, list_repository_workflows,
+    list_workflow_run_jobs, list_workflow_runs, merge_pull_request, poll_access_token,
+    request_device_code, rerun_workflow_run, submit_pull_request_review,
 };
 use crate::models::github_models::{
     CheckRunItem, DeviceAuthResponse, GitHubUser, MergePullRequestPayload, PullRequestDetail,
-    PullRequestItem, RemoteRepo, RepoPermissions, SubmitReviewPayload,
+    PullRequestItem, RemoteRepo, RepoPermissions, SubmitReviewPayload, WorkflowItem, WorkflowJob,
+    WorkflowRun,
 };
 
 #[tauri::command]
@@ -195,6 +197,109 @@ pub async fn merge_pull_request_cmd(
     };
 
     merge_pull_request(&token, &owner_repo, pull_number, &payload)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_workflow_runs_cmd(
+    owner_repo: String,
+    workflow_id: Option<u64>,
+    branch: Option<String>,
+    status: Option<String>,
+    per_page: Option<u32>,
+) -> Result<Vec<WorkflowRun>, String> {
+    let token = get_saved_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No has iniciado sesión en GitHub".to_string())?;
+
+    list_workflow_runs(
+        &token,
+        &owner_repo,
+        workflow_id,
+        branch.as_deref(),
+        status.as_deref(),
+        per_page,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_repository_workflows_cmd(
+    owner_repo: String,
+) -> Result<Vec<WorkflowItem>, String> {
+    let token = get_saved_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No has iniciado sesión en GitHub".to_string())?;
+
+    list_repository_workflows(&token, &owner_repo)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_workflow_run_jobs_cmd(
+    owner_repo: String,
+    run_id: u64,
+) -> Result<Vec<WorkflowJob>, String> {
+    let token = get_saved_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No has iniciado sesión en GitHub".to_string())?;
+
+    list_workflow_run_jobs(&token, &owner_repo, run_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_workflow_job_logs_cmd(owner_repo: String, job_id: u64) -> Result<String, String> {
+    let token = get_saved_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No has iniciado sesión en GitHub".to_string())?;
+
+    get_workflow_job_logs(&token, &owner_repo, job_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn cancel_workflow_run_cmd(owner_repo: String, run_id: u64) -> Result<(), String> {
+    let token = get_saved_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No has iniciado sesión en GitHub".to_string())?;
+
+    cancel_workflow_run(&token, &owner_repo, run_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn rerun_workflow_run_cmd(
+    owner_repo: String,
+    run_id: u64,
+    failed_only: Option<bool>,
+) -> Result<(), String> {
+    let token = get_saved_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No has iniciado sesión en GitHub".to_string())?;
+
+    rerun_workflow_run(&token, &owner_repo, run_id, failed_only.unwrap_or(false))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn dispatch_workflow_cmd(
+    owner_repo: String,
+    workflow_id_or_file: String,
+    branch_ref: String,
+) -> Result<(), String> {
+    let token = get_saved_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No has iniciado sesión en GitHub".to_string())?;
+
+    dispatch_workflow(&token, &owner_repo, &workflow_id_or_file, &branch_ref)
         .await
         .map_err(|e| e.to_string())
 }

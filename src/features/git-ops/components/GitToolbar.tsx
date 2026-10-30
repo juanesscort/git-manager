@@ -12,6 +12,9 @@ import {
   AlertCircle,
   X,
   GitPullRequest,
+  PlayCircle,
+  RotateCw,
+  Rocket,
 } from "lucide-react";
 
 interface GitToolbarProps {
@@ -25,6 +28,9 @@ interface GitToolbarProps {
   hasUpstream?: boolean;
   hasUncommittedChanges?: boolean;
   openPrCount?: number;
+  activeRunsCount?: number;
+  actionsStatus?: string | null;
+  isGitManagerRepo?: boolean;
   onFetch: () => void;
   onPull: () => void;
   onPush: () => void;
@@ -33,6 +39,9 @@ interface GitToolbarProps {
   onPopStash: () => void;
   onToggleTerminal?: () => void;
   onOpenPullRequests?: () => void;
+  onOpenActions?: () => void;
+  onOpenReleaseWizard?: () => void;
+  onShowBanner?: (error: string) => void;
   onClearNotification: () => void;
 }
 
@@ -45,6 +54,9 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
   aheadCount = 0,
   behindCount = 0,
   openPrCount = 0,
+  activeRunsCount = 0,
+  actionsStatus = null,
+  isGitManagerRepo = false,
   hasUpstream = false,
   hasUncommittedChanges = false,
   onFetch,
@@ -55,6 +67,9 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
   onPopStash,
   onToggleTerminal,
   onOpenPullRequests,
+  onOpenActions,
+  onOpenReleaseWizard,
+  onShowBanner,
   onClearNotification,
 }) => {
   const [stashMenuOpen, setStashMenuOpen] = useState(false);
@@ -281,6 +296,110 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
             )}
           </div>
           <span className="text-[10px] font-medium tracking-tight mt-0.5">PRs</span>
+        </button>
+      )}
+
+      {/* GitHub Actions CI/CD Button */}
+      {onOpenActions && (
+        <button
+          onClick={onOpenActions}
+          title={
+            activeRunsCount > 0
+              ? `GitHub Actions: ${activeRunsCount} pipeline(s) en ejecución`
+              : actionsStatus === "failure"
+              ? "GitHub Actions: La última ejecución falló"
+              : actionsStatus === "success"
+              ? "GitHub Actions: Pipelines completados con éxito"
+              : "GitHub Actions: Monitorear flujos de trabajo, jobs y logs"
+          }
+          className="relative flex flex-col items-center justify-center h-10 px-2.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] transition-all min-w-[46px] group cursor-pointer"
+        >
+          <div className="relative flex items-center justify-center">
+            {actionsStatus === "in_progress" || activeRunsCount > 0 ? (
+              <RotateCw className="w-4 h-4 text-amber-400 animate-spin" />
+            ) : actionsStatus === "failure" ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform" />
+            ) : (
+              <PlayCircle className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
+            )}
+            {activeRunsCount > 0 && (
+              <span
+                className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-[15px] flex items-center justify-center text-[9px] font-mono font-bold rounded-full bg-amber-500/25 text-amber-300 border border-amber-500/50 shadow-xs animate-in zoom-in-75 duration-150"
+                title={`${activeRunsCount} workflow(s) en ejecución`}
+              >
+                {activeRunsCount > 99 ? "99+" : activeRunsCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-medium tracking-tight mt-0.5">Actions</span>
+        </button>
+      )}
+
+      {/* Release Wizard Button (Exclusive for Git-Manager Repo) */}
+      {isGitManagerRepo && onOpenReleaseWizard && (
+        <button
+          onClick={() => {
+            if (hasUncommittedChanges) {
+              if (onShowBanner) {
+                onShowBanner(
+                  "El espacio de trabajo tiene cambios pendientes. Realiza commit o stash antes de lanzar una versión."
+                );
+              }
+              return;
+            }
+            onOpenReleaseWizard();
+          }}
+          title={
+            hasUncommittedChanges
+              ? "Release bloqueada: Tienes cambios pendientes de confirmar en el espacio de trabajo. Haz commit o stash primero."
+              : activeRunsCount > 0
+              ? `Atención: Hay ${activeRunsCount} pipeline(s) de Actions en ejecución. Haz clic para configurar la release.`
+              : openPrCount > 0
+              ? `Atención: Hay ${openPrCount} Pull Request(s) pendientes de revisión. Haz clic para configurar la release.`
+              : "Lanzar Release: Automatizar nueva versión oficial de Git-Manager"
+          }
+          className={`relative flex flex-col items-center justify-center h-10 px-2.5 rounded transition-all min-w-[46px] group ml-1 ${
+            hasUncommittedChanges
+              ? "bg-[#21262d]/60 border border-amber-500/30 text-amber-300/60 opacity-60 cursor-not-allowed hover:bg-[#21262d]"
+              : "bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/40 cursor-pointer"
+          }`}
+        >
+          <div className="relative flex items-center justify-center">
+            <Rocket
+              className={`w-4 h-4 ${
+                hasUncommittedChanges
+                  ? "text-amber-400/70"
+                  : "text-purple-400 group-hover:scale-110 group-hover:-translate-y-0.5"
+              } transition-transform`}
+            />
+
+            {/* Badges on the Release button */}
+            {hasUncommittedChanges ? (
+              <span
+                className="absolute -top-1 -right-2 px-1 min-w-[13px] h-[13px] flex items-center justify-center text-[8px] font-mono font-bold rounded-full bg-amber-500 text-black shadow-xs"
+                title="Cambios pendientes sin confirmar"
+              >
+                !
+              </span>
+            ) : activeRunsCount > 0 ? (
+              <span
+                className="absolute -top-1 -right-2 w-2.5 h-2.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin"
+                title={`${activeRunsCount} pipeline(s) en ejecución`}
+              />
+            ) : openPrCount > 0 ? (
+              <span
+                className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-purple-400 animate-pulse"
+                title={`${openPrCount} PR(s) pendientes de revisión`}
+              />
+            ) : null}
+          </div>
+          <span
+            className={`text-[10px] font-bold tracking-tight mt-0.5 ${
+              hasUncommittedChanges ? "text-amber-300/60" : "text-purple-200"
+            }`}
+          >
+            Release
+          </span>
         </button>
       )}
 

@@ -151,3 +151,71 @@ pub struct MergePullRequestPayload {
     pub commit_message: Option<String>,
     pub merge_method: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowRun {
+    pub id: u64,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub display_title: Option<String>,
+    pub run_number: u64,
+    pub event: String,
+    pub status: String,
+    #[serde(default)]
+    pub conclusion: Option<String>,
+    pub workflow_id: u64,
+    pub html_url: String,
+    pub created_at: String,
+    pub updated_at: String,
+    #[serde(default)]
+    pub run_started_at: Option<String>,
+    #[serde(default)]
+    pub head_branch: Option<String>,
+    #[serde(default)]
+    pub head_sha: String,
+    #[serde(default)]
+    pub actor: Option<GitHubUser>,
+    #[serde(default)]
+    pub run_attempt: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowItem {
+    pub id: u64,
+    pub name: String,
+    pub path: String,
+    pub state: String,
+    pub html_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowJobStep {
+    pub name: String,
+    pub status: String,
+    #[serde(default)]
+    pub conclusion: Option<String>,
+    pub number: u32,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowJob {
+    pub id: u64,
+    pub run_id: u64,
+    pub name: String,
+    pub status: String,
+    #[serde(default)]
+    pub conclusion: Option<String>,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<String>,
+    #[serde(default)]
+    pub html_url: Option<String>,
+    #[serde(default)]
+    pub steps: Vec<WorkflowJobStep>,
+}

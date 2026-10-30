@@ -162,6 +162,66 @@ export interface BranchDiffCheckResult {
   is_up_to_date: boolean;
 }
 
+export interface UnifiedGitTag {
+  name: string;
+  target_commit_id?: string | null;
+  short_target_id?: string | null;
+  message?: string | null;
+  tagger_name?: string | null;
+  timestamp?: number | null;
+  is_annotated: boolean;
+  is_local: boolean;
+  is_remote: boolean;
+}
+
+export interface WorkflowRun {
+  id: number;
+  name?: string | null;
+  display_title?: string | null;
+  run_number: number;
+  event: string;
+  status: string;
+  conclusion?: string | null;
+  workflow_id: number;
+  html_url: string;
+  created_at: string;
+  updated_at: string;
+  run_started_at?: string | null;
+  head_branch?: string | null;
+  head_sha: string;
+  actor?: GitHubUser | null;
+  run_attempt?: number | null;
+}
+
+export interface WorkflowItem {
+  id: number;
+  name: string;
+  path: string;
+  state: string;
+  html_url: string;
+}
+
+export interface WorkflowJobStep {
+  name: string;
+  status: string;
+  conclusion?: string | null;
+  number: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface WorkflowJob {
+  id: number;
+  run_id: number;
+  name: string;
+  status: string;
+  conclusion?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  html_url?: string | null;
+  steps: WorkflowJobStep[];
+}
+
 export interface RepoPermissions {
   admin: boolean;
   maintain: boolean;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { GraphNode, LANE_COLORS } from "../hooks/useCommitGraph";
-import { CommitInfo, BranchesSummary, BranchInfo, GitTag } from "../../../types/git";
+import { CommitInfo, BranchesSummary, BranchInfo, UnifiedGitTag } from "../../../types/git";
 import { GitCommit, Calendar, Cloud, Check, Monitor, Tag as TagIcon, Search } from "lucide-react";
 import { VisibleColumns, GraphViewMode } from "./GraphToolbarControls";
 
@@ -9,7 +9,7 @@ interface CommitGraphProps {
   selectedCommit: CommitInfo | null;
   loading: boolean;
   branches?: BranchesSummary;
-  tags?: GitTag[];
+  tags?: UnifiedGitTag[];
   showCommitBody?: boolean;
   visibleColumns?: VisibleColumns;
   viewMode?: GraphViewMode;
@@ -278,12 +278,14 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   }
 
   // Pre-calculate tags map by target_commit_id
-  const commitTagsMap = new Map<string, GitTag[]>();
+  const commitTagsMap = new Map<string, UnifiedGitTag[]>();
   if (tags && tags.length > 0) {
     for (const tag of tags) {
-      const list = commitTagsMap.get(tag.target_commit_id) || [];
-      list.push(tag);
-      commitTagsMap.set(tag.target_commit_id, list);
+      if (tag.target_commit_id) {
+        const list = commitTagsMap.get(tag.target_commit_id) || [];
+        list.push(tag);
+        commitTagsMap.set(tag.target_commit_id, list);
+      }
     }
   }
 

@@ -424,3 +424,107 @@ pub fn git_get_remote_tags(repo: &Repository) -> Result<Vec<String>, GitEngineEr
 
     Ok(remote_tags)
 }
+
+pub fn git_delete_remote_tag(repo: &Repository, tag_name: &str) -> Result<String, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    let output = Command::new("git")
+        .args(["push", "origin", "--delete", tag_name])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let out = String::from_utf8_lossy(&output.stdout);
+        let raw_err = if !err.trim().is_empty() {
+            err.trim()
+        } else {
+            out.trim()
+        };
+        return Err(GitEngineError::GitCommandError(raw_err.to_string()));
+    }
+
+    Ok(format!(
+        "Etiqueta '{}' eliminada de GitHub (origin) exitosamente.",
+        tag_name
+    ))
+}
+
+pub fn git_fetch_tag(repo: &Repository, tag_name: &str) -> Result<String, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    let refspec = format!("refs/tags/{}:refs/tags/{}", tag_name, tag_name);
+    let output = Command::new("git")
+        .args(["fetch", "origin", &refspec])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let out = String::from_utf8_lossy(&output.stdout);
+        let raw_err = if !err.trim().is_empty() {
+            err.trim()
+        } else {
+            out.trim()
+        };
+        return Err(GitEngineError::GitCommandError(raw_err.to_string()));
+    }
+
+    Ok(format!(
+        "Etiqueta '{}' descargada a local exitosamente.",
+        tag_name
+    ))
+}
+
+pub fn list_unified_tags(
+    repo: &Repository,
+) -> Result<Vec<crate::models::git_models::UnifiedTagItem>, GitEngineError> {
+    let local_tags = crate::core::git_engine::tags::list_tags(repo)?;
+    let remote_tags = git_get_remote_tags(repo).unwrap_or_default();
+
+    let mut unified: Vec<crate::models::git_models::UnifiedTagItem> = Vec::new();
+    let mut seen_remotes = std::collections::HashSet::new();
+
+    for local in local_tags {
+        let is_remote = remote_tags.contains(&local.name);
+        if is_remote {
+            seen_remotes.insert(local.name.clone());
+        }
+        unified.push(crate::models::git_models::UnifiedTagItem {
+            name: local.name,
+            target_commit_id: Some(local.target_commit_id),
+            short_target_id: Some(local.short_target_id),
+            message: local.message,
+            tagger_name: local.tagger_name,
+            timestamp: local.timestamp,
+            is_annotated: local.is_annotated,
+            is_local: true,
+            is_remote,
+        });
+    }
+
+    for remote_name in remote_tags {
+        if !seen_remotes.contains(&remote_name) {
+            unified.push(crate::models::git_models::UnifiedTagItem {
+                name: remote_name,
+                target_commit_id: None,
+                short_target_id: None,
+                message: None,
+                tagger_name: None,
+                timestamp: None,
+                is_annotated: false,
+                is_local: false,
+                is_remote: true,
+            });
+        }
+    }
+
+    unified.sort_by(|a, b| match (a.timestamp, b.timestamp) {
+        (Some(ta), Some(tb)) => tb.cmp(&ta),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => a.name.cmp(&b.name),
+    });
+
+    Ok(unified)
+}

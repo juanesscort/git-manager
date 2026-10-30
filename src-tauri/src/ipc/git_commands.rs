@@ -3,10 +3,11 @@ use crate::core::git_engine::{
     diff::{get_commit_changed_files, get_commit_file_diff, get_file_diff},
     get_branches, get_file_media_preview,
     history::get_commit_history,
+    release_ops::{execute_git_manager_release, is_git_manager_repo},
     remote_ops::{
-        checkout_branch, create_branch, delete_branch, git_clone, git_fetch, git_get_remote_tags,
-        git_merge, git_pull, git_push, git_push_tag, git_rebase, git_stash, git_stash_pop,
-        pick_folder, rename_branch,
+        checkout_branch, create_branch, delete_branch, git_clone, git_delete_remote_tag, git_fetch,
+        git_fetch_tag, git_get_remote_tags, git_merge, git_pull, git_push, git_push_tag,
+        git_rebase, git_stash, git_stash_pop, list_unified_tags, pick_folder, rename_branch,
     },
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
@@ -15,7 +16,7 @@ use crate::core::git_engine::{
 };
 use crate::models::git_models::{
     BranchesSummary, CommitFileChange, CommitInfo, DiffDelta, FileMediaPreview, FileStatusItem,
-    GitTagDto, RepoSummary,
+    GitTagDto, RepoSummary, UnifiedTagItem,
 };
 
 #[tauri::command]
@@ -272,9 +273,68 @@ pub async fn create_tag_cmd(
 }
 
 #[tauri::command]
-pub async fn delete_tag_cmd(path: String, name: String) -> Result<(), String> {
+pub async fn delete_tag_cmd(
+    path: String,
+    name: String,
+    delete_local: Option<bool>,
+    delete_remote: Option<bool>,
+) -> Result<String, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
-    delete_tag(&repo, &name).map_err(|e| e.to_string())
+    let do_local = delete_local.unwrap_or(true);
+    let do_remote = delete_remote.unwrap_or(false);
+    let mut msgs = Vec::new();
+
+    if do_local {
+        delete_tag(&repo, &name).map_err(|e| e.to_string())?;
+        msgs.push(format!("Etiqueta '{}' eliminada de local", name));
+    }
+
+    if do_remote {
+        let remote_msg = git_delete_remote_tag(&repo, &name).map_err(|e| e.to_string())?;
+        msgs.push(remote_msg);
+    }
+
+    Ok(if msgs.is_empty() {
+        "No se realizó ninguna acción.".to_string()
+    } else {
+        msgs.join(". ")
+    })
+}
+
+#[tauri::command]
+pub async fn list_unified_tags_cmd(path: String) -> Result<Vec<UnifiedTagItem>, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    list_unified_tags(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn fetch_tag_cmd(path: String, tag_name: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_fetch_tag(&repo, &tag_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_remote_tag_cmd(path: String, tag_name: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_delete_remote_tag(&repo, &tag_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn is_git_manager_repo_cmd(path: String) -> Result<bool, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    Ok(is_git_manager_repo(&repo))
+}
+
+#[tauri::command]
+pub async fn execute_git_manager_release_cmd(
+    path: String,
+    new_version: String,
+    merge_from_dev: bool,
+    push_to_origin: bool,
+) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    execute_git_manager_release(&repo, &new_version, merge_from_dev, push_to_origin)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

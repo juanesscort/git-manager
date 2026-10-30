@@ -113,3 +113,16 @@ pub struct BranchDiffCheckResult {
     pub stat_summary: String,
     pub is_up_to_date: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnifiedTagItem {
+    pub name: String,
+    pub target_commit_id: Option<String>,
+    pub short_target_id: Option<String>,
+    pub message: Option<String>,
+    pub tagger_name: Option<String>,
+    pub timestamp: Option<i64>,
+    pub is_annotated: bool,
+    pub is_local: bool,
+    pub is_remote: bool,
+}

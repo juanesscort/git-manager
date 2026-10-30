@@ -1,7 +1,7 @@
 use super::errors::GitHubError;
 use crate::models::github_models::{
     CheckRunItem, GitHubUser, MergePullRequestPayload, PullRequestDetail, PullRequestItem,
-    RemoteRepo, RepoPermissions, SubmitReviewPayload,
+    RemoteRepo, RepoPermissions, SubmitReviewPayload, WorkflowItem, WorkflowJob, WorkflowRun,
 };
 use reqwest::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
 use serde_json::Value;
@@ -583,6 +583,290 @@ pub async fn merge_pull_request(
         return Err(GitHubError::AuthFailed(format!(
             "Error al fusionar Pull Request #{}: {}",
             pull_number, err_text
+        )));
+    }
+
+    Ok(())
+}
+
+pub async fn list_workflow_runs(
+    token: &str,
+    owner_repo: &str,
+    workflow_id: Option<u64>,
+    branch: Option<&str>,
+    status: Option<&str>,
+    per_page: Option<u32>,
+) -> Result<Vec<WorkflowRun>, GitHubError> {
+    let client = reqwest::Client::new();
+    let clean_repo = owner_repo.trim_end_matches(".git").trim();
+    let limit = per_page.unwrap_or(30);
+
+    let mut url = match workflow_id {
+        Some(w_id) => format!(
+            "https://api.github.com/repos/{}/actions/workflows/{}/runs?per_page={}",
+            clean_repo, w_id, limit
+        ),
+        None => format!(
+            "https://api.github.com/repos/{}/actions/runs?per_page={}",
+            clean_repo, limit
+        ),
+    };
+
+    if let Some(b) = branch
+        && !b.is_empty()
+    {
+        url.push_str(&format!("&branch={}", b));
+    }
+    if let Some(s) = status
+        && !s.is_empty()
+        && s != "all"
+    {
+        url.push_str(&format!("&status={}", s));
+    }
+
+    let res = client
+        .get(&url)
+        .header(USER_AGENT, "Git-Manager-Desktop")
+        .header(ACCEPT, "application/vnd.github+json")
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()
+        .await?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(GitHubError::AuthFailed(format!(
+            "Error al listar ejecuciones de GitHub Actions: {}",
+            err_text
+        )));
+    }
+
+    let val: Value = res.json().await?;
+    let runs_val = val.get("workflow_runs").and_then(|v| v.as_array());
+    let mut runs = Vec::new();
+    if let Some(arr) = runs_val {
+        for item in arr {
+            if let Ok(run) = serde_json::from_value::<WorkflowRun>(item.clone()) {
+                runs.push(run);
+            }
+        }
+    }
+
+    Ok(runs)
+}
+
+pub async fn list_repository_workflows(
+    token: &str,
+    owner_repo: &str,
+) -> Result<Vec<WorkflowItem>, GitHubError> {
+    let client = reqwest::Client::new();
+    let clean_repo = owner_repo.trim_end_matches(".git").trim();
+    let url = format!(
+        "https://api.github.com/repos/{}/actions/workflows",
+        clean_repo
+    );
+
+    let res = client
+        .get(&url)
+        .header(USER_AGENT, "Git-Manager-Desktop")
+        .header(ACCEPT, "application/vnd.github+json")
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()
+        .await?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(GitHubError::AuthFailed(format!(
+            "Error al listar workflows de {}: {}",
+            clean_repo, err_text
+        )));
+    }
+
+    let val: Value = res.json().await?;
+    let workflows_val = val.get("workflows").and_then(|v| v.as_array());
+    let mut workflows = Vec::new();
+    if let Some(arr) = workflows_val {
+        for item in arr {
+            if let Ok(w) = serde_json::from_value::<WorkflowItem>(item.clone()) {
+                workflows.push(w);
+            }
+        }
+    }
+
+    Ok(workflows)
+}
+
+pub async fn list_workflow_run_jobs(
+    token: &str,
+    owner_repo: &str,
+    run_id: u64,
+) -> Result<Vec<WorkflowJob>, GitHubError> {
+    let client = reqwest::Client::new();
+    let clean_repo = owner_repo.trim_end_matches(".git").trim();
+    let url = format!(
+        "https://api.github.com/repos/{}/actions/runs/{}/jobs",
+        clean_repo, run_id
+    );
+
+    let res = client
+        .get(&url)
+        .header(USER_AGENT, "Git-Manager-Desktop")
+        .header(ACCEPT, "application/vnd.github+json")
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()
+        .await?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(GitHubError::AuthFailed(format!(
+            "Error al obtener jobs del run #{}: {}",
+            run_id, err_text
+        )));
+    }
+
+    let val: Value = res.json().await?;
+    let jobs_val = val.get("jobs").and_then(|v| v.as_array());
+    let mut jobs = Vec::new();
+    if let Some(arr) = jobs_val {
+        for item in arr {
+            if let Ok(j) = serde_json::from_value::<WorkflowJob>(item.clone()) {
+                jobs.push(j);
+            }
+        }
+    }
+
+    Ok(jobs)
+}
+
+pub async fn get_workflow_job_logs(
+    token: &str,
+    owner_repo: &str,
+    job_id: u64,
+) -> Result<String, GitHubError> {
+    let client = reqwest::Client::new();
+    let clean_repo = owner_repo.trim_end_matches(".git").trim();
+    let url = format!(
+        "https://api.github.com/repos/{}/actions/jobs/{}/logs",
+        clean_repo, job_id
+    );
+
+    let res = client
+        .get(&url)
+        .header(USER_AGENT, "Git-Manager-Desktop")
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()
+        .await?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(GitHubError::AuthFailed(format!(
+            "No se pudieron cargar los logs del job #{}: {}",
+            job_id, err_text
+        )));
+    }
+
+    let log_text = res.text().await.unwrap_or_default();
+    Ok(log_text)
+}
+
+pub async fn cancel_workflow_run(
+    token: &str,
+    owner_repo: &str,
+    run_id: u64,
+) -> Result<(), GitHubError> {
+    let client = reqwest::Client::new();
+    let clean_repo = owner_repo.trim_end_matches(".git").trim();
+    let url = format!(
+        "https://api.github.com/repos/{}/actions/runs/{}/cancel",
+        clean_repo, run_id
+    );
+
+    let res = client
+        .post(&url)
+        .header(USER_AGENT, "Git-Manager-Desktop")
+        .header(ACCEPT, "application/vnd.github+json")
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()
+        .await?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(GitHubError::AuthFailed(format!(
+            "Error al cancelar la ejecución #{}: {}",
+            run_id, err_text
+        )));
+    }
+
+    Ok(())
+}
+
+pub async fn rerun_workflow_run(
+    token: &str,
+    owner_repo: &str,
+    run_id: u64,
+    failed_only: bool,
+) -> Result<(), GitHubError> {
+    let client = reqwest::Client::new();
+    let clean_repo = owner_repo.trim_end_matches(".git").trim();
+    let endpoint = if failed_only {
+        "rerun-failed-jobs"
+    } else {
+        "rerun"
+    };
+    let url = format!(
+        "https://api.github.com/repos/{}/actions/runs/{}/{}",
+        clean_repo, run_id, endpoint
+    );
+
+    let res = client
+        .post(&url)
+        .header(USER_AGENT, "Git-Manager-Desktop")
+        .header(ACCEPT, "application/vnd.github+json")
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()
+        .await?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(GitHubError::AuthFailed(format!(
+            "Error al reintentar la ejecución #{}: {}",
+            run_id, err_text
+        )));
+    }
+
+    Ok(())
+}
+
+pub async fn dispatch_workflow(
+    token: &str,
+    owner_repo: &str,
+    workflow_id_or_file: &str,
+    branch_ref: &str,
+) -> Result<(), GitHubError> {
+    let client = reqwest::Client::new();
+    let clean_repo = owner_repo.trim_end_matches(".git").trim();
+    let url = format!(
+        "https://api.github.com/repos/{}/actions/workflows/{}/dispatches",
+        clean_repo, workflow_id_or_file
+    );
+
+    let body = serde_json::json!({
+        "ref": branch_ref
+    });
+
+    let res = client
+        .post(&url)
+        .header(USER_AGENT, "Git-Manager-Desktop")
+        .header(ACCEPT, "application/vnd.github+json")
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .json(&body)
+        .send()
+        .await?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(GitHubError::AuthFailed(format!(
+            "Error al disparar el workflow {}: {}",
+            workflow_id_or_file, err_text
         )));
     }
 

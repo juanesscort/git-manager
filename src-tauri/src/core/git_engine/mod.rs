@@ -6,6 +6,7 @@ pub mod diff;
 pub mod errors;
 pub mod history;
 pub mod media;
+pub mod release_ops;
 pub mod remote_ops;
 pub mod repository;
 pub mod staging;
@@ -24,10 +25,11 @@ pub use diff::{
 pub use errors::GitEngineError;
 pub use history::get_commit_history;
 pub use media::get_file_media_preview;
+pub use release_ops::{execute_git_manager_release, is_git_manager_repo};
 pub use remote_ops::{
-    checkout_branch, create_branch, delete_branch, git_clone, git_fetch, git_get_remote_tags,
-    git_merge, git_pull, git_push, git_push_tag, git_rebase, git_stash, git_stash_pop, pick_folder,
-    rename_branch,
+    checkout_branch, create_branch, delete_branch, git_clone, git_delete_remote_tag, git_fetch,
+    git_fetch_tag, git_get_remote_tags, git_merge, git_pull, git_push, git_push_tag, git_rebase,
+    git_stash, git_stash_pop, list_unified_tags, pick_folder, rename_branch,
 };
 pub use repository::{get_repo_summary, open_repository};
 pub use staging::{stage_all, stage_file, unstage_all, unstage_file};
