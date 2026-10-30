@@ -18,15 +18,16 @@ mod tests;
 pub use branches::get_branches;
 pub use commit::create_commit;
 pub use diff::{
-    get_commit_changed_files, get_commit_file_diff, get_file_diff, get_staged_diff_full,
+    get_branch_diff_full, get_commit_changed_files, get_commit_file_diff, get_file_diff,
+    get_staged_diff_full,
 };
 pub use errors::GitEngineError;
 pub use history::get_commit_history;
 pub use media::get_file_media_preview;
 pub use remote_ops::{
     checkout_branch, create_branch, delete_branch, git_clone, git_fetch, git_get_remote_tags,
-    git_merge, git_pull, git_push, git_push_tag, git_rebase, git_stash, git_stash_pop,
-    pick_folder, rename_branch,
+    git_merge, git_pull, git_push, git_push_tag, git_rebase, git_stash, git_stash_pop, pick_folder,
+    rename_branch,
 };
 pub use repository::{get_repo_summary, open_repository};
 pub use staging::{stage_all, stage_file, unstage_all, unstage_file};

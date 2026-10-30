@@ -42,6 +42,7 @@ interface BranchContextMenuProps {
   onDelete: (branchName: string) => void;
   onCreateBranchHere?: (commitOid: string, baseBranchName: string) => void;
   onCreateTagHere?: (commitOid: string) => void;
+  onStartPullRequest?: (branchName: string) => void;
   onPull?: (branchName: string) => void;
   onPush?: (branchName: string) => void;
 }
@@ -59,6 +60,7 @@ export const BranchContextMenu: React.FC<BranchContextMenuProps> = ({
   onDelete,
   onCreateBranchHere,
   onCreateTagHere,
+  onStartPullRequest,
   onPull,
   onPush,
 }) => {
@@ -409,13 +411,29 @@ export const BranchContextMenu: React.FC<BranchContextMenuProps> = ({
 
           {/* Section 4: GitHub Integration (PR & Links) */}
           <div className="py-1">
+            {onStartPullRequest && (
+              <button
+                onClick={() => {
+                  onStartPullRequest(cleanBranchName);
+                  onClose();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-[#1f6feb]/20 text-[#c9d1d9] hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer"
+              >
+                <GitPullRequest className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Crear Pull Request con IA...</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded uppercase ml-auto">
+                  Nativo
+                </span>
+              </button>
+            )}
+
             {githubUrls && (
               <button
                 onClick={handleOpenPr}
                 className="w-full text-left px-3 py-1.5 hover:bg-[#1f6feb]/20 text-[#c9d1d9] hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer"
               >
-                <GitPullRequest className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Iniciar Pull Request en GitHub</span>
+                <GitPullRequest className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span>Ver comparativa en GitHub Web</span>
                 <ExternalLink className="w-3 h-3 text-[#8b949e] ml-auto" />
               </button>
             )}

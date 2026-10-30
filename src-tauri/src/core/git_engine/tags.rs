@@ -14,44 +14,46 @@ pub fn list_tags(repo: &Repository) -> Result<Vec<GitTagDto>, GitEngineError> {
 
         let refname = format!("refs/tags/{}", name_str);
         if let Ok(reference) = repo.find_reference(&refname) {
-            // Try resolving as an annotated tag first
-            if let Ok(target_obj) = reference.peel(git2::ObjectType::Any) {
-                if let Ok(tag_obj) = repo.find_tag(target_obj.id()) {
-                    let target_commit_id = tag_obj.target_id().to_string();
-                    let short_target_id = if target_commit_id.len() >= 7 {
-                        target_commit_id[..7].to_string()
-                    } else {
-                        target_commit_id.clone()
-                    };
+            // 1. Try resolving as an annotated tag first (reference directly targets a tag object)
+            if let Some(target_oid) = reference.target()
+                && let Ok(tag_obj) = repo.find_tag(target_oid)
+            {
+                let target_commit_id = tag_obj.target_id().to_string();
+                let short_target_id = if target_commit_id.len() >= 7 {
+                    target_commit_id[..7].to_string()
+                } else {
+                    target_commit_id.clone()
+                };
 
-                    let tagger = tag_obj.tagger();
-                    let tagger_name = tagger
-                        .as_ref()
-                        .and_then(|t| t.name().ok().map(|s| s.to_string()));
-                    let tagger_email = tagger
-                        .as_ref()
-                        .and_then(|t| t.email().ok().map(|s| s.to_string()));
-                    let msg = tag_obj
-                        .message()
-                        .ok()
-                        .flatten()
-                        .map(|m| m.trim().to_string());
+                let tagger = tag_obj.tagger();
+                let tagger_name = tagger
+                    .as_ref()
+                    .and_then(|t| t.name().ok().map(|s| s.to_string()));
+                let tagger_email = tagger
+                    .as_ref()
+                    .and_then(|t| t.email().ok().map(|s| s.to_string()));
+                let msg = tag_obj
+                    .message()
+                    .ok()
+                    .flatten()
+                    .map(|m| m.trim().to_string());
 
-                    tags.push(GitTagDto {
-                        name: name_str.to_string(),
-                        target_commit_id,
-                        short_target_id,
-                        message: msg,
-                        tagger_name,
-                        tagger_email,
-                        timestamp: tagger.as_ref().map(|t| t.when().seconds()),
-                        is_annotated: true,
-                    });
-                    continue;
-                }
+                tags.push(GitTagDto {
+                    name: name_str.to_string(),
+                    target_commit_id,
+                    short_target_id,
+                    message: msg,
+                    tagger_name,
+                    tagger_email,
+                    timestamp: tagger.as_ref().map(|t| t.when().seconds()),
+                    is_annotated: true,
+                });
+                continue;
+            }
 
-                // Lightweight tag pointing directly to a commit
-                let commit_id = target_obj.id().to_string();
+            // 2. Fallback for lightweight tags pointing directly to a commit
+            if let Ok(commit) = reference.peel_to_commit() {
+                let commit_id = commit.id().to_string();
                 let short_target_id = if commit_id.len() >= 7 {
                     commit_id[..7].to_string()
                 } else {
@@ -85,7 +87,12 @@ pub fn create_tag(
     let clean_name = name.trim();
     if clean_name.is_empty() {
         return Err(GitEngineError::InvalidPath(
-            "Nombre de etiqueta vacío".to_string(),
+            "El nombre de la etiqueta no puede estar vacío.".to_string(),
+        ));
+    }
+    if clean_name.contains(' ') || clean_name.contains('\t') || clean_name.contains('\n') {
+        return Err(GitEngineError::InvalidPath(
+            "El nombre de la etiqueta no puede contener espacios en blanco. Usa guiones o puntos (ej: v1.0.0 o release-demo).".to_string(),
         ));
     }
 

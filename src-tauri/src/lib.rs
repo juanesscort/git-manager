@@ -2,7 +2,9 @@ pub mod core;
 pub mod ipc;
 pub mod models;
 
-use ipc::ai_commands::{generate_ai_commit, get_ai_config, save_ai_config};
+use ipc::ai_commands::{
+    generate_ai_commit, generate_ai_pull_request, get_ai_config, save_ai_config,
+};
 use ipc::check_system_status;
 use ipc::conflict_commands::{
     check_repo_conflicts, get_conflict_file_detail, resolve_conflict_file_cmd,
@@ -17,8 +19,8 @@ use ipc::git_commands::{
     rename_branch_cmd, stage_all_cmd, stage_file_cmd, unstage_all_cmd, unstage_file_cmd,
 };
 use ipc::github_commands::{
-    check_github_session, get_github_repositories, logout_github_session, poll_github_device_token,
-    save_github_token_cmd, start_github_device_flow,
+    check_github_session, create_pull_request_cmd, get_github_repositories, logout_github_session,
+    poll_github_device_token, save_github_token_cmd, start_github_device_flow,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -64,6 +66,8 @@ pub fn run() {
             logout_github_session,
             get_github_repositories,
             generate_ai_commit,
+            generate_ai_pull_request,
+            create_pull_request_cmd,
             save_ai_config,
             get_ai_config,
             check_repo_conflicts,

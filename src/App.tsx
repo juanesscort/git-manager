@@ -24,6 +24,8 @@ import { Splitter } from "./components/ui/Splitter";
 import { CreateBranchModal } from "./components/ui/CreateBranchModal";
 import { BranchMergeModal } from "./components/ui/BranchMergeModal";
 import { BranchContextMenu, BranchContextMenuState } from "./components/ui/BranchContextMenu";
+import { CommitContextMenu, CommitContextMenuState } from "./components/ui/CommitContextMenu";
+import { CreatePullRequestModal } from "./features/github-sync/components/CreatePullRequestModal";
 import { RepoTabBar } from "./components/ui/RepoTabBar";
 import { OpenRepoModal } from "./components/ui/OpenRepoModal";
 import { EmbeddedTerminal } from "./components/ui/EmbeddedTerminal";
@@ -479,6 +481,38 @@ export const App: React.FC = () => {
       isRemote,
       commitOid,
     });
+  };
+
+  // Commit right-click context menu state
+  const [commitContextMenuState, setCommitContextMenuState] = useState<CommitContextMenuState>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    commit: null,
+  });
+
+  const handleOpenCommitContextMenu = (x: number, y: number, commit: CommitInfo) => {
+    setCommitContextMenuState({
+      isOpen: true,
+      x,
+      y,
+      commit,
+    });
+  };
+
+  // Pull Request Modal state
+  const [pullRequestModalOpen, setPullRequestModalOpen] = useState<boolean>(false);
+  const [prInitialHead, setPrInitialHead] = useState<string>("dev");
+  const [prInitialBase, setPrInitialBase] = useState<string>("main");
+
+  const handleOpenPullRequest = (headBranch?: string, baseBranch?: string) => {
+    if (headBranch) {
+      setPrInitialHead(headBranch);
+    }
+    if (baseBranch) {
+      setPrInitialBase(baseBranch);
+    }
+    setPullRequestModalOpen(true);
   };
 
   const hasUncommittedChanges = stagedFiles.length > 0 || unstagedFiles.length > 0;
@@ -963,6 +997,7 @@ export const App: React.FC = () => {
                   isWipSelected={isWipSelected}
                   onSelectWip={handleSelectWip}
                   onSelectCommit={handleSelectCommit}
+                  onCommitContextMenu={handleOpenCommitContextMenu}
                   onBranchContextMenu={handleOpenBranchContextMenu}
                   onDropBranch={handleDropBranch}
                 />
@@ -985,6 +1020,7 @@ export const App: React.FC = () => {
                   isWipSelected={isWipSelected}
                   onSelectWip={handleSelectWip}
                   onSelectCommit={handleSelectCommit}
+                  onCommitContextMenu={handleOpenCommitContextMenu}
                   onBranchContextMenu={handleOpenBranchContextMenu}
                   onDropBranch={handleDropBranch}
                 />
@@ -1207,8 +1243,36 @@ export const App: React.FC = () => {
           setTargetCommitForTag({ oid: commitOid });
           setCreateTagModalOpen(true);
         }}
+        onStartPullRequest={(branchName) => {
+          handleOpenPullRequest(branchName);
+        }}
         onPull={() => pullRemote()}
         onPush={() => pushRemote()}
+      />
+
+      {/* Commit Right-Click Context Menu */}
+      <CommitContextMenu
+        state={commitContextMenuState}
+        remoteUrl={summary?.remote_url}
+        onClose={() => setCommitContextMenuState((prev) => ({ ...prev, isOpen: false }))}
+        onCreateTag={(commit) => {
+          setTargetCommitForTag({ oid: commit.oid, summary: commit.summary });
+          setCreateTagModalOpen(true);
+        }}
+        onCreateBranch={(_commit) => {
+          setBranchModalOpen(true);
+        }}
+      />
+
+      {/* Pull Request Creator Modal with AI Assistance */}
+      <CreatePullRequestModal
+        isOpen={pullRequestModalOpen}
+        repoPath={activeRepoPath}
+        remoteUrl={summary?.remote_url}
+        branches={branches}
+        initialHeadBranch={prInitialHead}
+        initialBaseBranch={prInitialBase}
+        onClose={() => setPullRequestModalOpen(false)}
       />
 
       {/* Open / Clone Repository Modal */}

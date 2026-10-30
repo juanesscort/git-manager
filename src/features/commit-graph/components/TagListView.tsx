@@ -97,11 +97,10 @@ export const TagListView: React.FC<TagListViewProps> = ({
             className="flex flex-col py-1 px-2 rounded hover:bg-[#161b22] transition-colors cursor-pointer group"
             title={`${tag.is_annotated ? "Etiqueta anotada" : "Etiqueta ligera"}: ${tag.name} (Commit: ${tag.target_commit_id})${tag.message ? `\n\n"${tag.message}"` : ""}\n\n(Clic derecho para más opciones)`}
           >
-            {/* First Row: Tag Name, Icon & Right Push Button (Flecha 1) */}
+            {/* First Row: Tag Name & Right Push Button (No redundant icon, clean text) */}
             <div className="flex items-center justify-between min-w-0">
-              <div className="flex items-center gap-1.5 truncate flex-1 min-w-0 mr-1">
-                <Tag className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="font-mono text-[11px] font-semibold text-emerald-300 truncate">
+              <div className="truncate flex-1 min-w-0 mr-1">
+                <span className="font-mono text-[11px] font-semibold text-emerald-300 truncate block">
                   {tag.name}
                 </span>
               </div>
@@ -125,9 +124,9 @@ export const TagListView: React.FC<TagListViewProps> = ({
               )}
             </div>
 
-            {/* Second Row: Tag Description if present (Flecha 2) */}
+            {/* Second Row: Tag Description if present (Flecha 4) */}
             {tag.message && tag.message.trim() && (
-              <div className="text-[10px] text-[#8b949e] font-sans truncate pl-5 pr-1 mt-0.5 leading-tight">
+              <div className="text-[10px] text-[#8b949e] font-sans truncate pr-1 mt-0.5 leading-tight">
                 {tag.message.trim()}
               </div>
             )}

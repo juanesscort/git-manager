@@ -391,7 +391,10 @@ pub fn git_push_tag(repo: &Repository, tag_name: &str) -> Result<String, GitEngi
         return Err(GitEngineError::GitCommandError(raw_err.to_string()));
     }
 
-    Ok(format!("Etiqueta '{}' subida exitosamente a GitHub.", tag_name))
+    Ok(format!(
+        "Etiqueta '{}' subida exitosamente a GitHub.",
+        tag_name
+    ))
 }
 
 pub fn git_get_remote_tags(repo: &Repository) -> Result<Vec<String>, GitEngineError> {

@@ -17,6 +17,7 @@ interface CommitGraphProps {
   onSelectWip?: () => void;
   onSelectCommit: (commit: CommitInfo) => void;
   onCheckoutBranch?: (branchName: string) => void;
+  onCommitContextMenu?: (x: number, y: number, commit: CommitInfo) => void;
   onBranchContextMenu?: (
     x: number,
     y: number,
@@ -88,6 +89,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   isWipSelected = false,
   onSelectWip,
   onSelectCommit,
+  onCommitContextMenu,
   onBranchContextMenu,
   onDropBranch,
 }) => {
@@ -524,6 +526,12 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                 key={commit.oid}
                 id={`commit-row-${commit.oid}`}
                 onClick={() => onSelectCommit(commit)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (onCommitContextMenu) {
+                    onCommitContextMenu(e.clientX, e.clientY, commit);
+                  }
+                }}
                 style={{
                   height: rowHeight,
                   backgroundColor: getLaneRowBg(color, isSelected),

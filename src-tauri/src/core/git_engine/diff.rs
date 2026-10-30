@@ -68,6 +68,34 @@ pub fn get_staged_diff_full(repo: &Repository) -> Result<String, GitEngineError>
     Ok(String::from_utf8_lossy(&patch_output).to_string())
 }
 
+pub fn get_branch_diff_full(
+    repo: &Repository,
+    base: &str,
+    head: &str,
+) -> Result<String, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    let clean_base = base.strip_prefix("origin/").unwrap_or(base);
+    let clean_head = head.strip_prefix("origin/").unwrap_or(head);
+    let range = format!("{}...{}", clean_base, clean_head);
+
+    let output = std::process::Command::new("git")
+        .args(["diff", &range])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+    if !output.status.success() {
+        let output2 = std::process::Command::new("git")
+            .args(["diff", clean_base, clean_head])
+            .current_dir(workdir)
+            .output()
+            .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+        return Ok(String::from_utf8_lossy(&output2.stdout).to_string());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
 pub fn get_commit_changed_files(
     repo: &Repository,
     commit_oid: &str,

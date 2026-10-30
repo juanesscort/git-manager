@@ -1,5 +1,6 @@
 use crate::core::github_client::{
-    GITHUB_CLIENT_ID, delete_saved_token, get_saved_token, get_user_profile, get_user_repositories,
+    CreatePullRequestPayload, CreatedPullRequestResponse, GITHUB_CLIENT_ID, create_pull_request,
+    delete_saved_token, get_saved_token, get_user_profile, get_user_repositories,
     poll_access_token, request_device_code,
 };
 use crate::models::github_models::{DeviceAuthResponse, GitHubUser, RemoteRepo};
@@ -68,6 +69,34 @@ pub async fn get_github_repositories() -> Result<Vec<RemoteRepo>, String> {
         .ok_or_else(|| "No has iniciado sesión en GitHub".to_string())?;
 
     get_user_repositories(&token)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_pull_request_cmd(
+    owner_repo: String,
+    title: String,
+    head: String,
+    base: String,
+    body: Option<String>,
+    draft: Option<bool>,
+) -> Result<CreatedPullRequestResponse, String> {
+    let token = get_saved_token()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| {
+            "No has iniciado sesión en GitHub. Conéctate primero en la aplicación.".to_string()
+        })?;
+
+    let payload = CreatePullRequestPayload {
+        title,
+        head,
+        base,
+        body,
+        draft,
+    };
+
+    create_pull_request(&token, &owner_repo, &payload)
         .await
         .map_err(|e| e.to_string())
 }
