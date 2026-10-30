@@ -1,5 +1,7 @@
 use super::errors::AiServiceError;
-use super::prompts::templates::commit::{COMMIT_SYSTEM_PROMPT as SYSTEM_PROMPT, build_commit_user_prompt as build_user_prompt};
+use super::prompts::templates::commit::{
+    COMMIT_SYSTEM_PROMPT as SYSTEM_PROMPT, build_commit_user_prompt as build_user_prompt,
+};
 use super::traits::AiCommitProvider;
 use async_trait::async_trait;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};

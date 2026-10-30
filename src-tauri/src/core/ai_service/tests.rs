@@ -1,4 +1,6 @@
-use super::prompts::templates::commit::{COMMIT_SYSTEM_PROMPT as SYSTEM_PROMPT, build_commit_user_prompt as build_user_prompt};
+use super::prompts::templates::commit::{
+    COMMIT_SYSTEM_PROMPT as SYSTEM_PROMPT, build_commit_user_prompt as build_user_prompt,
+};
 use super::sanitizer::sanitize_git_diff;
 
 #[test]
@@ -71,6 +73,25 @@ fn test_prompt_registry_pull_request_without_emojis() {
     assert!(user_prompt.contains("sin ningún emoji ni icono"));
     assert!(sys_prompt.contains("PROHIBIDO EL USO DE CUALQUIER EMOJI"));
     // Ensure no emojis like 📌 or 🚀 are in the prompt definition
+    assert!(!sys_prompt.contains("📌"));
+    assert!(!sys_prompt.contains("🚀"));
+    assert!(!user_prompt.contains("📌"));
+    assert!(!user_prompt.contains("🚀"));
+}
+
+#[test]
+fn test_prompt_registry_pr_review_without_emojis() {
+    use super::prompts::{AiPromptRegistry, AiTaskKind, PromptContext};
+
+    let commits = ["commit 1".to_string(), "commit 2".to_string()];
+    let ctx = PromptContext::for_pull_request("diff test", "feature/pr-hub", "dev", &commits);
+    let user_prompt = AiPromptRegistry::user_prompt(AiTaskKind::PullRequestReview, &ctx);
+    let sys_prompt = AiPromptRegistry::system_prompt(AiTaskKind::PullRequestReview);
+
+    assert!(user_prompt.contains("feature/pr-hub"));
+    assert!(user_prompt.contains("dev"));
+    assert!(user_prompt.contains("CERO emojis ni iconos"));
+    assert!(sys_prompt.contains("ESTA TERMINANTEMENTE PROHIBIDO EL USO DE CUALQUIER EMOJI"));
     assert!(!sys_prompt.contains("📌"));
     assert!(!sys_prompt.contains("🚀"));
     assert!(!user_prompt.contains("📌"));

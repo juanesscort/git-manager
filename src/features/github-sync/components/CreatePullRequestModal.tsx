@@ -11,6 +11,8 @@ import {
   ArrowLeftRight,
   RefreshCw,
   GitCommit,
+  Copy,
+  Check,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -58,6 +60,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const [aiGenerating, setAiGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdPr, setCreatedPr] = useState<CreatedPrResult | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   // Branch diff validation state (Flecha 1)
   const [diffCheck, setDiffCheck] = useState<BranchDiffCheckResult | null>(null);
@@ -255,6 +258,17 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     }
   };
 
+  const handleCopyUrl = async () => {
+    if (!createdPr?.html_url) return;
+    try {
+      await navigator.clipboard.writeText(createdPr.html_url);
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
   const isFormValid = Boolean(title.trim()) && Boolean(diffCheck?.has_changes);
 
   return (
@@ -283,30 +297,68 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
 
         {/* Success View */}
         {createdPr ? (
-          <div className="p-6 flex flex-col items-center text-center gap-4 animate-in zoom-in-95 duration-150">
+          <div className="p-6 flex flex-col items-center text-center gap-5 animate-in zoom-in-95 duration-150">
             <div className="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <div>
+            <div className="space-y-1">
               <h3 className="text-base font-bold text-white">¡Pull Request Creado Exitosamente!</h3>
-              <p className="text-xs text-[#8b949e] mt-1">
+              <p className="text-xs text-[#8b949e]">
                 Se ha publicado en GitHub como el Pull Request{" "}
                 <span className="text-emerald-300 font-mono font-bold">#{createdPr.number}</span>
               </p>
             </div>
 
-            <div className="w-full max-w-md p-3.5 bg-[#0d1117] border border-[#30363d] rounded-xl flex flex-col gap-2 text-left font-mono text-xs">
-              <div className="flex items-center justify-between text-[11px] text-[#8b949e]">
-                <span>Título:</span>
-                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase">
+            {/* Detailed PR Card without artificial truncation */}
+            <div className="w-full p-4 bg-[#0d1117] border border-[#30363d] rounded-xl flex flex-col gap-3 text-left">
+              <div className="flex items-center justify-between gap-2 border-b border-[#30363d]/60 pb-2.5">
+                <div className="flex items-center gap-2 text-xs font-mono text-[#8b949e]">
+                  <span className="text-cyan-400 font-semibold">{headBranch}</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-[#6e7681]" />
+                  <span className="text-purple-400 font-semibold">{baseBranch}</span>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider font-mono">
                   {createdPr.state}
                 </span>
               </div>
-              <div className="text-white font-medium truncate">{createdPr.title}</div>
-              <div className="text-[11px] text-[#58a6ff] truncate">{createdPr.html_url}</div>
+
+              {/* Full Title (no truncation) */}
+              <div>
+                <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider block mb-1">
+                  Título
+                </span>
+                <h4 className="text-sm font-medium text-white break-words leading-relaxed font-sans">
+                  {createdPr.title}
+                </h4>
+              </div>
+
+              {/* URL and Copy Link row */}
+              <div className="pt-2 border-t border-[#30363d]/60 flex items-center justify-between gap-3 text-xs">
+                <span className="text-[#58a6ff] font-mono text-[11px] truncate flex-1 select-all">
+                  {createdPr.html_url}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyUrl}
+                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[#30363d] bg-[#161b22] hover:bg-[#21262d] text-[#c9d1d9] hover:text-white transition-colors cursor-pointer text-[11px]"
+                  title="Copiar enlace al portapapeles"
+                >
+                  {copiedUrl ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-medium">Copiado</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copiar enlace</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-3 mt-1 w-full justify-end">
               <Button size="sm" variant="secondary" onClick={onClose} className="px-4">
                 Cerrar
               </Button>
@@ -314,7 +366,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
                 size="sm"
                 variant="primary"
                 onClick={handleOpenCreatedPr}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-emerald-900/30 cursor-pointer"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-emerald-900/30 cursor-pointer px-4"
               >
                 <span>Revisar y Aprobar en GitHub</span>
                 <ExternalLink className="w-3.5 h-3.5" />
