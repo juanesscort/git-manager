@@ -195,9 +195,26 @@ fn test_tags_creation_listing_deletion() {
     let tags = list_tags(&repo).expect("list tags");
     assert_eq!(tags.len(), 2);
 
-    // 5. Delete lightweight tag
+    // 5. Update tag: modify message and rename
+    let updated = update_tag(
+        &repo,
+        "v0.1.0",
+        "v0.1.0-release",
+        &commit_oid,
+        Some("Updated release notes"),
+    )
+    .expect("update tag");
+    assert_eq!(updated.name, "v0.1.0-release");
+    assert_eq!(updated.message.as_deref(), Some("Updated release notes"));
+
+    let tags_after_update = list_tags(&repo).expect("list tags after update");
+    assert_eq!(tags_after_update.len(), 2);
+    assert!(tags_after_update.iter().any(|t| t.name == "v0.1.0-release"));
+    assert!(!tags_after_update.iter().any(|t| t.name == "v0.1.0"));
+
+    // 6. Delete tags
     delete_tag(&repo, "v0.1.0-light").expect("delete tag");
+    delete_tag(&repo, "v0.1.0-release").expect("delete tag");
     let tags_after_delete = list_tags(&repo).expect("list tags after delete");
-    assert_eq!(tags_after_delete.len(), 1);
-    assert_eq!(tags_after_delete[0].name, "v0.1.0");
+    assert_eq!(tags_after_delete.len(), 0);
 }

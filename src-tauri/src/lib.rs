@@ -18,6 +18,7 @@ use ipc::git_commands::{
     get_terminal_prompt_info, git_fetch_cmd, git_merge_cmd, git_pull_cmd, git_push_cmd,
     git_rebase_cmd, git_stash_cmd, git_stash_pop_cmd, pick_folder_dialog_cmd, push_tag_cmd,
     rename_branch_cmd, stage_all_cmd, stage_file_cmd, unstage_all_cmd, unstage_file_cmd,
+    update_tag_cmd,
 };
 use ipc::github_commands::{
     check_github_session, create_pull_request_cmd, get_github_repositories,
@@ -81,6 +82,7 @@ pub fn run() {
             get_repo_tags_cmd,
             create_tag_cmd,
             delete_tag_cmd,
+            update_tag_cmd,
             push_tag_cmd,
             get_remote_tags_cmd,
             get_repo_permissions_cmd,

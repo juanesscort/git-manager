@@ -33,6 +33,7 @@ import { EmbeddedTerminal } from "./components/ui/EmbeddedTerminal";
 import { AccordionSection } from "./components/ui/AccordionSection";
 import { TagListView } from "./features/commit-graph/components/TagListView";
 import { CreateTagModal } from "./features/commit-graph/components/CreateTagModal";
+import { TagDetailsModal } from "./features/commit-graph/components/TagDetailsModal";
 import { useRepoTabs } from "./hooks/useRepoTabs";
 import { GitToolbar } from "./features/git-ops/components/GitToolbar";
 import { useGitToolbar } from "./hooks/useGitToolbar";
@@ -55,7 +56,7 @@ import { RemoteReposModal } from "./features/github-sync/components/RemoteReposM
 import { AppSettingsModal } from "./components/ui/AppSettingsModal";
 import { ConflictResolverModal } from "./features/conflict-resolver/components/ConflictResolverModal";
 import { useAppUpdater } from "./hooks/useAppUpdater";
-import { CommitInfo, DiffDelta, PullRequestItem } from "./types/git";
+import { CommitInfo, DiffDelta, PullRequestItem, GitTag } from "./types/git";
 import "./App.css";
 
 export interface OpenDiffTab {
@@ -185,12 +186,15 @@ export const App: React.FC = () => {
     refreshTags,
     pushTag,
     createTag,
+    updateTag,
     deleteTag,
   } = useTags(activeRepoPath);
 
   const [pushingTag, setPushingTag] = useState<string | null>(null);
 
   const [createTagModalOpen, setCreateTagModalOpen] = useState(false);
+  const [tagDetailsModalOpen, setTagDetailsModalOpen] = useState(false);
+  const [selectedTagForModal, setSelectedTagForModal] = useState<GitTag | null>(null);
   const [targetCommitForTag, setTargetCommitForTag] = useState<{ oid: string; summary?: string }>({
     oid: "HEAD",
   });
@@ -897,6 +901,10 @@ export const App: React.FC = () => {
                       }
                     }, 50);
                   }}
+                  onOpenTagDetails={(tag) => {
+                    setSelectedTagForModal(tag);
+                    setTagDetailsModalOpen(true);
+                  }}
                   onDeleteTag={async (name) => {
                     await deleteTag(name);
                   }}
@@ -1212,6 +1220,27 @@ export const App: React.FC = () => {
         onClose={() => setCreateTagModalOpen(false)}
         onCreateTag={async (name, target, msg, pushToRemote) => {
           return await createTag(name, target, msg, pushToRemote);
+        }}
+      />
+
+      {/* Tag Details & Edit Modal */}
+      <TagDetailsModal
+        isOpen={tagDetailsModalOpen}
+        tag={selectedTagForModal}
+        onClose={() => {
+          setTagDetailsModalOpen(false);
+          setSelectedTagForModal(null);
+        }}
+        onUpdateTag={async (oldName, newName, targetCommit, message) => {
+          return await updateTag(oldName, newName, targetCommit, message);
+        }}
+        onPushTag={(name) => {
+          handlePushTag(name);
+        }}
+        onDeleteTag={async (name) => {
+          await deleteTag(name);
+          setTagDetailsModalOpen(false);
+          setSelectedTagForModal(null);
         }}
       />
 

@@ -104,6 +104,32 @@ export function useTags(repoPath: string | null) {
     [repoPath, fetchTags]
   );
 
+  const updateTag = useCallback(
+    async (
+      oldName: string,
+      newName: string,
+      targetCommit: string,
+      message?: string
+    ): Promise<boolean> => {
+      if (!repoPath) return false;
+      try {
+        await invoke<GitTag>("update_tag_cmd", {
+          path: repoPath,
+          oldName,
+          newName,
+          targetCommit,
+          message: message?.trim() ? message.trim() : null,
+        });
+        await fetchTags();
+        return true;
+      } catch (err: unknown) {
+        console.error("Error actualizando etiqueta:", err);
+        throw err;
+      }
+    },
+    [repoPath, fetchTags]
+  );
+
   useEffect(() => {
     fetchTags();
   }, [fetchTags]);
@@ -115,6 +141,7 @@ export function useTags(repoPath: string | null) {
     refreshTags: fetchTags,
     pushTag,
     createTag,
+    updateTag,
     deleteTag,
   };
 }

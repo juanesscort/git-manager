@@ -152,6 +152,79 @@ pub fn delete_tag(repo: &Repository, name: &str) -> Result<(), GitEngineError> {
     Ok(())
 }
 
+pub fn update_tag(
+    repo: &Repository,
+    old_name: &str,
+    new_name: &str,
+    target_commit: &str,
+    message: Option<&str>,
+) -> Result<GitTagDto, GitEngineError> {
+    let clean_old_name = old_name.trim();
+    let clean_new_name = new_name.trim();
+    if clean_new_name.is_empty() {
+        return Err(GitEngineError::InvalidPath(
+            "El nombre de la etiqueta no puede estar vacío.".to_string(),
+        ));
+    }
+    if clean_new_name.contains(' ')
+        || clean_new_name.contains('\t')
+        || clean_new_name.contains('\n')
+    {
+        return Err(GitEngineError::InvalidPath(
+            "El nombre de la etiqueta no puede contener espacios en blanco.".to_string(),
+        ));
+    }
+
+    let target_oid = if target_commit.trim().is_empty() || target_commit == "HEAD" {
+        repo.head()?.peel_to_commit()?.id()
+    } else {
+        Oid::from_str(target_commit.trim())
+            .map_err(|_| GitEngineError::CommitNotFound(target_commit.to_string()))?
+    };
+
+    let target_obj = repo.find_object(target_oid, Some(git2::ObjectType::Commit))?;
+    let is_annotated = message.is_some_and(|m| !m.trim().is_empty());
+
+    // If name changed, delete the old tag reference first
+    if clean_old_name != clean_new_name {
+        let _ = repo.tag_delete(clean_old_name);
+    }
+
+    if is_annotated {
+        let sig = repo.signature().unwrap_or_else(|_| {
+            Signature::now("GitManager", "gitmanager@local")
+                .unwrap_or_else(|_| Signature::now("User", "user@git").unwrap())
+        });
+
+        let msg = message.unwrap().trim();
+        repo.tag(clean_new_name, &target_obj, &sig, msg, true)?;
+    } else {
+        repo.tag_lightweight(clean_new_name, &target_obj, true)?;
+    }
+
+    let target_commit_id = target_oid.to_string();
+    let short_target_id = if target_commit_id.len() >= 7 {
+        target_commit_id[..7].to_string()
+    } else {
+        target_commit_id.clone()
+    };
+
+    Ok(GitTagDto {
+        name: clean_new_name.to_string(),
+        target_commit_id,
+        short_target_id,
+        message: message.map(|m| m.trim().to_string()),
+        tagger_name: if is_annotated {
+            Some("GitManager".to_string())
+        } else {
+            None
+        },
+        tagger_email: None,
+        timestamp: Some(chrono_like_now()),
+        is_annotated,
+    })
+}
+
 fn chrono_like_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

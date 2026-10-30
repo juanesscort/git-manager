@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Tag, Trash2, Copy, Check, UploadCloud } from "lucide-react";
+import { Tag, Trash2, Copy, Check, UploadCloud, Edit3 } from "lucide-react";
 import { GitTag } from "../../../types/git";
 
 interface TagListViewProps {
   tags: GitTag[];
   onSelectTag?: (targetCommitId: string) => void;
+  onOpenTagDetails?: (tag: GitTag) => void;
   onDeleteTag?: (name: string) => void;
   onPushTag?: (name: string) => void;
   pushingTag?: string | null;
@@ -20,6 +21,7 @@ interface ContextMenuState {
 export const TagListView: React.FC<TagListViewProps> = ({
   tags,
   onSelectTag,
+  onOpenTagDetails,
   onDeleteTag,
   onPushTag,
   pushingTag,
@@ -93,11 +95,15 @@ export const TagListView: React.FC<TagListViewProps> = ({
           <div
             key={`tag-${tag.name}`}
             onClick={() => onSelectTag && onSelectTag(tag.target_commit_id)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onOpenTagDetails && onOpenTagDetails(tag);
+            }}
             onContextMenu={(e) => handleContextMenu(e, tag)}
             className="flex flex-col py-1 px-2 rounded hover:bg-[#161b22] transition-colors cursor-pointer group"
-            title={`${tag.is_annotated ? "Etiqueta anotada" : "Etiqueta ligera"}: ${tag.name} (Commit: ${tag.target_commit_id})${tag.message ? `\n\n"${tag.message}"` : ""}\n\n(Clic derecho para más opciones)`}
+            title={`${tag.is_annotated ? "Etiqueta anotada" : "Etiqueta ligera"}: ${tag.name} (Commit: ${tag.target_commit_id})${tag.message ? `\n\n"${tag.message}"` : ""}\n\n(Doble clic para ver/editar, clic derecho para más opciones)`}
           >
-            {/* First Row: Tag Name & Right Push Button (No redundant icon, clean text) */}
+            {/* First Row: Tag Name, Edit Action & Right Push Button */}
             <div className="flex items-center justify-between min-w-0">
               <div className="truncate flex-1 min-w-0 mr-1">
                 <span className="font-mono text-[11px] font-semibold text-emerald-300 truncate block">
@@ -105,23 +111,40 @@ export const TagListView: React.FC<TagListViewProps> = ({
                 </span>
               </div>
 
-              {/* Push to GitHub: Only icon, pegged to the right, hidden if already remote */}
-              {!tag.is_remote && onPushTag && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isPushing) onPushTag(tag.name);
-                  }}
-                  disabled={isPushing}
-                  className="shrink-0 p-1 rounded hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
-                  title="Etiqueta solo en local. Clic para subir a GitHub (git push origin)"
-                >
-                  <UploadCloud
-                    className={`w-3.5 h-3.5 ${isPushing ? "animate-pulse" : ""}`}
-                  />
-                </button>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                {/* View/Edit Button (Hover) */}
+                {onOpenTagDetails && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenTagDetails(tag);
+                    }}
+                    className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[#30363d] text-[#8b949e] hover:text-white transition-all cursor-pointer"
+                    title="Ver y editar detalles de la etiqueta"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Push to GitHub: Only icon, pegged to the right, hidden if already remote */}
+                {!tag.is_remote && onPushTag && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isPushing) onPushTag(tag.name);
+                    }}
+                    disabled={isPushing}
+                    className="p-1 rounded hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
+                    title="Etiqueta solo en local. Clic para subir a GitHub (git push origin)"
+                  >
+                    <UploadCloud
+                      className={`w-3.5 h-3.5 ${isPushing ? "animate-pulse" : ""}`}
+                    />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Second Row: Tag Description if present (Flecha 4) */}
@@ -146,6 +169,23 @@ export const TagListView: React.FC<TagListViewProps> = ({
             <Tag className="w-3.5 h-3.5 text-emerald-400" />
             <span className="truncate">{contextMenu.tag.name}</span>
           </div>
+
+          {/* Option: View & Edit Tag Details */}
+          {onOpenTagDetails && (
+            <button
+              type="button"
+              onClick={() => {
+                if (contextMenu.tag) {
+                  onOpenTagDetails(contextMenu.tag);
+                }
+                setContextMenu({ isOpen: false, x: 0, y: 0, tag: null });
+              }}
+              className="w-full text-left px-3 py-1.5 hover:bg-[#21262d] flex items-center gap-2 text-[#c9d1d9] hover:text-white transition-colors cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-blue-400" />
+              <span>Ver y editar detalles...</span>
+            </button>
+          )}
 
           {/* Option: Push Tag to GitHub */}
           {onPushTag && (

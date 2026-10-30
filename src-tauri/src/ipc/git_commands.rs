@@ -11,7 +11,7 @@ use crate::core::git_engine::{
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
     status::get_repo_statuses,
-    tags::{create_tag, delete_tag, list_tags},
+    tags::{create_tag, delete_tag, list_tags, update_tag},
 };
 use crate::models::git_models::{
     BranchesSummary, CommitFileChange, CommitInfo, DiffDelta, FileMediaPreview, FileStatusItem,
@@ -287,4 +287,23 @@ pub async fn push_tag_cmd(path: String, tag_name: String) -> Result<String, Stri
 pub async fn get_remote_tags_cmd(path: String) -> Result<Vec<String>, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
     git_get_remote_tags(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_tag_cmd(
+    path: String,
+    old_name: String,
+    new_name: String,
+    target_commit: String,
+    message: Option<String>,
+) -> Result<GitTagDto, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    update_tag(
+        &repo,
+        &old_name,
+        &new_name,
+        &target_commit,
+        message.as_deref(),
+    )
+    .map_err(|e| e.to_string())
 }
