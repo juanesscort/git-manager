@@ -1,10 +1,14 @@
 use super::templates::commit::{COMMIT_SYSTEM_PROMPT, build_commit_user_prompt};
+use super::templates::pr_review::{
+    PR_REVIEW_SYSTEM_PROMPT, PrReviewContext, build_pr_review_user_prompt,
+};
 use super::templates::pull_request::{PR_SYSTEM_PROMPT, build_pr_user_prompt};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiTaskKind {
     CommitMessage,
     PullRequest,
+    PullRequestReview,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +51,7 @@ impl AiPromptRegistry {
         match task {
             AiTaskKind::CommitMessage => COMMIT_SYSTEM_PROMPT,
             AiTaskKind::PullRequest => PR_SYSTEM_PROMPT,
+            AiTaskKind::PullRequestReview => PR_REVIEW_SYSTEM_PROMPT,
         }
     }
 
@@ -57,6 +62,21 @@ impl AiPromptRegistry {
                 let head = context.head_branch.unwrap_or("dev");
                 let base = context.base_branch.unwrap_or("main");
                 build_pr_user_prompt(head, base, context.sanitized_diff, context.commits_summary)
+            }
+            AiTaskKind::PullRequestReview => {
+                let head = context.head_branch.unwrap_or("dev");
+                let base = context.base_branch.unwrap_or("main");
+                let review_ctx = PrReviewContext {
+                    title: "Pull Request",
+                    description: context.sanitized_diff,
+                    head_branch: head,
+                    base_branch: base,
+                    additions: 0,
+                    deletions: 0,
+                    changed_files: 0,
+                    commits_summary: context.commits_summary,
+                };
+                build_pr_review_user_prompt(&review_ctx)
             }
         }
     }

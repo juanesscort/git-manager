@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  GitPullRequest,
 } from "lucide-react";
 
 interface GitToolbarProps {
@@ -30,6 +31,7 @@ interface GitToolbarProps {
   onStash: () => void;
   onPopStash: () => void;
   onToggleTerminal?: () => void;
+  onOpenPullRequests?: () => void;
   onClearNotification: () => void;
 }
 
@@ -50,6 +52,7 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
   onStash,
   onPopStash,
   onToggleTerminal,
+  onOpenPullRequests,
   onClearNotification,
 }) => {
   const [stashMenuOpen, setStashMenuOpen] = useState(false);
@@ -239,7 +242,7 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
       <button
         onClick={onToggleTerminal}
         title="Terminal: Abrir/Cerrar terminal integrada de Linux"
-        className={`flex flex-col items-center justify-center h-10 px-2.5 rounded transition-all min-w-[46px] group ${
+        className={`flex flex-col items-center justify-center h-10 px-2.5 rounded transition-all min-w-[46px] group cursor-pointer ${
           isTerminalOpen
             ? "bg-cyan-950/60 text-cyan-200 border border-cyan-500/40"
             : "hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9]"
@@ -252,6 +255,18 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
         />
         <span className="text-[10px] font-medium tracking-tight mt-0.5">Terminal</span>
       </button>
+
+      {/* Pull Requests Hub Button */}
+      {onOpenPullRequests && (
+        <button
+          onClick={onOpenPullRequests}
+          title="Pull Requests: Ver, revisar y aprobar solicitudes de GitHub"
+          className="flex flex-col items-center justify-center h-10 px-2.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] transition-all min-w-[46px] group cursor-pointer"
+        >
+          <GitPullRequest className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+          <span className="text-[10px] font-medium tracking-tight mt-0.5">PRs</span>
+        </button>
+      )}
 
       {/* Floating Status / Error Notifications */}
       {message && (

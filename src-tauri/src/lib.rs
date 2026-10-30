@@ -4,7 +4,7 @@ pub mod models;
 
 use ipc::ai_commands::{
     check_branch_diff_cmd, generate_ai_commit, generate_ai_pull_request, get_ai_config,
-    save_ai_config,
+    review_pull_request_with_ai, save_ai_config,
 };
 use ipc::check_system_status;
 use ipc::conflict_commands::{
@@ -20,8 +20,11 @@ use ipc::git_commands::{
     rename_branch_cmd, stage_all_cmd, stage_file_cmd, unstage_all_cmd, unstage_file_cmd,
 };
 use ipc::github_commands::{
-    check_github_session, create_pull_request_cmd, get_github_repositories, logout_github_session,
+    check_github_session, create_pull_request_cmd, get_github_repositories,
+    get_pull_request_checks_cmd, get_pull_request_details_cmd, get_repo_permissions_cmd,
+    list_pull_requests_cmd, logout_github_session, merge_pull_request_cmd,
     poll_github_device_token, save_github_token_cmd, start_github_device_flow,
+    submit_pull_request_review_cmd,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -80,6 +83,13 @@ pub fn run() {
             delete_tag_cmd,
             push_tag_cmd,
             get_remote_tags_cmd,
+            get_repo_permissions_cmd,
+            list_pull_requests_cmd,
+            get_pull_request_details_cmd,
+            get_pull_request_checks_cmd,
+            submit_pull_request_review_cmd,
+            merge_pull_request_cmd,
+            review_pull_request_with_ai,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

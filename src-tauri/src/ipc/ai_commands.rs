@@ -99,3 +99,62 @@ pub async fn save_ai_config(config: SaveAiConfigRequest) -> Result<(), String> {
 pub async fn get_ai_config() -> Result<AiConfig, String> {
     Ok(get_ai_settings())
 }
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ReviewPullRequestRequest {
+    pub title: String,
+    pub description: String,
+    pub head_branch: String,
+    pub base_branch: String,
+    pub additions: u64,
+    pub deletions: u64,
+    pub changed_files: u64,
+    pub commits_summary: Vec<String>,
+}
+
+#[tauri::command]
+pub async fn review_pull_request_with_ai(req: ReviewPullRequestRequest) -> Result<String, String> {
+    use crate::core::ai_service::prompts::templates::pr_review::{
+        PR_REVIEW_SYSTEM_PROMPT, PrReviewContext, build_pr_review_user_prompt,
+    };
+
+    let provider = create_active_provider().map_err(|e| e.to_string())?;
+    let review_ctx = PrReviewContext {
+        title: &req.title,
+        description: &req.description,
+        head_branch: &req.head_branch,
+        base_branch: &req.base_branch,
+        additions: req.additions,
+        deletions: req.deletions,
+        changed_files: req.changed_files,
+        commits_summary: &req.commits_summary,
+    };
+    let prompt = build_pr_review_user_prompt(&review_ctx);
+
+    let full_prompt = format!("{}\n\n{}", PR_REVIEW_SYSTEM_PROMPT, prompt);
+    let review = provider
+        .generate_commit(&full_prompt)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Sanitization: Guarantee zero emojis in output
+    let clean_review = review
+        .chars()
+        .filter(|&c| {
+            let u = c as u32;
+            !(0x1F600..=0x1F64F).contains(&u)
+                && !(0x1F300..=0x1F5FF).contains(&u)
+                && !(0x1F680..=0x1F6FF).contains(&u)
+                && !(0x1F700..=0x1F77F).contains(&u)
+                && !(0x1F780..=0x1F7FF).contains(&u)
+                && !(0x1F800..=0x1F8FF).contains(&u)
+                && !(0x1F900..=0x1F9FF).contains(&u)
+                && !(0x1FA00..=0x1FA6F).contains(&u)
+                && !(0x1FA70..=0x1FAFF).contains(&u)
+                && !(0x2600..=0x26FF).contains(&u)
+                && !(0x2700..=0x27BF).contains(&u)
+        })
+        .collect::<String>();
+
+    Ok(clean_review.trim().to_string())
+}

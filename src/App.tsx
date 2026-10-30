@@ -26,6 +26,7 @@ import { BranchMergeModal } from "./components/ui/BranchMergeModal";
 import { BranchContextMenu, BranchContextMenuState } from "./components/ui/BranchContextMenu";
 import { CommitContextMenu, CommitContextMenuState } from "./components/ui/CommitContextMenu";
 import { CreatePullRequestModal } from "./features/github-sync/components/CreatePullRequestModal";
+import { PullRequestHubModal } from "./features/github-sync/components/pr-hub/PullRequestHubModal";
 import { RepoTabBar } from "./components/ui/RepoTabBar";
 import { OpenRepoModal } from "./components/ui/OpenRepoModal";
 import { EmbeddedTerminal } from "./components/ui/EmbeddedTerminal";
@@ -109,6 +110,7 @@ export const App: React.FC = () => {
   const [diffLoadingMap, setDiffLoadingMap] = useState<Record<string, boolean>>({});
   const tabWarningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [branchModalOpen, setBranchModalOpen] = useState<boolean>(false);
+  const [prHubOpen, setPrHubOpen] = useState<boolean>(false);
 
   const {
     user: githubUser,
@@ -690,6 +692,7 @@ export const App: React.FC = () => {
           onStash={stashChanges}
           onPopStash={popStash}
           onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
+          onOpenPullRequests={() => setPrHubOpen(true)}
           onClearNotification={clearToolbarNotification}
         />
 
@@ -1281,6 +1284,15 @@ export const App: React.FC = () => {
         initialHeadBranch={prInitialHead}
         initialBaseBranch={prInitialBase}
         onClose={() => setPullRequestModalOpen(false)}
+      />
+
+      {/* Pull Request Hub Modal (Review, Checks & Native Merge) */}
+      <PullRequestHubModal
+        isOpen={prHubOpen}
+        repoPath={activeRepoPath}
+        remoteUrl={summary?.remote_url}
+        currentUser={githubUser}
+        onClose={() => setPrHubOpen(false)}
       />
 
       {/* Open / Clone Repository Modal */}

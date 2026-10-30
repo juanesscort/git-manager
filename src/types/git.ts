@@ -161,3 +161,71 @@ export interface BranchDiffCheckResult {
   stat_summary: string;
   is_up_to_date: boolean;
 }
+
+export interface RepoPermissions {
+  admin: boolean;
+  maintain: boolean;
+  push: boolean;
+  triage: boolean;
+  pull: boolean;
+  role_name: string;
+}
+
+export interface PullRequestItem {
+  id: number;
+  number: number;
+  state: string;
+  title: string;
+  user: GitHubUser;
+  body?: string | null;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  draft: boolean;
+  head_ref: string;
+  head_sha: string;
+  base_ref: string;
+  base_sha: string;
+  comments_count: number;
+}
+
+export interface PullRequestDetail {
+  id: number;
+  number: number;
+  state: string;
+  title: string;
+  user: GitHubUser;
+  body?: string | null;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  draft: boolean;
+  head_ref: string;
+  head_sha: string;
+  base_ref: string;
+  base_sha: string;
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  mergeable?: boolean | null;
+  mergeable_state?: string | null;
+}
+
+export interface CheckRunItem {
+  id: number;
+  name: string;
+  status: string;
+  conclusion?: string | null;
+  html_url?: string | null;
+}
+
+export interface ReviewPullRequestRequest {
+  title: string;
+  description: string;
+  head_branch: string;
+  base_branch: string;
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  commits_summary: string[];
+}
