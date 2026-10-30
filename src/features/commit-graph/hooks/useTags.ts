@@ -15,8 +15,16 @@ export function useTags(repoPath: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const data = await invoke<GitTag[]>("get_repo_tags_cmd", { path: repoPath });
-      setTags(data);
+      const [data, remoteNames] = await Promise.all([
+        invoke<GitTag[]>("get_repo_tags_cmd", { path: repoPath }),
+        invoke<string[]>("get_remote_tags_cmd", { path: repoPath }).catch(() => [] as string[]),
+      ]);
+      const remoteSet = new Set(remoteNames);
+      const enriched = data.map((t) => ({
+        ...t,
+        is_remote: remoteSet.has(t.name),
+      }));
+      setTags(enriched);
     } catch (err: unknown) {
       console.warn("Error cargando etiquetas:", err);
       setError(typeof err === "string" ? err : JSON.stringify(err));
@@ -25,8 +33,31 @@ export function useTags(repoPath: string | null) {
     }
   }, [repoPath]);
 
+  const pushTag = useCallback(
+    async (name: string): Promise<string> => {
+      if (!repoPath) return "";
+      try {
+        const msg = await invoke<string>("push_tag_cmd", {
+          path: repoPath,
+          tagName: name,
+        });
+        await fetchTags();
+        return msg;
+      } catch (err: unknown) {
+        console.error("Error subiendo etiqueta:", err);
+        throw err;
+      }
+    },
+    [repoPath, fetchTags]
+  );
+
   const createTag = useCallback(
-    async (name: string, targetCommit: string, message?: string): Promise<boolean> => {
+    async (
+      name: string,
+      targetCommit: string,
+      message?: string,
+      pushToRemote?: boolean
+    ): Promise<boolean> => {
       if (!repoPath) return false;
       try {
         await invoke<GitTag>("create_tag_cmd", {
@@ -35,6 +66,16 @@ export function useTags(repoPath: string | null) {
           targetCommit,
           message: message?.trim() ? message.trim() : null,
         });
+        if (pushToRemote) {
+          try {
+            await invoke<string>("push_tag_cmd", {
+              path: repoPath,
+              tagName: name,
+            });
+          } catch (pushErr) {
+            console.warn("Tag creado pero falló push a remoto:", pushErr);
+          }
+        }
         await fetchTags();
         return true;
       } catch (err: unknown) {
@@ -72,6 +113,7 @@ export function useTags(repoPath: string | null) {
     loading,
     error,
     refreshTags: fetchTags,
+    pushTag,
     createTag,
     deleteTag,
   };

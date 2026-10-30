@@ -20,6 +20,15 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
     setState((prev) => ({ ...prev, message: null, error: null }));
   }, []);
 
+  const setNotification = useCallback((message: string | null, error: string | null = null) => {
+    setState((prev) => ({ ...prev, message, error }));
+    if (message) {
+      setTimeout(() => {
+        setState((prev) => (prev.activeOp === null ? { ...prev, message: null } : prev));
+      }, 5000);
+    }
+  }, []);
+
   const runOperation = useCallback(
     async (opName: string, invokeName: string, args: Record<string, unknown> = {}) => {
       setState({
@@ -156,5 +165,6 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
     mergeBranch,
     rebaseBranch,
     clearNotification,
+    setNotification,
   };
 }

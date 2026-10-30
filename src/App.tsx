@@ -24,6 +24,8 @@ import { Splitter } from "./components/ui/Splitter";
 import { CreateBranchModal } from "./components/ui/CreateBranchModal";
 import { BranchMergeModal } from "./components/ui/BranchMergeModal";
 import { BranchContextMenu, BranchContextMenuState } from "./components/ui/BranchContextMenu";
+import { CommitContextMenu, CommitContextMenuState } from "./components/ui/CommitContextMenu";
+import { CreatePullRequestModal } from "./features/github-sync/components/CreatePullRequestModal";
 import { RepoTabBar } from "./components/ui/RepoTabBar";
 import { OpenRepoModal } from "./components/ui/OpenRepoModal";
 import { EmbeddedTerminal } from "./components/ui/EmbeddedTerminal";
@@ -177,9 +179,12 @@ export const App: React.FC = () => {
   const {
     tags,
     refreshTags,
+    pushTag,
     createTag,
     deleteTag,
   } = useTags(activeRepoPath);
+
+  const [pushingTag, setPushingTag] = useState<string | null>(null);
 
   const [createTagModalOpen, setCreateTagModalOpen] = useState(false);
   const [targetCommitForTag, setTargetCommitForTag] = useState<{ oid: string; summary?: string }>({
@@ -396,7 +401,20 @@ export const App: React.FC = () => {
     mergeBranch,
     rebaseBranch,
     clearNotification: clearToolbarNotification,
+    setNotification: setToolbarNotification,
   } = useGitToolbar(repoPath, handleRefreshAll);
+
+  const handlePushTag = async (tagName: string) => {
+    setPushingTag(tagName);
+    try {
+      const msg = await pushTag(tagName);
+      setToolbarNotification(msg || `Etiqueta '${tagName}' subida a GitHub`);
+    } catch (err: unknown) {
+      setToolbarNotification(null, err instanceof Error ? err.message : String(err));
+    } finally {
+      setPushingTag(null);
+    }
+  };
 
   // Keep each repository's pending changes counter updated without leaking between tabs (Flecha 5)
   const pendingChangesCount = stagedFiles.length + unstagedFiles.length;
@@ -427,6 +445,14 @@ export const App: React.FC = () => {
     sourceIsRemote: boolean = false,
     targetIsRemote: boolean = false
   ) => {
+    // If dropping a remote branch onto another remote branch, open Pull Request Creator directly!
+    if (sourceIsRemote && targetIsRemote) {
+      const cleanSource = sourceBranch.replace(/^[^\/]+\//, "");
+      const cleanTarget = targetBranch.replace(/^[^\/]+\//, "");
+      handleOpenPullRequest(cleanSource, cleanTarget);
+      return;
+    }
+
     setMergeModal({
       isOpen: true,
       sourceBranch,
@@ -451,7 +477,8 @@ export const App: React.FC = () => {
     y: number,
     branchName: string,
     isHead: boolean,
-    isRemote: boolean
+    isRemote: boolean,
+    commitOid?: string
   ) => {
     setContextMenuState({
       isOpen: true,
@@ -460,7 +487,40 @@ export const App: React.FC = () => {
       branchName,
       isHead,
       isRemote,
+      commitOid,
     });
+  };
+
+  // Commit right-click context menu state
+  const [commitContextMenuState, setCommitContextMenuState] = useState<CommitContextMenuState>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    commit: null,
+  });
+
+  const handleOpenCommitContextMenu = (x: number, y: number, commit: CommitInfo) => {
+    setCommitContextMenuState({
+      isOpen: true,
+      x,
+      y,
+      commit,
+    });
+  };
+
+  // Pull Request Modal state
+  const [pullRequestModalOpen, setPullRequestModalOpen] = useState<boolean>(false);
+  const [prInitialHead, setPrInitialHead] = useState<string>("dev");
+  const [prInitialBase, setPrInitialBase] = useState<string>("main");
+
+  const handleOpenPullRequest = (headBranch?: string, baseBranch?: string) => {
+    if (headBranch) {
+      setPrInitialHead(headBranch);
+    }
+    if (baseBranch) {
+      setPrInitialBase(baseBranch);
+    }
+    setPullRequestModalOpen(true);
   };
 
   const hasUncommittedChanges = stagedFiles.length > 0 || unstagedFiles.length > 0;
@@ -721,6 +781,26 @@ export const App: React.FC = () => {
                 count={branches.remote.length}
                 icon={<Cloud className="w-3.5 h-3.5 text-purple-400" />}
                 defaultOpen={true}
+                action={
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetchRemote();
+                    }}
+                    disabled={toolbarOperating}
+                    className="p-1 rounded text-[#8b949e] hover:text-purple-400 hover:bg-[#161b22] transition-colors cursor-pointer"
+                    title="Sincronizar ramas remotas con GitHub (Fetch & Prune)"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 ${
+                        toolbarOperating && toolbarActiveOp === "fetch"
+                          ? "animate-spin text-purple-400"
+                          : ""
+                      }`}
+                    />
+                  </button>
+                }
               >
                 <BranchTreeView
                   branches={branches.remote}
@@ -781,6 +861,8 @@ export const App: React.FC = () => {
                   onDeleteTag={async (name) => {
                     await deleteTag(name);
                   }}
+                  onPushTag={handlePushTag}
+                  pushingTag={pushingTag}
                 />
               </AccordionSection>
             </nav>
@@ -923,6 +1005,7 @@ export const App: React.FC = () => {
                   isWipSelected={isWipSelected}
                   onSelectWip={handleSelectWip}
                   onSelectCommit={handleSelectCommit}
+                  onCommitContextMenu={handleOpenCommitContextMenu}
                   onBranchContextMenu={handleOpenBranchContextMenu}
                   onDropBranch={handleDropBranch}
                 />
@@ -945,6 +1028,7 @@ export const App: React.FC = () => {
                   isWipSelected={isWipSelected}
                   onSelectWip={handleSelectWip}
                   onSelectCommit={handleSelectCommit}
+                  onCommitContextMenu={handleOpenCommitContextMenu}
                   onBranchContextMenu={handleOpenBranchContextMenu}
                   onDropBranch={handleDropBranch}
                 />
@@ -1087,8 +1171,8 @@ export const App: React.FC = () => {
         targetCommitOid={targetCommitForTag.oid}
         targetCommitSummary={targetCommitForTag.summary}
         onClose={() => setCreateTagModalOpen(false)}
-        onCreateTag={async (name, target, msg) => {
-          return await createTag(name, target, msg);
+        onCreateTag={async (name, target, msg, pushToRemote) => {
+          return await createTag(name, target, msg, pushToRemote);
         }}
       />
 
@@ -1152,6 +1236,7 @@ export const App: React.FC = () => {
       <BranchContextMenu
         state={contextMenuState}
         currentBranch={currentBranchName}
+        remoteUrl={summary?.remote_url}
         hasUncommittedChanges={hasUncommittedChanges}
         onClose={() => setContextMenuState((prev) => ({ ...prev, isOpen: false }))}
         onCheckout={(branchName) => checkoutBranch(branchName)}
@@ -1159,6 +1244,43 @@ export const App: React.FC = () => {
         onRebase={(branchName) => rebaseBranch(branchName)}
         onRename={(oldName, newName) => renameBranch(oldName, newName)}
         onDelete={(branchName) => deleteBranch(branchName)}
+        onCreateBranchHere={(_commitOid, _baseBranch) => {
+          setBranchModalOpen(true);
+        }}
+        onCreateTagHere={(commitOid) => {
+          setTargetCommitForTag({ oid: commitOid });
+          setCreateTagModalOpen(true);
+        }}
+        onStartPullRequest={(branchName) => {
+          handleOpenPullRequest(branchName);
+        }}
+        onPull={() => pullRemote()}
+        onPush={() => pushRemote()}
+      />
+
+      {/* Commit Right-Click Context Menu */}
+      <CommitContextMenu
+        state={commitContextMenuState}
+        remoteUrl={summary?.remote_url}
+        onClose={() => setCommitContextMenuState((prev) => ({ ...prev, isOpen: false }))}
+        onCreateTag={(commit) => {
+          setTargetCommitForTag({ oid: commit.oid, summary: commit.summary });
+          setCreateTagModalOpen(true);
+        }}
+        onCreateBranch={(_commit) => {
+          setBranchModalOpen(true);
+        }}
+      />
+
+      {/* Pull Request Creator Modal with AI Assistance */}
+      <CreatePullRequestModal
+        isOpen={pullRequestModalOpen}
+        repoPath={activeRepoPath}
+        remoteUrl={summary?.remote_url}
+        branches={branches}
+        initialHeadBranch={prInitialHead}
+        initialBaseBranch={prInitialBase}
+        onClose={() => setPullRequestModalOpen(false)}
       />
 
       {/* Open / Clone Repository Modal */}

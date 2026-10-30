@@ -19,6 +19,7 @@ export interface RepoSummary {
   is_empty: boolean;
   is_bare: boolean;
   head_commit_oid?: string | null;
+  remote_url?: string | null;
 }
 
 export interface CommitInfo {
@@ -144,10 +145,19 @@ export interface GitTag {
   tagger_email?: string | null;
   timestamp?: number | null;
   is_annotated: boolean;
+  is_remote?: boolean;
 }
 
 export interface CreateTagRequest {
   name: string;
   target_commit: string;
   message?: string;
+}
+
+export interface BranchDiffCheckResult {
+  has_changes: boolean;
+  commits_count: number;
+  commits_summary: string[];
+  stat_summary: string;
+  is_up_to_date: boolean;
 }

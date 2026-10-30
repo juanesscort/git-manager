@@ -43,3 +43,51 @@ pub async fn get_user_repositories(token: &str) -> Result<Vec<RemoteRepo>, GitHu
     let repos: Vec<RemoteRepo> = res.json().await?;
     Ok(repos)
 }
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct CreatePullRequestPayload {
+    pub title: String,
+    pub head: String,
+    pub base: String,
+    pub body: Option<String>,
+    pub draft: Option<bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CreatedPullRequestResponse {
+    pub id: u64,
+    pub number: u64,
+    pub html_url: String,
+    pub state: String,
+    pub title: String,
+}
+
+pub async fn create_pull_request(
+    token: &str,
+    owner_repo: &str,
+    payload: &CreatePullRequestPayload,
+) -> Result<CreatedPullRequestResponse, GitHubError> {
+    let client = reqwest::Client::new();
+    let clean_repo = owner_repo.trim_end_matches(".git").trim();
+    let url = format!("https://api.github.com/repos/{}/pulls", clean_repo);
+
+    let res = client
+        .post(&url)
+        .header(USER_AGENT, "Git-Manager-Desktop")
+        .header(ACCEPT, "application/vnd.github+json")
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .json(payload)
+        .send()
+        .await?;
+
+    if !res.status().is_success() {
+        let err_body = res.text().await.unwrap_or_default();
+        return Err(GitHubError::AuthFailed(format!(
+            "GitHub devolvió error al crear el Pull Request: {}",
+            err_body
+        )));
+    }
+
+    let pr: CreatedPullRequestResponse = res.json().await?;
+    Ok(pr)
+}

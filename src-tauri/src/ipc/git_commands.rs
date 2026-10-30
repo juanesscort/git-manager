@@ -4,8 +4,9 @@ use crate::core::git_engine::{
     get_branches, get_file_media_preview,
     history::get_commit_history,
     remote_ops::{
-        checkout_branch, create_branch, delete_branch, git_clone, git_fetch, git_merge, git_pull,
-        git_push, git_rebase, git_stash, git_stash_pop, pick_folder, rename_branch,
+        checkout_branch, create_branch, delete_branch, git_clone, git_fetch, git_get_remote_tags,
+        git_merge, git_pull, git_push, git_push_tag, git_rebase, git_stash, git_stash_pop,
+        pick_folder, rename_branch,
     },
     repository::{get_repo_summary, open_repository},
     staging::{stage_all, stage_file, unstage_all, unstage_file},
@@ -274,4 +275,16 @@ pub async fn create_tag_cmd(
 pub async fn delete_tag_cmd(path: String, name: String) -> Result<(), String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
     delete_tag(&repo, &name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn push_tag_cmd(path: String, tag_name: String) -> Result<String, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_push_tag(&repo, &tag_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_remote_tags_cmd(path: String) -> Result<Vec<String>, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    git_get_remote_tags(&repo).map_err(|e| e.to_string())
 }

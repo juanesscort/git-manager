@@ -17,7 +17,15 @@ interface CommitGraphProps {
   onSelectWip?: () => void;
   onSelectCommit: (commit: CommitInfo) => void;
   onCheckoutBranch?: (branchName: string) => void;
-  onBranchContextMenu?: (x: number, y: number, branchName: string, isHead: boolean, isRemote: boolean) => void;
+  onCommitContextMenu?: (x: number, y: number, commit: CommitInfo) => void;
+  onBranchContextMenu?: (
+    x: number,
+    y: number,
+    branchName: string,
+    isHead: boolean,
+    isRemote: boolean,
+    commitOid?: string
+  ) => void;
   onDropBranch?: (
     sourceBranch: string,
     targetBranch: string,
@@ -81,6 +89,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   isWipSelected = false,
   onSelectWip,
   onSelectCommit,
+  onCommitContextMenu,
   onBranchContextMenu,
   onDropBranch,
 }) => {
@@ -517,6 +526,13 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                 key={commit.oid}
                 id={`commit-row-${commit.oid}`}
                 onClick={() => onSelectCommit(commit)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onCommitContextMenu) {
+                    onCommitContextMenu(e.clientX, e.clientY, commit);
+                  }
+                }}
                 style={{
                   height: rowHeight,
                   backgroundColor: getLaneRowBg(color, isSelected),
@@ -580,9 +596,23 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                                 e.stopPropagation();
                                 if (onBranchContextMenu) {
                                   if (b.hasLocal && b.localName) {
-                                    onBranchContextMenu(e.clientX, e.clientY, b.localName, b.isHead, false);
+                                    onBranchContextMenu(
+                                      e.clientX,
+                                      e.clientY,
+                                      b.localName,
+                                      b.isHead,
+                                      false,
+                                      node.commit.oid
+                                    );
                                   } else if (b.remoteName) {
-                                    onBranchContextMenu(e.clientX, e.clientY, b.remoteName, false, true);
+                                    onBranchContextMenu(
+                                      e.clientX,
+                                      e.clientY,
+                                      b.remoteName,
+                                      false,
+                                      true,
+                                      node.commit.oid
+                                    );
                                   }
                                 }
                               }}

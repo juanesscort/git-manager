@@ -5,7 +5,7 @@ use std::process::Command;
 pub fn git_fetch(repo: &Repository) -> Result<String, GitEngineError> {
     let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
     let output = Command::new("git")
-        .arg("fetch")
+        .args(["fetch", "--prune"])
         .current_dir(workdir)
         .output()
         .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
@@ -204,6 +204,35 @@ pub fn create_branch(
 }
 
 pub fn delete_branch(repo: &Repository, branch_name: &str) -> Result<(), GitEngineError> {
+    if branch_name.starts_with("origin/") {
+        let clean_name = branch_name.strip_prefix("origin/").unwrap_or(branch_name);
+        let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+        let output = Command::new("git")
+            .args(["push", "origin", "--delete", clean_name])
+            .current_dir(workdir)
+            .output()
+            .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            let out = String::from_utf8_lossy(&output.stdout);
+            let raw_err = if !err.trim().is_empty() {
+                err.trim()
+            } else {
+                out.trim()
+            };
+            return Err(GitEngineError::GitCommandError(raw_err.to_string()));
+        }
+
+        // Prune deleted remote branches locally
+        let _ = Command::new("git")
+            .args(["fetch", "--prune"])
+            .current_dir(workdir)
+            .output();
+
+        return Ok(());
+    }
+
     let is_current_head = repo
         .head()
         .ok()
@@ -341,4 +370,57 @@ pub fn pick_folder() -> Result<Option<String>, GitEngineError> {
     }
 
     Ok(None)
+}
+
+pub fn git_push_tag(repo: &Repository, tag_name: &str) -> Result<String, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    let output = Command::new("git")
+        .args(["push", "origin", tag_name])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let out = String::from_utf8_lossy(&output.stdout);
+        let raw_err = if !err.trim().is_empty() {
+            err.trim()
+        } else {
+            out.trim()
+        };
+        return Err(GitEngineError::GitCommandError(raw_err.to_string()));
+    }
+
+    Ok(format!(
+        "Etiqueta '{}' subida exitosamente a GitHub.",
+        tag_name
+    ))
+}
+
+pub fn git_get_remote_tags(repo: &Repository) -> Result<Vec<String>, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+    let output = Command::new("git")
+        .args(["ls-remote", "--tags", "origin"])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut remote_tags = Vec::new();
+    for line in stdout.lines() {
+        if let Some((_, refname)) = line.split_once('\t')
+            && let Some(tag_name) = refname.strip_prefix("refs/tags/")
+        {
+            let clean_name = tag_name.trim_end_matches("^{}").to_string();
+            if !remote_tags.contains(&clean_name) {
+                remote_tags.push(clean_name);
+            }
+        }
+    }
+
+    Ok(remote_tags)
 }

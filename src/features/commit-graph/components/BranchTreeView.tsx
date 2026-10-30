@@ -7,7 +7,14 @@ interface BranchTreeViewProps {
   currentBranch?: string | null;
   isRemote?: boolean;
   onSelectBranch?: (branchName: string, targetOid: string) => void;
-  onContextMenu?: (x: number, y: number, branchName: string, isHead: boolean, isRemote: boolean) => void;
+  onContextMenu?: (
+    x: number,
+    y: number,
+    branchName: string,
+    isHead: boolean,
+    isRemote: boolean,
+    commitOid?: string
+  ) => void;
   onDropBranch?: (
     sourceBranch: string,
     targetBranch: string,
@@ -159,7 +166,14 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
           e.preventDefault();
           e.stopPropagation();
           if (onContextMenu) {
-            onContextMenu(e.clientX, e.clientY, node.fullPath, isHead, isRemote);
+            onContextMenu(
+              e.clientX,
+              e.clientY,
+              node.fullPath,
+              isHead,
+              isRemote,
+              node.branch?.target_oid
+            );
           }
         }}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}

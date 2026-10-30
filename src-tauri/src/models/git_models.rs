@@ -25,6 +25,7 @@ pub struct RepoSummary {
     pub is_empty: bool,
     pub is_bare: bool,
     pub head_commit_oid: Option<String>,
+    pub remote_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,4 +103,13 @@ pub struct FileMediaPreview {
     pub is_svg: bool,
     pub is_lottie: bool,
     pub is_image: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchDiffCheckResult {
+    pub has_changes: bool,
+    pub commits_count: usize,
+    pub commits_summary: Vec<String>,
+    pub stat_summary: String,
+    pub is_up_to_date: bool,
 }
