@@ -24,6 +24,7 @@ interface GitToolbarProps {
   behindCount?: number;
   hasUpstream?: boolean;
   hasUncommittedChanges?: boolean;
+  openPrCount?: number;
   onFetch: () => void;
   onPull: () => void;
   onPush: () => void;
@@ -43,6 +44,7 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
   isTerminalOpen = false,
   aheadCount = 0,
   behindCount = 0,
+  openPrCount = 0,
   hasUpstream = false,
   hasUncommittedChanges = false,
   onFetch,
@@ -256,14 +258,28 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
         <span className="text-[10px] font-medium tracking-tight mt-0.5">Terminal</span>
       </button>
 
-      {/* Pull Requests Hub Button */}
+      {/* Pull Requests Hub Button with Dynamic Counter Badge */}
       {onOpenPullRequests && (
         <button
           onClick={onOpenPullRequests}
-          title="Pull Requests: Ver, revisar y aprobar solicitudes de GitHub"
-          className="flex flex-col items-center justify-center h-10 px-2.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] transition-all min-w-[46px] group cursor-pointer"
+          title={
+            openPrCount > 0
+              ? `Pull Requests: ${openPrCount} solicitud(es) abierta(s) en GitHub`
+              : "Pull Requests: Ver, revisar y aprobar solicitudes de GitHub"
+          }
+          className="relative flex flex-col items-center justify-center h-10 px-2.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] transition-all min-w-[46px] group cursor-pointer"
         >
-          <GitPullRequest className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+          <div className="relative flex items-center justify-center">
+            <GitPullRequest className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+            {openPrCount > 0 && (
+              <span
+                className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-[15px] flex items-center justify-center text-[9px] font-mono font-bold rounded-full bg-purple-500/25 text-purple-300 border border-purple-500/50 shadow-xs animate-in zoom-in-75 duration-150"
+                title={`${openPrCount} Pull Request(s) abierto(s)`}
+              >
+                {openPrCount > 99 ? "99+" : openPrCount}
+              </span>
+            )}
+          </div>
           <span className="text-[10px] font-medium tracking-tight mt-0.5">PRs</span>
         </button>
       )}

@@ -26,6 +26,7 @@ interface CreatePullRequestModalProps {
   branches: { local: BranchInfo[]; remote: BranchInfo[] };
   initialHeadBranch?: string;
   initialBaseBranch?: string;
+  onOpenPrHub?: (prNumber?: number) => void;
   onClose: () => void;
 }
 
@@ -49,6 +50,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   branches,
   initialHeadBranch,
   initialBaseBranch = "main",
+  onOpenPrHub,
   onClose,
 }) => {
   const [headBranch, setHeadBranch] = useState("");
@@ -358,19 +360,33 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-3 mt-1 w-full justify-end">
-              <Button size="sm" variant="secondary" onClick={onClose} className="px-4">
+            <div className="flex items-center gap-2.5 mt-1 w-full justify-end">
+              <Button size="sm" variant="secondary" onClick={onClose} className="px-3">
                 Cerrar
               </Button>
-              <Button
-                size="sm"
-                variant="primary"
+              <button
+                type="button"
                 onClick={handleOpenCreatedPr}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-emerald-900/30 cursor-pointer px-4"
+                className="text-xs text-[#8b949e] hover:text-white px-3 py-1.5 flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="Abrir en el navegador GitHub web"
               >
-                <span>Revisar y Aprobar en GitHub</span>
+                <span>Ver en GitHub</span>
                 <ExternalLink className="w-3.5 h-3.5" />
-              </Button>
+              </button>
+              {onOpenPrHub && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    onClose();
+                    onOpenPrHub(createdPr.number);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-purple-900/30 cursor-pointer px-4"
+                >
+                  <GitPullRequest className="w-3.5 h-3.5" />
+                  <span>Gestionar en la App</span>
+                </Button>
+              )}
             </div>
           </div>
         ) : (
