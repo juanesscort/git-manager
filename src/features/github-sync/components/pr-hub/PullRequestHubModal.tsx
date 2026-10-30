@@ -26,6 +26,7 @@ interface PullRequestHubModalProps {
   repoPath: string;
   remoteUrl?: string | null;
   currentUser: GitHubUser | null;
+  initialPrNumber?: number | null;
   onClose: () => void;
 }
 
@@ -33,6 +34,7 @@ export const PullRequestHubModal: React.FC<PullRequestHubModalProps> = ({
   isOpen,
   remoteUrl,
   currentUser,
+  initialPrNumber,
   onClose,
 }) => {
   const {
@@ -83,8 +85,20 @@ export const PullRequestHubModal: React.FC<PullRequestHubModalProps> = ({
       clearMessages();
       fetchPermissions(repoSlug);
       fetchPullRequests(repoSlug, filterState);
+      if (initialPrNumber) {
+        selectPullRequest(repoSlug, initialPrNumber);
+      }
     }
-  }, [isOpen, repoSlug, filterState, fetchPermissions, fetchPullRequests, clearMessages]);
+  }, [
+    isOpen,
+    repoSlug,
+    filterState,
+    initialPrNumber,
+    fetchPermissions,
+    fetchPullRequests,
+    selectPullRequest,
+    clearMessages,
+  ]);
 
   // Filtered PR list
   const filteredPrs = useMemo(() => {

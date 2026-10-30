@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   GitBranch,
   RefreshCw,
@@ -55,7 +55,7 @@ import { RemoteReposModal } from "./features/github-sync/components/RemoteReposM
 import { AppSettingsModal } from "./components/ui/AppSettingsModal";
 import { ConflictResolverModal } from "./features/conflict-resolver/components/ConflictResolverModal";
 import { useAppUpdater } from "./hooks/useAppUpdater";
-import { CommitInfo, DiffDelta } from "./types/git";
+import { CommitInfo, DiffDelta, PullRequestItem } from "./types/git";
 import "./App.css";
 
 export interface OpenDiffTab {
@@ -111,6 +111,8 @@ export const App: React.FC = () => {
   const tabWarningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [branchModalOpen, setBranchModalOpen] = useState<boolean>(false);
   const [prHubOpen, setPrHubOpen] = useState<boolean>(false);
+  const [hubSelectedPrNumber, setHubSelectedPrNumber] = useState<number | null>(null);
+  const [openPrCount, setOpenPrCount] = useState<number>(0);
 
   const {
     user: githubUser,
@@ -340,6 +342,38 @@ export const App: React.FC = () => {
     setTabLimitWarning(null);
   };
 
+  const refreshPrCount = useCallback(async () => {
+    if (!summary?.remote_url || !githubUser) {
+      setOpenPrCount(0);
+      return;
+    }
+    let clean = summary.remote_url.trim();
+    if (clean.startsWith("git@github.com:")) {
+      clean = clean.replace("git@github.com:", "");
+    } else if (clean.startsWith("https://github.com/")) {
+      clean = clean.replace("https://github.com/", "");
+    }
+    clean = clean.replace(/\.git$/, "");
+    if (!clean || clean.includes("desconocido")) {
+      setOpenPrCount(0);
+      return;
+    }
+
+    try {
+      const prs = await invoke<PullRequestItem[]>("list_pull_requests_cmd", {
+        ownerRepo: clean,
+        state: "open",
+      });
+      setOpenPrCount(prs.length);
+    } catch {
+      setOpenPrCount(0);
+    }
+  }, [summary?.remote_url, githubUser]);
+
+  useEffect(() => {
+    refreshPrCount();
+  }, [refreshPrCount]);
+
   const handleRefreshAll = () => {
     refreshRepo();
     refreshStatuses();
@@ -347,6 +381,7 @@ export const App: React.FC = () => {
     checkConflicts();
     refreshBranches();
     refreshTags();
+    refreshPrCount();
     // Actualizar diffs de pestañas abiertas
     openDiffTabs.forEach((tab) => {
       if (tab.type === "commit" && tab.commitOid) {
@@ -683,6 +718,7 @@ export const App: React.FC = () => {
           isTerminalOpen={isTerminalOpen}
           aheadCount={aheadCount}
           behindCount={behindCount}
+          openPrCount={openPrCount}
           hasUpstream={hasUpstream}
           hasUncommittedChanges={hasUncommittedChanges}
           onFetch={fetchRemote}
@@ -1283,7 +1319,14 @@ export const App: React.FC = () => {
         branches={branches}
         initialHeadBranch={prInitialHead}
         initialBaseBranch={prInitialBase}
-        onClose={() => setPullRequestModalOpen(false)}
+        onOpenPrHub={(prNumber) => {
+          setHubSelectedPrNumber(prNumber || null);
+          setPrHubOpen(true);
+        }}
+        onClose={() => {
+          setPullRequestModalOpen(false);
+          refreshPrCount();
+        }}
       />
 
       {/* Pull Request Hub Modal (Review, Checks & Native Merge) */}
@@ -1292,7 +1335,12 @@ export const App: React.FC = () => {
         repoPath={activeRepoPath}
         remoteUrl={summary?.remote_url}
         currentUser={githubUser}
-        onClose={() => setPrHubOpen(false)}
+        initialPrNumber={hubSelectedPrNumber}
+        onClose={() => {
+          setPrHubOpen(false);
+          setHubSelectedPrNumber(null);
+          refreshPrCount();
+        }}
       />
 
       {/* Open / Clone Repository Modal */}
