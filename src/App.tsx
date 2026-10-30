@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import {
   GitBranch,
   RefreshCw,
@@ -34,6 +34,11 @@ import { AccordionSection } from "./components/ui/AccordionSection";
 import { TagListView } from "./features/commit-graph/components/TagListView";
 import { CreateTagModal } from "./features/commit-graph/components/CreateTagModal";
 import { TagDetailsModal } from "./features/commit-graph/components/TagDetailsModal";
+import {
+  GraphToolbarControls,
+  GraphViewMode,
+  VisibleColumns,
+} from "./features/commit-graph/components/GraphToolbarControls";
 import { useRepoTabs } from "./hooks/useRepoTabs";
 import { GitToolbar } from "./features/git-ops/components/GitToolbar";
 import { useGitToolbar } from "./hooks/useGitToolbar";
@@ -150,6 +155,40 @@ export const App: React.FC = () => {
     return localStorage.getItem("gitmanager_show_commit_body") === "true";
   });
 
+  const [graphSearchQuery, setGraphSearchQuery] = useState("");
+  const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>(() => {
+    const saved = localStorage.getItem("gitmanager_visible_columns");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Fallback
+      }
+    }
+    return { author: true, date: true, hash: true };
+  });
+  const [graphViewMode, setGraphViewMode] = useState<GraphViewMode>(() => {
+    const saved = localStorage.getItem("gitmanager_graph_view_mode");
+    return (saved as GraphViewMode) || "normal";
+  });
+
+  const handleToggleColumn = (col: keyof VisibleColumns) => {
+    setVisibleColumns((prev) => {
+      const updated = { ...prev, [col]: !prev[col] };
+      localStorage.setItem("gitmanager_visible_columns", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleChangeViewMode = (mode: GraphViewMode) => {
+    setGraphViewMode(mode);
+    localStorage.setItem("gitmanager_graph_view_mode", mode);
+  };
+
+  const handleResetColumnWidths = () => {
+    window.dispatchEvent(new Event("gitmanager_reset_col_widths"));
+  };
+
   const handleToggleShowCommitBody = (show: boolean) => {
     setShowCommitBody(show);
     localStorage.setItem("gitmanager_show_commit_body", show ? "true" : "false");
@@ -178,6 +217,20 @@ export const App: React.FC = () => {
     setSelectedCommit,
     refreshCommits,
   } = useCommitGraph(repoPath);
+
+  const matchesCount = useMemo(() => {
+    if (!graphSearchQuery.trim()) return graphNodes.length;
+    const q = graphSearchQuery.toLowerCase().trim();
+    return graphNodes.filter(
+      (n) =>
+        n.commit.summary.toLowerCase().includes(q) ||
+        n.commit.message.toLowerCase().includes(q) ||
+        n.commit.oid.toLowerCase().includes(q) ||
+        n.commit.short_oid.toLowerCase().includes(q) ||
+        n.commit.author_name.toLowerCase().includes(q) ||
+        n.commit.author_email.toLowerCase().includes(q)
+    ).length;
+  }, [graphNodes, graphSearchQuery]);
 
   const { branches, refreshBranches } = useBranches(repoPath);
 
@@ -983,31 +1036,48 @@ export const App: React.FC = () => {
               })}
             </div>
 
-            {/* View Mode Controls (Split vs Fullscreen) - Visible when diff tabs are open */}
-            {openDiffTabs.length > 0 && (
-              <div className="flex items-center gap-1 shrink-0 ml-2">
-                {centerViewMode === "full" ? (
-                  <button
-                    onClick={() => setCenterViewMode("split")}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
-                    title="Dividir pantalla: Ver Grafo y Diff simultáneamente"
-                  >
-                    <Split className="w-3 h-3" />
-                    <span>Dividir</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setCenterViewMode("full")}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors"
-                    title="Pantalla Completa para el Diff"
-                  >
-                    <Maximize2 className="w-3 h-3" />
-                    <span>Maximizar</span>
-                  </button>
-                )}
-                {/* Flecha 2: Global X button removed as requested */}
-              </div>
-            )}
+            {/* Right Controls: Graph Toolbar Controls & View Mode Controls */}
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              {/* Graph Toolbar Controls (Search, Columns Filter, Graph Settings) */}
+              <GraphToolbarControls
+                searchQuery={graphSearchQuery}
+                onSearchChange={setGraphSearchQuery}
+                matchesCount={matchesCount}
+                totalCount={graphNodes.length}
+                visibleColumns={visibleColumns}
+                onToggleColumn={handleToggleColumn}
+                viewMode={graphViewMode}
+                onChangeViewMode={handleChangeViewMode}
+                showCommitBody={showCommitBody}
+                onToggleShowCommitBody={handleToggleShowCommitBody}
+                onResetColumnWidths={handleResetColumnWidths}
+              />
+
+              {/* View Mode Controls (Split vs Fullscreen) - Visible when diff tabs are open */}
+              {openDiffTabs.length > 0 && (
+                <div className="flex items-center gap-1 border-l border-[#30363d] pl-2">
+                  {centerViewMode === "full" ? (
+                    <button
+                      onClick={() => setCenterViewMode("split")}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors cursor-pointer"
+                      title="Dividir pantalla: Ver Grafo y Diff simultáneamente"
+                    >
+                      <Split className="w-3.5 h-3.5" />
+                      <span>Dividir</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setCenterViewMode("full")}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors cursor-pointer"
+                      title="Pantalla Completa para el Diff"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>Maximizar</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 5-Tabs Maximum Limit Alert Notification */}
@@ -1046,6 +1116,9 @@ export const App: React.FC = () => {
                   branches={branches}
                   tags={tags}
                   showCommitBody={showCommitBody}
+                  visibleColumns={visibleColumns}
+                  viewMode={graphViewMode}
+                  searchQuery={graphSearchQuery}
                   githubAvatarUrl={githubUser?.avatar_url}
                   githubLogin={githubUser?.login}
                   wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
@@ -1069,6 +1142,9 @@ export const App: React.FC = () => {
                   branches={branches}
                   tags={tags}
                   showCommitBody={showCommitBody}
+                  visibleColumns={visibleColumns}
+                  viewMode={graphViewMode}
+                  searchQuery={graphSearchQuery}
                   githubAvatarUrl={githubUser?.avatar_url}
                   githubLogin={githubUser?.login}
                   wipChangesCount={{ staged: stagedFiles.length, unstaged: unstagedFiles.length }}
@@ -1145,6 +1221,8 @@ export const App: React.FC = () => {
               selectedFilePath={
                 currentActiveTab?.commitOid === selectedCommit.oid ? currentActiveTab.path : null
               }
+              githubAvatarUrl={githubUser?.avatar_url}
+              githubLogin={githubUser?.login}
               onSelectFile={(path) => {
                 if (path) {
                   openFileTab({ path, commitOid: selectedCommit.oid, type: "commit" }, false);

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { GraphNode, LANE_COLORS } from "../hooks/useCommitGraph";
 import { CommitInfo, BranchesSummary, BranchInfo, GitTag } from "../../../types/git";
-import { GitCommit, Calendar, Cloud, Check, Monitor, Tag as TagIcon } from "lucide-react";
+import { GitCommit, Calendar, Cloud, Check, Monitor, Tag as TagIcon, Search } from "lucide-react";
+import { VisibleColumns, GraphViewMode } from "./GraphToolbarControls";
 
 interface CommitGraphProps {
   nodes: GraphNode[];
@@ -10,6 +11,9 @@ interface CommitGraphProps {
   branches?: BranchesSummary;
   tags?: GitTag[];
   showCommitBody?: boolean;
+  visibleColumns?: VisibleColumns;
+  viewMode?: GraphViewMode;
+  searchQuery?: string;
   githubAvatarUrl?: string | null;
   githubLogin?: string | null;
   wipChangesCount?: { staged: number; unstaged: number };
@@ -83,6 +87,9 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   branches,
   tags,
   showCommitBody = false,
+  visibleColumns = { author: true, date: true, hash: true },
+  viewMode = "normal",
+  searchQuery = "",
   githubAvatarUrl,
   githubLogin,
   wipChangesCount,
@@ -105,6 +112,33 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
     const saved = localStorage.getItem("gitmanager_col_graph_width");
     return saved ? Math.max(60, Math.min(400, parseInt(saved, 10))) : 100;
   });
+
+  // Reset column widths listener from GraphToolbarControls
+  useEffect(() => {
+    const handleReset = () => {
+      setBranchColWidth(210);
+      setGraphColWidth(100);
+      localStorage.removeItem("gitmanager_col_branch_width");
+      localStorage.removeItem("gitmanager_col_graph_width");
+    };
+    window.addEventListener("gitmanager_reset_col_widths", handleReset);
+    return () => window.removeEventListener("gitmanager_reset_col_widths", handleReset);
+  }, []);
+
+  // Filter nodes if search query is provided (MUST be declared before any early returns to respect React Hook rules)
+  const filteredNodes = useMemo(() => {
+    if (!searchQuery || !searchQuery.trim()) return nodes;
+    const q = searchQuery.toLowerCase().trim();
+    return nodes.filter(
+      (n) =>
+        n.commit.summary.toLowerCase().includes(q) ||
+        n.commit.message.toLowerCase().includes(q) ||
+        n.commit.oid.toLowerCase().includes(q) ||
+        n.commit.short_oid.toLowerCase().includes(q) ||
+        n.commit.author_name.toLowerCase().includes(q) ||
+        n.commit.author_email.toLowerCase().includes(q)
+    );
+  }, [nodes, searchQuery]);
 
   const handleBranchResizeStart = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -259,16 +293,30 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   );
 
   // Graph geometry
-  const maxLane = Math.max(...nodes.map((n) => Math.max(n.lane, ...(n.parentLanes || []))), 0);
+  const maxLane = Math.max(...filteredNodes.map((n) => Math.max(n.lane, ...(n.parentLanes || []))), 0);
   const laneSpacing = 20;
   const minSvgWidth = Math.max(38, (maxLane + 1) * laneSpacing + 10);
   const finalGraphWidth = Math.max(graphColWidth, minSvgWidth);
-  const rowHeight = showCommitBody ? 42 : 28;
+
+  // Row height and node radius according to viewMode
+  const rowHeight =
+    viewMode === "compact"
+      ? 24
+      : viewMode === "modern"
+      ? showCommitBody ? 54 : 36
+      : showCommitBody ? 42 : 28;
+
+  const nodeRadius =
+    viewMode === "compact"
+      ? 4.5
+      : viewMode === "modern"
+      ? 12
+      : 9;
+
   const cy = rowHeight / 2;
-  const nodeRadius = 9; // 18px diameter avatar
 
   const headNode =
-    nodes.find((n) => commitBranchesMap.get(n.commit.oid)?.some((b) => b.isHead)) || nodes[0];
+    filteredNodes.find((n) => commitBranchesMap.get(n.commit.oid)?.some((b) => b.isHead)) || filteredNodes[0] || nodes[0];
   const wipLane = headNode ? headNode.lane : 0;
   const wipColor = headNode ? headNode.color : (LANE_COLORS[0] || "#38bdf8");
   const wipCx = 12 + wipLane * laneSpacing;
@@ -320,24 +368,38 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
         </div>
 
         {/* 4. AUTOR */}
-        <div className="w-32 shrink-0 text-center font-bold px-2 truncate">
-          AUTOR
-        </div>
+        {visibleColumns.author && (
+          <div className="w-32 shrink-0 text-center font-bold px-2 truncate">
+            AUTOR
+          </div>
+        )}
 
         {/* 5. FECHA */}
-        <div className="w-24 shrink-0 text-center font-bold px-2 truncate">
-          FECHA
-        </div>
+        {visibleColumns.date && (
+          <div className="w-24 shrink-0 text-center font-bold px-2 truncate">
+            FECHA
+          </div>
+        )}
 
         {/* 6. HASH */}
-        <div className="w-20 shrink-0 text-center font-bold px-2 truncate">
-          HASH
-        </div>
+        {visibleColumns.hash && (
+          <div className="w-20 shrink-0 text-center font-bold px-2 truncate">
+            HASH
+          </div>
+        )}
       </div>
 
-      {/* Commit List with GitKraken-styled Graph and Lane Backgrounds */}
-      <div className="flex-1 overflow-auto relative">
-        <div className="flex flex-col">
+      {filteredNodes.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#8b949e] text-xs">
+          <Search className="w-10 h-10 mb-3 opacity-30 text-blue-400" />
+          <p className="font-medium text-white text-sm">No se encontraron commits</p>
+          <p className="mt-1">
+            Ningún commit coincide con tu búsqueda: &ldquo;{searchQuery}&rdquo;.
+          </p>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto relative">
+          <div className="flex flex-col">
           {/* WIP Row (GitKraken / Gitnuro style) - Rendered only when there are pending changes */}
           {hasWipChanges && (
             <div
@@ -452,9 +514,9 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                 className="flex items-center flex-1 px-3 min-w-0 border-l-2 h-full overflow-hidden"
                 style={{ borderLeftColor: wipColor }}
               >
-                <div className="flex flex-col justify-center min-w-0 py-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-amber-300 font-semibold text-xs truncate">
+                <div className="flex flex-col justify-center min-w-0 w-full h-full">
+                  <div className="flex items-center gap-2 min-w-0 w-full">
+                    <span className="font-mono text-amber-300 font-semibold text-xs truncate shrink-0">
                       // WIP: Cambios en el espacio de trabajo
                     </span>
                     {wipChangesCount && (
@@ -465,35 +527,43 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-[#8b949e] font-sans truncate mt-0.5">
-                    Haz clic para inspeccionar diferencias o preparar cambios
-                  </p>
+                  {viewMode !== "compact" && (
+                    <p className="text-[10px] text-[#8b949e] font-sans truncate mt-0.5 leading-none">
+                      Haz clic para inspeccionar diferencias o preparar cambios
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* 4. AUTHOR Column */}
-              <div className="w-32 shrink-0 px-2 truncate flex items-center justify-center gap-1.5 text-[11px] text-[#8b949e]">
-                <span className="truncate italic font-mono text-[10px] text-amber-300/80">
-                  Tú (en curso)
-                </span>
-              </div>
+              {visibleColumns.author && (
+                <div className="w-32 shrink-0 px-2 truncate flex items-center justify-center gap-1.5 text-[11px] text-[#8b949e]">
+                  <span className="truncate italic font-mono text-[10px] text-amber-300/80">
+                    Tú (en curso)
+                  </span>
+                </div>
+              )}
 
               {/* 5. DATE Column */}
-              <div className="w-24 shrink-0 px-2 flex items-center justify-center gap-1 text-[11px] text-amber-300/80 truncate">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-                <span className="truncate font-mono text-[10px]">Ahora</span>
-              </div>
+              {visibleColumns.date && (
+                <div className="w-24 shrink-0 px-2 flex items-center justify-center gap-1 text-[11px] text-amber-300/80 truncate">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                  <span className="truncate font-mono text-[10px]">Ahora</span>
+                </div>
+              )}
 
               {/* 6. HASH Column */}
-              <div className="w-20 shrink-0 px-2 text-center">
-                <span className="font-mono text-[10px] bg-amber-950/40 px-1.5 py-0.5 rounded border border-dashed border-amber-500/50 text-amber-300 font-semibold select-none">
-                  WIP
-                </span>
-              </div>
+              {visibleColumns.hash && (
+                <div className="w-20 shrink-0 px-2 text-center">
+                  <span className="font-mono text-[10px] bg-amber-950/40 px-1.5 py-0.5 rounded border border-dashed border-amber-500/50 text-amber-300 font-semibold select-none">
+                    WIP
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          {nodes.map((node, idx) => {
+          {filteredNodes.map((node, idx) => {
             const { commit, lane, color, parentLanes = [], activeLanes = [] } = node;
             const isSelected = selectedCommit?.oid === commit.oid;
             const commitBadges = commitBranchesMap.get(commit.oid) || [];
@@ -765,25 +835,38 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                       />
                     )}
 
-                    {/* Commit Node Avatar with Profile Picture */}
-                    <circle cx={cx} cy={cy} r={nodeRadius} fill="#161b22" />
-                    <image
-                      href={authorAvatar}
-                      x={cx - nodeRadius}
-                      y={cy - nodeRadius}
-                      width={nodeRadius * 2}
-                      height={nodeRadius * 2}
-                      clipPath={`url(#avatar-clip-${commit.oid})`}
-                      preserveAspectRatio="xMidYMid slice"
-                    />
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={nodeRadius}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth={isSelected || isHead ? 2.5 : 2}
-                    />
+                    {/* Commit Node: Compact dot vs Avatar picture */}
+                    {viewMode === "compact" ? (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={nodeRadius}
+                        fill={color}
+                        stroke="#161b22"
+                        strokeWidth="1.5"
+                      />
+                    ) : (
+                      <>
+                        <circle cx={cx} cy={cy} r={nodeRadius} fill="#161b22" />
+                        <image
+                          href={authorAvatar}
+                          x={cx - nodeRadius}
+                          y={cy - nodeRadius}
+                          width={nodeRadius * 2}
+                          height={nodeRadius * 2}
+                          clipPath={`url(#avatar-clip-${commit.oid})`}
+                          preserveAspectRatio="xMidYMid slice"
+                        />
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={nodeRadius}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={isSelected || isHead ? 2.5 : 2}
+                        />
+                      </>
+                    )}
 
                     {/* Pulsing ring for HEAD commit */}
                     {isHead && (
@@ -801,56 +884,124 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                   </svg>
                 </div>
 
-                {/* 3. COMMIT MESSAGE Column with left color accent line & Optional Description (Flecha 5) */}
+                {/* 3. COMMIT MESSAGE Column with left color accent line */}
                 <div
                   className="flex items-center flex-1 px-3 min-w-0 border-l-2 h-full overflow-hidden"
                   style={{ borderLeftColor: color }}
                 >
-                  <div className="flex flex-col justify-center min-w-0 py-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-white text-xs truncate">
-                        {commit.summary}
-                      </span>
-                      {commit.parent_oids.length > 1 && (
-                        <span className="px-1.5 py-0.2 bg-purple-950/60 text-purple-300 border border-purple-800 rounded text-[9px] shrink-0 font-sans">
-                          Merge
+                  <div className={`flex flex-col justify-center min-w-0 w-full ${viewMode === "modern" ? "py-1" : "py-0.5"}`}>
+                    {viewMode === "compact" ? (
+                      /* Compact: inline title + description */
+                      <div className="flex items-center gap-2 min-w-0 w-full overflow-hidden">
+                        <span
+                          className={`font-mono text-white text-xs truncate ${
+                            showCommitBody && commitBody
+                              ? "shrink-0 max-w-[55%]"
+                              : "flex-1 min-w-0"
+                          }`}
+                          title={commit.summary}
+                        >
+                          {commit.summary}
                         </span>
-                      )}
-                    </div>
+                        {commit.parent_oids.length > 1 && (
+                          <span className="px-1.5 py-0.2 bg-purple-950/60 text-purple-300 border border-purple-800 rounded text-[9px] shrink-0 font-sans">
+                            Merge
+                          </span>
+                        )}
+                        {showCommitBody && commitBody && (
+                          <span
+                            className="text-[11px] text-[#8b949e] font-sans truncate opacity-75 flex-1 min-w-0"
+                            title={commitBody}
+                          >
+                            — {commitBody}
+                          </span>
+                        )}
+                      </div>
+                    ) : viewMode === "modern" ? (
+                      /* Modern: full title with line wrap */
+                      <div className="flex flex-col justify-center min-w-0 w-full">
+                        <div className="flex items-start gap-2 min-w-0 w-full">
+                          <span
+                            className="font-mono text-white text-xs whitespace-normal break-words leading-tight flex-1 min-w-0"
+                            title={commit.summary}
+                          >
+                            {commit.summary}
+                          </span>
+                          {commit.parent_oids.length > 1 && (
+                            <span className="px-1.5 py-0.2 bg-purple-950/60 text-purple-300 border border-purple-800 rounded text-[9px] shrink-0 font-sans mt-0.5">
+                              Merge
+                            </span>
+                          )}
+                        </div>
 
-                    {showCommitBody && commitBody && (
-                      <p
-                        className="text-[11px] text-[#8b949e] font-sans truncate max-w-2xl opacity-75 mt-0.5"
-                        title={commitBody}
-                      >
-                        {commitBody}
-                      </p>
+                        {showCommitBody && commitBody && (
+                          <p
+                            className="text-[11px] text-[#8b949e] font-sans truncate w-full opacity-75 mt-0.5"
+                            title={commitBody}
+                          >
+                            {commitBody}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      /* Normal: standard view */
+                      <div className="flex flex-col justify-center min-w-0 w-full">
+                        <div className="flex items-center gap-2 min-w-0 w-full">
+                          <span
+                            className="font-mono text-white text-xs truncate flex-1 min-w-0"
+                            title={commit.summary}
+                          >
+                            {commit.summary}
+                          </span>
+                          {commit.parent_oids.length > 1 && (
+                            <span className="px-1.5 py-0.2 bg-purple-950/60 text-purple-300 border border-purple-800 rounded text-[9px] shrink-0 font-sans">
+                              Merge
+                            </span>
+                          )}
+                        </div>
+
+                        {showCommitBody && commitBody && (
+                          <p
+                            className="text-[11px] text-[#8b949e] font-sans truncate w-full opacity-75 mt-0.5"
+                            title={commitBody}
+                          >
+                            {commitBody}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
 
                 {/* 4. AUTHOR Column */}
-                <div className="w-32 shrink-0 px-2 truncate flex items-center justify-center gap-1.5 text-[11px] text-[#8b949e]">
-                  <span className="truncate">{commit.author_name}</span>
-                </div>
+                {visibleColumns.author && (
+                  <div className="w-32 shrink-0 px-2 truncate flex items-center justify-center gap-1.5 text-[11px] text-[#8b949e]">
+                    <span className="truncate">{commit.author_name}</span>
+                  </div>
+                )}
 
                 {/* 5. DATE Column */}
-                <div className="w-24 shrink-0 px-2 flex items-center justify-center gap-1 text-[11px] text-[#8b949e] truncate">
-                  <Calendar className="w-3 h-3 text-[#484f58] shrink-0" />
-                  <span className="truncate">{dateStr}</span>
-                </div>
+                {visibleColumns.date && (
+                  <div className="w-24 shrink-0 px-2 flex items-center justify-center gap-1 text-[11px] text-[#8b949e] truncate">
+                    <Calendar className="w-3 h-3 text-[#484f58] shrink-0" />
+                    <span className="truncate">{dateStr}</span>
+                  </div>
+                )}
 
                 {/* 6. HASH Column */}
-                <div className="w-20 shrink-0 px-2 text-center">
-                  <span className="font-mono text-[10px] bg-[#161b22] px-1.5 py-0.5 rounded border border-[#30363d] text-blue-400">
-                    {commit.short_oid}
-                  </span>
-                </div>
+                {visibleColumns.hash && (
+                  <div className="w-20 shrink-0 px-2 text-center">
+                    <span className="font-mono text-[10px] bg-[#161b22] px-1.5 py-0.5 rounded border border-[#30363d] text-blue-400">
+                      {commit.short_oid}
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
+      )}
     </div>
   );
 };

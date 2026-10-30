@@ -72,6 +72,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
   const {
     status: updateStatus,
     updateObj,
+    manualRelease,
     progress: updateProgress,
     error: updateError,
     checkForUpdates,
@@ -162,7 +163,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
               >
                 <Info className="w-3.5 h-3.5 text-blue-300" />
                 <span>Acerca de & Updates</span>
-                {updateStatus === "available" && (
+                {(updateStatus === "available" || updateStatus === "manual-available") && (
                   <span className="w-2 h-2 rounded-full bg-emerald-400 absolute top-1 right-1 animate-pulse" />
                 )}
               </button>
@@ -571,6 +572,42 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                     {updateObj.body && (
                       <div className="bg-[#161b22] p-2.5 rounded border border-[#30363d] text-[11px] text-[#c9d1d9] font-mono whitespace-pre-wrap max-h-28 overflow-y-auto">
                         {updateObj.body}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {updateStatus === "manual-available" && manualRelease && (
+                  <div className="p-3.5 bg-blue-950/40 border border-blue-500/50 rounded-lg flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-blue-300 text-xs">
+                        🚀 ¡Nueva versión disponible en GitHub: {manualRelease.version}!
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={async () => {
+                          try {
+                            const { openUrl } = await import("@tauri-apps/plugin-opener");
+                            await openUrl(manualRelease.url);
+                          } catch {
+                            window.open(manualRelease.url, "_blank");
+                          }
+                        }}
+                        className="h-7 text-xs bg-blue-600 hover:bg-blue-500"
+                        icon={<ExternalLink className="w-3.5 h-3.5" />}
+                      >
+                        Ver en GitHub
+                      </Button>
+                    </div>
+
+                    <p className="text-[11px] text-[#8b949e]">
+                      Hay una nueva versión publicada con instaladores oficiales (.deb, .AppImage, .rpm).
+                    </p>
+
+                    {manualRelease.body && (
+                      <div className="bg-[#161b22] p-2.5 rounded border border-[#30363d] text-[11px] text-[#c9d1d9] font-mono whitespace-pre-wrap max-h-28 overflow-y-auto">
+                        {manualRelease.body}
                       </div>
                     )}
                   </div>
