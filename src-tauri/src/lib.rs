@@ -3,7 +3,8 @@ pub mod ipc;
 pub mod models;
 
 use ipc::ai_commands::{
-    generate_ai_commit, generate_ai_pull_request, get_ai_config, save_ai_config,
+    check_branch_diff_cmd, generate_ai_commit, generate_ai_pull_request, get_ai_config,
+    save_ai_config,
 };
 use ipc::check_system_status;
 use ipc::conflict_commands::{
@@ -65,6 +66,7 @@ pub fn run() {
             check_github_session,
             logout_github_session,
             get_github_repositories,
+            check_branch_diff_cmd,
             generate_ai_commit,
             generate_ai_pull_request,
             create_pull_request_cmd,

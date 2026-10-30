@@ -1,13 +1,27 @@
 use crate::core::ai_service::config::create_active_provider;
 use crate::core::ai_service::sanitizer::sanitize_git_diff;
-use crate::core::ai_service::{generate_commit_for_staged, get_ai_settings, save_ai_settings};
-use crate::core::git_engine::{get_branch_diff_full, open_repository};
+use crate::core::ai_service::{
+    AiPromptRegistry, AiTaskKind, PromptContext, generate_commit_for_staged, get_ai_settings,
+    save_ai_settings,
+};
+use crate::core::git_engine::{check_branch_diff, get_branch_diff_full, open_repository};
 use crate::models::ai_models::{AiConfig, SaveAiConfigRequest};
+use crate::models::git_models::BranchDiffCheckResult;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct PullRequestAiDto {
     pub title: String,
     pub description: String,
+}
+
+#[tauri::command]
+pub async fn check_branch_diff_cmd(
+    repo_path: String,
+    base: String,
+    head: String,
+) -> Result<BranchDiffCheckResult, String> {
+    let repo = open_repository(&repo_path).map_err(|e| e.to_string())?;
+    check_branch_diff(&repo, &base, &head).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -24,19 +38,23 @@ pub async fn generate_ai_pull_request(
     head: String,
 ) -> Result<PullRequestAiDto, String> {
     let repo = open_repository(&repo_path).map_err(|e| e.to_string())?;
-    let raw_diff = get_branch_diff_full(&repo, &base, &head).map_err(|e| e.to_string())?;
 
-    let sanitized_diff = if raw_diff.trim().is_empty() {
-        format!("Cambios entre rama '{}' y rama '{}'.", base, head)
-    } else {
-        sanitize_git_diff(&raw_diff)
-    };
+    // 1. Verify that there are actually commits and changes between the branches
+    let diff_check = check_branch_diff(&repo, &base, &head).map_err(|e| e.to_string())?;
+    if !diff_check.has_changes {
+        return Err(format!(
+            "No se detectaron diferencias ni commits por fusionar desde '{}' hacia '{}'. La rama destino ya está al día.",
+            head, base
+        ));
+    }
+
+    let raw_diff = get_branch_diff_full(&repo, &base, &head).map_err(|e| e.to_string())?;
+    let sanitized_diff = sanitize_git_diff(&raw_diff);
 
     let provider = create_active_provider().map_err(|e| e.to_string())?;
-    let prompt = format!(
-        "Genera un Pull Request para fusionar '{}' en '{}'.\n\nFORMATO OBLIGATORIO:\nTITLE: <título conciso en español>\nDESCRIPTION:\n## 📌 Resumen de Cambios\n<descripción concisa en español>\n\n## 🚀 Novedades y Mejoras\n- <viñeta>\n- <viñeta>\n\nDiff de cambios:\n```diff\n{}\n```",
-        head, base, sanitized_diff
-    );
+    let context =
+        PromptContext::for_pull_request(&sanitized_diff, &head, &base, &diff_check.commits_summary);
+    let prompt = AiPromptRegistry::user_prompt(AiTaskKind::PullRequest, &context);
 
     let response = provider
         .generate_commit(&prompt)

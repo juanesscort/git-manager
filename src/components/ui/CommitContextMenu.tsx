@@ -28,6 +28,20 @@ export const CommitContextMenu: React.FC<CommitContextMenuProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const [copiedType, setCopiedType] = useState<string | null>(null);
 
+  const commit = state.commit;
+  const commitOid = commit?.oid;
+
+  // Resolve GitHub commit URL unconditionally at the top
+  const githubCommitUrl = React.useMemo(() => {
+    if (!remoteUrl || !commitOid) return null;
+    let clean = remoteUrl.trim();
+    if (clean.startsWith("git@github.com:")) {
+      clean = clean.replace("git@github.com:", "https://github.com/");
+    }
+    clean = clean.replace(/\.git$/, "");
+    return `${clean}/commit/${commitOid}`;
+  }, [remoteUrl, commitOid]);
+
   useEffect(() => {
     if (!state.isOpen) return;
 
@@ -40,28 +54,16 @@ export const CommitContextMenu: React.FC<CommitContextMenuProps> = ({
       if (e.key === "Escape") onClose();
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [state.isOpen, onClose]);
 
-  if (!state.isOpen || !state.commit) return null;
-
-  const commit = state.commit;
-
-  // Resolve GitHub commit URL
-  const githubCommitUrl = React.useMemo(() => {
-    if (!remoteUrl) return null;
-    let clean = remoteUrl.trim();
-    if (clean.startsWith("git@github.com:")) {
-      clean = clean.replace("git@github.com:", "https://github.com/");
-    }
-    clean = clean.replace(/\.git$/, "");
-    return `${clean}/commit/${commit.oid}`;
-  }, [remoteUrl, commit.oid]);
+  // Early return after all hooks have been declared
+  if (!state.isOpen || !commit) return null;
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
@@ -85,8 +87,12 @@ export const CommitContextMenu: React.FC<CommitContextMenuProps> = ({
 
   const menuWidth = 240;
   const menuHeight = 220;
-  const adjustedX = Math.min(state.x, window.innerWidth - menuWidth - 10);
-  const adjustedY = Math.min(state.y, window.innerHeight - menuHeight - 10);
+  const adjustedX = Math.max(10, Math.min(state.x, window.innerWidth - menuWidth - 10));
+  const adjustedY = Math.max(10, Math.min(state.y, window.innerHeight - menuHeight - 10));
+
+  const shortOid = commit.short_oid || commit.oid.substring(0, 7);
+  const authorName = commit.author_name || "Desconocido";
+  const commitSummary = commit.summary || "";
 
   return (
     <div
@@ -98,10 +104,10 @@ export const CommitContextMenu: React.FC<CommitContextMenuProps> = ({
       <div className="px-3 py-1.5 bg-[#0d1117]/80 flex items-center justify-between">
         <div className="flex items-center gap-1.5 font-mono text-[11px] text-white font-bold">
           <GitCommit className="w-3.5 h-3.5 text-purple-400" />
-          <span>{commit.short_oid}</span>
+          <span>{shortOid}</span>
         </div>
         <span className="text-[10px] text-[#8b949e] font-sans truncate max-w-[120px]">
-          {commit.author_name}
+          {authorName}
         </span>
       </div>
 
@@ -145,7 +151,7 @@ export const CommitContextMenu: React.FC<CommitContextMenuProps> = ({
         </button>
 
         <button
-          onClick={() => handleCopy(commit.short_oid, "short-sha")}
+          onClick={() => handleCopy(shortOid, "short-sha")}
           className="w-full text-left px-3 py-1.5 hover:bg-[#1f6feb]/20 text-[#c9d1d9] hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer"
         >
           {copiedType === "short-sha" ? (
@@ -153,11 +159,11 @@ export const CommitContextMenu: React.FC<CommitContextMenuProps> = ({
           ) : (
             <Copy className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
           )}
-          <span>{copiedType === "short-sha" ? "¡SHA corto copiado!" : `Copiar SHA (${commit.short_oid})`}</span>
+          <span>{copiedType === "short-sha" ? "¡SHA corto copiado!" : `Copiar SHA (${shortOid})`}</span>
         </button>
 
         <button
-          onClick={() => handleCopy(commit.summary, "summary")}
+          onClick={() => handleCopy(commitSummary, "summary")}
           className="w-full text-left px-3 py-1.5 hover:bg-[#1f6feb]/20 text-[#c9d1d9] hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer"
         >
           {copiedType === "summary" ? (

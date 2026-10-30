@@ -8,7 +8,6 @@ import {
   X,
   GitPullRequest,
   UploadCloud,
-  CheckCircle2,
 } from "lucide-react";
 import { Button } from "./Button";
 
@@ -42,13 +41,12 @@ export const BranchMergeModal: React.FC<BranchMergeModalProps> = ({
   const isLocalToLocal = !sourceIsRemote && !targetIsRemote;
   const isRemoteToLocal = sourceIsRemote && !targetIsRemote;
   const isLocalToRemote = !sourceIsRemote && targetIsRemote;
-  const isRemoteToRemote = sourceIsRemote && targetIsRemote;
 
   const getScenarioTitle = () => {
     if (isLocalToLocal) return "Operación entre Ramas Locales";
     if (isRemoteToLocal) return "Descarga de GitHub a Rama Local (Pull)";
     if (isLocalToRemote) return "Subida de Local a GitHub (Push)";
-    return "Operación entre Ramas de GitHub (Remoto a Remoto)";
+    return "Operación entre Ramas";
   };
 
   return (
@@ -211,57 +209,6 @@ export const BranchMergeModal: React.FC<BranchMergeModalProps> = ({
                   </span>
                 </div>
               </button>
-            )}
-
-            {/* Scenario 4: Remote to Remote (GitHub to GitHub) */}
-            {isRemoteToRemote && (
-              <>
-                <button
-                  onClick={() => {
-                    // Open browser for Pull Request
-                    const cleanSource = sourceBranch.replace(/^[^\/]+\//, "");
-                    const cleanTarget = targetBranch.replace(/^[^\/]+\//, "");
-                    window.open(
-                      `https://github.com/juanesscort/git-manager/compare/${cleanTarget}...${cleanSource}?expand=1`,
-                      "_blank"
-                    );
-                    onClose();
-                  }}
-                  className="flex items-start gap-3 p-3 rounded-lg border border-[#30363d] hover:border-purple-500 bg-[#21262d]/50 hover:bg-[#21262d] transition-all text-left group"
-                >
-                  <div className="p-2 rounded bg-purple-950/40 border border-purple-500/30 text-purple-400 mt-0.5 shrink-0 group-hover:scale-105 transition-transform">
-                    <GitPullRequest className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-white text-xs group-hover:text-purple-300 transition-colors">
-                      Crear Pull Request en GitHub
-                    </span>
-                    <span className="text-[11px] text-[#8b949e] leading-snug mt-0.5">
-                      Abre el asistente de GitHub para crear un Pull Request oficial de {sourceBranch} a {targetBranch} para revisión de código.
-                    </span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onMerge(sourceBranch);
-                    onClose();
-                  }}
-                  className="flex items-start gap-3 p-3 rounded-lg border border-[#30363d] hover:border-blue-500 bg-[#21262d]/50 hover:bg-[#21262d] transition-all text-left group"
-                >
-                  <div className="p-2 rounded bg-blue-950/40 border border-blue-500/30 text-blue-400 mt-0.5 shrink-0 group-hover:scale-105 transition-transform">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-white text-xs group-hover:text-blue-300 transition-colors">
-                      Fusionar en local y sincronizar
-                    </span>
-                    <span className="text-[11px] text-[#8b949e] leading-snug mt-0.5">
-                      Combina el contenido de {sourceBranch} en tu rama de trabajo y prepara la sincronización.
-                    </span>
-                  </div>
-                </button>
-              </>
             )}
           </div>
         </div>

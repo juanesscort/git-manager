@@ -85,6 +85,7 @@ Tanto el backend como el frontend deben seguir un diseño modular estricto y des
    * `cargo clippy -- -D warnings`
    * `cargo fmt --check`
    * `npm run lint` / `tsc --noEmit`
+4. **Cero Archivos Basura y Limpieza Automática Obligatoria:** Queda terminantemente prohibido dejar archivos de prueba, scripts temporales, código huérfano o recursos de un solo uso en el repositorio. Todo script o archivo temporal generado para diagnosticar o verificar debe eliminarse de inmediato y de forma automática al finalizar su ejecución, garantizando que el árbol de trabajo permanezca 100% libre de residuos.
 
 ---
 

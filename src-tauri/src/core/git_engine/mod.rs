@@ -18,8 +18,8 @@ mod tests;
 pub use branches::get_branches;
 pub use commit::create_commit;
 pub use diff::{
-    get_branch_diff_full, get_commit_changed_files, get_commit_file_diff, get_file_diff,
-    get_staged_diff_full,
+    check_branch_diff, get_branch_diff_full, get_commit_changed_files, get_commit_file_diff,
+    get_file_diff, get_staged_diff_full,
 };
 pub use errors::GitEngineError;
 pub use history::get_commit_history;

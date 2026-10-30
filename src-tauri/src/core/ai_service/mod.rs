@@ -6,7 +6,7 @@ pub mod gemini;
 pub mod generator;
 pub mod ollama;
 pub mod openai;
-pub mod prompt;
+pub mod prompts;
 pub mod sanitizer;
 pub mod traits;
 
@@ -16,4 +16,5 @@ mod tests;
 pub use config::{get_ai_settings, save_ai_settings};
 pub use errors::AiServiceError;
 pub use generator::generate_commit_for_staged;
+pub use prompts::{AiPromptRegistry, AiTaskKind, PromptContext};
 pub use traits::AiCommitProvider;

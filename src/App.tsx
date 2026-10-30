@@ -445,6 +445,14 @@ export const App: React.FC = () => {
     sourceIsRemote: boolean = false,
     targetIsRemote: boolean = false
   ) => {
+    // If dropping a remote branch onto another remote branch, open Pull Request Creator directly!
+    if (sourceIsRemote && targetIsRemote) {
+      const cleanSource = sourceBranch.replace(/^[^\/]+\//, "");
+      const cleanTarget = targetBranch.replace(/^[^\/]+\//, "");
+      handleOpenPullRequest(cleanSource, cleanTarget);
+      return;
+    }
+
     setMergeModal({
       isOpen: true,
       sourceBranch,

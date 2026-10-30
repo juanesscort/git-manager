@@ -153,3 +153,11 @@ export interface CreateTagRequest {
   target_commit: string;
   message?: string;
 }
+
+export interface BranchDiffCheckResult {
+  has_changes: boolean;
+  commits_count: number;
+  commits_summary: string[];
+  stat_summary: string;
+  is_up_to_date: boolean;
+}

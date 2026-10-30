@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   GitPullRequest,
   X,
@@ -8,11 +8,14 @@ import {
   AlertCircle,
   ArrowRight,
   GitBranch,
+  ArrowLeftRight,
+  RefreshCw,
+  GitCommit,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "../../../components/ui/Button";
-import { BranchInfo } from "../../../types/git";
+import { BranchDiffCheckResult, BranchInfo } from "../../../types/git";
 
 interface CreatePullRequestModalProps {
   isOpen: boolean;
@@ -56,6 +59,10 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [createdPr, setCreatedPr] = useState<CreatedPrResult | null>(null);
 
+  // Branch diff validation state (Flecha 1)
+  const [diffCheck, setDiffCheck] = useState<BranchDiffCheckResult | null>(null);
+  const [checkingDiff, setCheckingDiff] = useState(false);
+
   // Extract owner/repo from remote URL (e.g. "https://github.com/owner/repo.git")
   const repoSlug = React.useMemo(() => {
     if (!remoteUrl) return "repositorio/desconocido";
@@ -74,8 +81,49 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     const set = new Set<string>();
     for (const b of branches.local) set.add(b.name);
     for (const b of branches.remote) set.add(b.name.replace(/^origin\//, ""));
+    if (initialHeadBranch) set.add(initialHeadBranch.replace(/^origin\//, ""));
+    if (initialBaseBranch) set.add(initialBaseBranch.replace(/^origin\//, ""));
     return Array.from(set);
-  }, [branches]);
+  }, [branches, initialHeadBranch, initialBaseBranch]);
+
+  // Reactive verification of changes between branches
+  const checkBranchDiff = useCallback(
+    async (head: string, base: string) => {
+      if (!head || !base || head === base) {
+        setDiffCheck({
+          has_changes: false,
+          commits_count: 0,
+          commits_summary: [],
+          stat_summary: "",
+          is_up_to_date: true,
+        });
+        return;
+      }
+
+      setCheckingDiff(true);
+      try {
+        const result = await invoke<BranchDiffCheckResult>("check_branch_diff_cmd", {
+          repoPath,
+          base,
+          head,
+        });
+        setDiffCheck(result);
+      } catch (err) {
+        console.warn("Fallo verificando diferencias de ramas:", err);
+        // Fallback: permissive in case of network/git error
+        setDiffCheck({
+          has_changes: true,
+          commits_count: 1,
+          commits_summary: [],
+          stat_summary: "",
+          is_up_to_date: false,
+        });
+      } finally {
+        setCheckingDiff(false);
+      }
+    },
+    [repoPath]
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -86,22 +134,60 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
       const cleanHead = initialHeadBranch?.replace(/^origin\//, "") || "dev";
       setHeadBranch(cleanHead);
 
-      // Base branch: prefer main or master, or first branch that isn't head
-      const cleanBase = initialBaseBranch?.replace(/^origin\//, "") || "main";
+      // Base branch: prefer initialBaseBranch, but if equal to cleanHead, choose an alternative
+      let cleanBase = initialBaseBranch?.replace(/^origin\//, "") || "main";
+      if (cleanBase === cleanHead) {
+        if (cleanHead === "main" || cleanHead === "master") {
+          cleanBase = availableBranches.find((b) => b !== cleanHead) || "dev";
+        } else {
+          cleanBase = availableBranches.includes("main")
+            ? "main"
+            : availableBranches.includes("master")
+            ? "master"
+            : availableBranches.find((b) => b !== cleanHead) || "main";
+        }
+      }
       setBaseBranch(cleanBase);
+      setTitle("");
+      setDescription("");
 
-      setTitle(`feat: fusionar ${cleanHead} en ${cleanBase}`);
-      setDescription(
-        `## 📌 Resumen de Cambios\nIntegración de los cambios desarrollados en la rama \`${cleanHead}\`.\n\n## 🚀 Novedades y Mejoras\n- Implementación y pruebas de nuevas funcionalidades.\n\n## 🧪 Pruebas Realizadas\n- Verificación de código y pruebas de integración superadas.`
-      );
+      checkBranchDiff(cleanHead, cleanBase);
     }
-  }, [isOpen, initialHeadBranch, initialBaseBranch]);
+  }, [isOpen, initialHeadBranch, initialBaseBranch, availableBranches, checkBranchDiff]);
+
+  // Check diff whenever branches change
+  const handleHeadBranchChange = (newHead: string) => {
+    setHeadBranch(newHead);
+    setTitle("");
+    setDescription("");
+    setError(null);
+    checkBranchDiff(newHead, baseBranch);
+  };
+
+  const handleBaseBranchChange = (newBase: string) => {
+    setBaseBranch(newBase);
+    setTitle("");
+    setDescription("");
+    setError(null);
+    checkBranchDiff(headBranch, newBase);
+  };
+
+  const handleSwapBranches = () => {
+    const oldHead = headBranch;
+    const oldBase = baseBranch;
+    setHeadBranch(oldBase);
+    setBaseBranch(oldHead);
+    setTitle("");
+    setDescription("");
+    setError(null);
+    checkBranchDiff(oldBase, oldHead);
+  };
 
   if (!isOpen) return null;
 
   // AI Generation of PR title and description
   const handleGenerateAiPr = async () => {
-    if (!headBranch || !baseBranch) return;
+    if (!headBranch || !baseBranch || !diffCheck?.has_changes) return;
     setAiGenerating(true);
     setError(null);
     try {
@@ -113,10 +199,8 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
       if (res.title) setTitle(res.title);
       if (res.description) setDescription(res.description);
     } catch (err: unknown) {
-      console.warn("Fallo en generación IA de PR:", err);
-      setError(
-        typeof err === "string" ? err : "No se pudo generar con IA. Verifica tu configuración de API."
-      );
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(raw || "No se pudo generar con IA. Verifica tu configuración.");
     } finally {
       setAiGenerating(false);
     }
@@ -125,7 +209,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   // Submit PR to GitHub API
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !diffCheck?.has_changes) return;
 
     setSubmitting(true);
     setError(null);
@@ -170,6 +254,8 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
       }
     }
   };
+
+  const isFormValid = Boolean(title.trim()) && Boolean(diffCheck?.has_changes);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 select-none animate-in fade-in duration-150">
@@ -228,7 +314,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
                 size="sm"
                 variant="primary"
                 onClick={handleOpenCreatedPr}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-emerald-900/30"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-emerald-900/30 cursor-pointer"
               >
                 <span>Revisar y Aprobar en GitHub</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -236,7 +322,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             </div>
           </div>
         ) : (
-          /* Form View */
+          /* Main Form View */
           <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4 overflow-y-auto">
             {error && (
               <div className="p-3 bg-rose-950/40 border border-rose-500/40 rounded-xl text-rose-300 text-xs flex items-start gap-2">
@@ -256,163 +342,206 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
               </div>
             )}
 
-            {/* Provider Tabs (GitHub active) */}
-            <div className="flex items-center gap-2 border-b border-[#30363d] pb-2 text-xs">
-              <span className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider mr-2">
-                Proveedor:
-              </span>
-              <button
-                type="button"
-                className="px-3 py-1 rounded-md bg-[#21262d] text-white border border-blue-500/40 font-semibold flex items-center gap-1.5"
-              >
-                <span>GitHub</span>
-              </button>
-              <button
-                type="button"
-                disabled
-                className="px-3 py-1 rounded-md text-[#484f58] opacity-50 cursor-not-allowed"
-              >
-                GitLab
-              </button>
-              <button
-                type="button"
-                disabled
-                className="px-3 py-1 rounded-md text-[#484f58] opacity-50 cursor-not-allowed"
-              >
-                Bitbucket
-              </button>
-            </div>
-
-            {/* Repository & Branch Comparison Matrix */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-[#0d1117] border border-[#30363d] rounded-xl text-xs">
-              {/* Origin Branch (Head) */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1">
-                  <GitBranch className="w-3 h-3 text-cyan-400" />
-                  <span>Rama Origen (Head)</span>
-                </label>
-                <select
-                  value={headBranch}
-                  onChange={(e) => setHeadBranch(e.target.value)}
-                  className="bg-[#161b22] border border-[#30363d] rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none cursor-pointer"
-                >
-                  {availableBranches.map((b) => (
-                    <option key={`head-${b}`} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] text-[#8b949e] truncate font-mono">
-                  {repoSlug}:{headBranch}
-                </span>
-              </div>
-
-              {/* Destination Branch (Base) */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1">
-                  <ArrowRight className="w-3 h-3 text-purple-400" />
-                  <span>Rama Destino (Base)</span>
-                </label>
-                <select
-                  value={baseBranch}
-                  onChange={(e) => setBaseBranch(e.target.value)}
-                  className="bg-[#161b22] border border-[#30363d] rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none cursor-pointer"
-                >
-                  {availableBranches.map((b) => (
-                    <option key={`base-${b}`} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] text-[#8b949e] truncate font-mono">
-                  {repoSlug}:{baseBranch}
-                </span>
-              </div>
-            </div>
-
-            {/* Title with AI Generation Button */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
-                  Título del Pull Request *
-                </label>
-                <button
-                  type="button"
-                  onClick={handleGenerateAiPr}
-                  disabled={aiGenerating}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 text-[11px] font-semibold transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                  title="Analiza las diferencias entre ramas y genera título y descripción con IA"
-                >
-                  <Sparkles
-                    className={`w-3.5 h-3.5 text-amber-300 ${aiGenerating ? "animate-spin" : ""}`}
-                  />
-                  <span>
-                    {aiGenerating ? "Analizando cambios con IA..." : "Generar título y descripción con IA"}
+            {/* Repository & Branch Comparison Matrix (Flecha 1 y 4) */}
+            <div className="flex flex-col gap-2 p-3 bg-[#0d1117] border border-[#30363d] rounded-xl text-xs">
+              <div className="flex items-center gap-2.5">
+                {/* Origin Branch (Head) */}
+                <div className="flex-1 flex flex-col gap-1 min-w-0">
+                  <label className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1 truncate">
+                    <GitBranch className="w-3 h-3 text-cyan-400 shrink-0" />
+                    <span className="truncate">Origen (Head)</span>
+                  </label>
+                  <select
+                    value={headBranch}
+                    onChange={(e) => handleHeadBranchChange(e.target.value)}
+                    className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none cursor-pointer truncate"
+                  >
+                    {availableBranches.map((b) => (
+                      <option key={`head-${b}`} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[9px] text-[#8b949e] truncate font-mono">
+                    {repoSlug}:{headBranch}
                   </span>
-                </button>
+                </div>
+
+                {/* Swap Branches Button in the center */}
+                <div className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleSwapBranches}
+                    title="Invertir dirección de fusión (intercambiar origen y destino)"
+                    className="p-1.5 rounded-lg border border-[#30363d] bg-[#161b22] hover:bg-[#21262d] text-[#8b949e] hover:text-white transition-colors cursor-pointer"
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Destination Branch (Base) */}
+                <div className="flex-1 flex flex-col gap-1 min-w-0">
+                  <label className="text-[10px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1 truncate">
+                    <ArrowRight className="w-3 h-3 text-purple-400 shrink-0" />
+                    <span className="truncate">Destino (Base)</span>
+                  </label>
+                  <select
+                    value={baseBranch}
+                    onChange={(e) => handleBaseBranchChange(e.target.value)}
+                    className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none cursor-pointer truncate"
+                  >
+                    {availableBranches.map((b) => (
+                      <option key={`base-${b}`} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[9px] text-[#8b949e] truncate font-mono">
+                    {repoSlug}:{baseBranch}
+                  </span>
+                </div>
               </div>
-              <input
-                type="text"
-                required
-                placeholder="ej. feat(auth): implementar inicio de sesión con OAuth2"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-white placeholder-[#484f58] focus:border-emerald-500 focus:outline-none"
-              />
+
+              {/* Status Indicator Bar */}
+              {checkingDiff ? (
+                <div className="flex items-center gap-2 text-xs text-[#8b949e] pt-1">
+                  <RefreshCw className="w-3 h-3 animate-spin text-blue-400" />
+                  <span>Comprobando diferencias y commits entre ramas...</span>
+                </div>
+              ) : diffCheck?.has_changes ? (
+                <div className="flex items-center justify-between pt-1 border-t border-[#30363d]/60 text-xs">
+                  <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                    <GitCommit className="w-3.5 h-3.5" />
+                    <span>
+                      {diffCheck.commits_count}{" "}
+                      {diffCheck.commits_count === 1
+                        ? "commit pendiente por fusionar"
+                        : "commits pendientes por fusionar"}
+                    </span>
+                  </div>
+                  {diffCheck.stat_summary && (
+                    <span className="text-[11px] text-[#8b949e] font-mono">
+                      {diffCheck.stat_summary}
+                    </span>
+                  )}
+                </div>
+              ) : null}
             </div>
 
-            {/* Description (Markdown) */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
-                Descripción (Markdown)
-              </label>
-              <textarea
-                rows={6}
-                placeholder="Explica detalladamente las modificaciones, tickets relacionados y cómo probarlas..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg p-3 text-xs text-white placeholder-[#484f58] focus:border-emerald-500 focus:outline-none font-mono resize-none leading-relaxed"
-              />
-            </div>
-
-            {/* Draft Checkbox */}
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={isDraft}
-                onChange={(e) => setIsDraft(e.target.checked)}
-                className="w-4 h-4 rounded border-[#30363d] bg-[#0d1117] text-emerald-500 focus:ring-0 cursor-pointer"
-              />
-              <span className="text-xs text-[#c9d1d9]">Crear como borrador (Draft Pull Request)</span>
-            </label>
-
-            {/* Actions Bar */}
-            <div className="flex items-center justify-between pt-3 border-t border-[#30363d] mt-1">
-              <button
-                type="button"
-                onClick={handleOpenInBrowser}
-                className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
-              >
-                <span>Continuar editando en GitHub</span>
-                <ExternalLink className="w-3 h-3" />
-              </button>
-
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="secondary" onClick={onClose} type="button">
-                  Cancelar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  type="submit"
-                  disabled={submitting || !title.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1.5 shadow-sm"
-                >
-                  <GitPullRequest className="w-3.5 h-3.5" />
-                  <span>{submitting ? "Publicando en GitHub..." : "Crear Pull Request"}</span>
-                </Button>
+            {/* Empty State when Up to Date (Flecha 1) */}
+            {!checkingDiff && diffCheck && !diffCheck.has_changes ? (
+              <div className="p-8 flex flex-col items-center text-center gap-3 bg-[#0d1117] border border-[#30363d] rounded-2xl animate-in fade-in duration-150 my-1">
+                <div className="w-12 h-12 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Ramas al día: No hay cambios pendientes</h3>
+                  <p className="text-xs text-[#8b949e] mt-1 max-w-md leading-relaxed">
+                    La rama destino <span className="text-purple-300 font-mono font-medium">{baseBranch}</span>{" "}
+                    ya contiene todos los commits de <span className="text-cyan-300 font-mono font-medium">{headBranch}</span>.
+                    No existen modificaciones para crear un Pull Request.
+                  </p>
+                </div>
+                <p className="text-[11px] text-[#484f58]">
+                  Puedes seleccionar otra rama o pulsar el botón de invertir ⇄ arriba para comparar en la dirección contraria.
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Button size="sm" variant="secondary" onClick={onClose} type="button">
+                    Cerrar
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Editable Form Fields when changes exist */
+              <>
+                {/* Title with AI Generation Button (Flecha 2) */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
+                      Título del Pull Request *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateAiPr}
+                      disabled={aiGenerating || !diffCheck?.has_changes}
+                      className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                      title={aiGenerating ? "Analizando cambios con IA..." : "Generar título y descripción con IA"}
+                      aria-label="Generar título y descripción con IA"
+                    >
+                      <Sparkles
+                        className={`w-3.5 h-3.5 text-amber-300 ${aiGenerating ? "animate-spin" : ""}`}
+                      />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    placeholder={`ej. feat: fusionar ${headBranch || "dev"} en ${baseBranch || "main"}`}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-white placeholder-[#484f58] focus:border-emerald-500 focus:outline-none font-sans"
+                  />
+                </div>
+
+                {/* Description (Markdown) */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
+                    Descripción (Markdown)
+                  </label>
+                  <textarea
+                    rows={6}
+                    placeholder={`## Resumen de Cambios\nDetalla el propósito técnico de la fusión...\n\n## Novedades y Mejoras\n- Lista de modificaciones clave...`}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg p-3 text-xs text-white placeholder-[#484f58] focus:border-emerald-500 focus:outline-none font-mono resize-none leading-relaxed"
+                  />
+                </div>
+
+                {/* Draft Checkbox */}
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isDraft}
+                    onChange={(e) => setIsDraft(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#30363d] bg-[#0d1117] text-emerald-500 focus:ring-0 cursor-pointer"
+                  />
+                  <span className="text-xs text-[#c9d1d9]">Crear como borrador (Draft Pull Request)</span>
+                </label>
+
+                {/* Actions Bar (Flecha 3) */}
+                <div className="flex items-center justify-between pt-3 border-t border-[#30363d] mt-1">
+                  <button
+                    type="button"
+                    onClick={handleOpenInBrowser}
+                    className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Continuar editando en GitHub</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={onClose} type="button">
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      type="submit"
+                      disabled={submitting || !isFormValid}
+                      className={`flex items-center gap-1.5 font-semibold transition-all shadow-sm ${
+                        isFormValid
+                          ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+                          : "bg-emerald-950/60 text-[#8b949e] border border-emerald-900/40 opacity-50 cursor-not-allowed"
+                      }`}
+                      title={!isFormValid ? "Ingresa un título para publicar el Pull Request" : undefined}
+                    >
+                      <GitPullRequest className="w-3.5 h-3.5" />
+                      <span>{submitting ? "Publicando en GitHub..." : "Crear Pull Request"}</span>
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </form>
         )}
       </div>

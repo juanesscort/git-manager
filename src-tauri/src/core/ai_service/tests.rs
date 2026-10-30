@@ -1,4 +1,4 @@
-use super::prompt::{SYSTEM_PROMPT, build_user_prompt};
+use super::prompts::templates::commit::{COMMIT_SYSTEM_PROMPT as SYSTEM_PROMPT, build_commit_user_prompt as build_user_prompt};
 use super::sanitizer::sanitize_git_diff;
 
 #[test]
@@ -54,6 +54,27 @@ fn test_prompt_building() {
     assert!(prompt.contains("Conventional Commit"));
     assert!(prompt.contains("diff test"));
     assert!(SYSTEM_PROMPT.contains("Conventional Commits"));
+    assert!(SYSTEM_PROMPT.contains("PROHIBIDO EL USO DE CUALQUIER EMOJI"));
+}
+
+#[test]
+fn test_prompt_registry_pull_request_without_emojis() {
+    use super::prompts::{AiPromptRegistry, AiTaskKind, PromptContext};
+
+    let ctx =
+        PromptContext::for_pull_request("diff test between branches", "feature/auth", "main", &[]);
+    let user_prompt = AiPromptRegistry::user_prompt(AiTaskKind::PullRequest, &ctx);
+    let sys_prompt = AiPromptRegistry::system_prompt(AiTaskKind::PullRequest);
+
+    assert!(user_prompt.contains("feature/auth"));
+    assert!(user_prompt.contains("main"));
+    assert!(user_prompt.contains("sin ningún emoji ni icono"));
+    assert!(sys_prompt.contains("PROHIBIDO EL USO DE CUALQUIER EMOJI"));
+    // Ensure no emojis like 📌 or 🚀 are in the prompt definition
+    assert!(!sys_prompt.contains("📌"));
+    assert!(!sys_prompt.contains("🚀"));
+    assert!(!user_prompt.contains("📌"));
+    assert!(!user_prompt.contains("🚀"));
 }
 
 #[test]

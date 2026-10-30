@@ -104,3 +104,12 @@ pub struct FileMediaPreview {
     pub is_lottie: bool,
     pub is_image: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchDiffCheckResult {
+    pub has_changes: bool,
+    pub commits_count: usize,
+    pub commits_summary: Vec<String>,
+    pub stat_summary: String,
+    pub is_up_to_date: bool,
+}

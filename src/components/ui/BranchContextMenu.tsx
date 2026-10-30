@@ -432,9 +432,8 @@ export const BranchContextMenu: React.FC<BranchContextMenuProps> = ({
                 onClick={handleOpenPr}
                 className="w-full text-left px-3 py-1.5 hover:bg-[#1f6feb]/20 text-[#c9d1d9] hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer"
               >
-                <GitPullRequest className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span>Ver comparativa en GitHub Web</span>
-                <ExternalLink className="w-3 h-3 text-[#8b949e] ml-auto" />
+                <ExternalLink className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
+                <span>Abrir comparativa en GitHub (Navegador)</span>
               </button>
             )}
 

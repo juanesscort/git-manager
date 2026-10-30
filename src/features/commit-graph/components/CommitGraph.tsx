@@ -528,6 +528,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
                 onClick={() => onSelectCommit(commit)}
                 onContextMenu={(e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   if (onCommitContextMenu) {
                     onCommitContextMenu(e.clientX, e.clientY, commit);
                   }

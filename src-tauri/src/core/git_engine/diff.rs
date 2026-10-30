@@ -1,5 +1,7 @@
 use crate::core::git_engine::errors::GitEngineError;
-use crate::models::git_models::{CommitFileChange, DiffDelta, FileStatusKind};
+use crate::models::git_models::{
+    BranchDiffCheckResult, CommitFileChange, DiffDelta, FileStatusKind,
+};
 use git2::{Delta, DiffFormat, DiffOptions, Oid, Patch, Repository};
 
 pub fn get_file_diff(
@@ -68,15 +70,126 @@ pub fn get_staged_diff_full(repo: &Repository) -> Result<String, GitEngineError>
     Ok(String::from_utf8_lossy(&patch_output).to_string())
 }
 
+pub fn check_branch_diff(
+    repo: &Repository,
+    base: &str,
+    head: &str,
+) -> Result<BranchDiffCheckResult, GitEngineError> {
+    let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
+
+    let resolve_ref = |name: &str| -> String {
+        let clean = name.strip_prefix("origin/").unwrap_or(name);
+        let remote_ref = format!("origin/{}", clean);
+        if repo
+            .find_reference(&format!("refs/remotes/{}", remote_ref))
+            .is_ok()
+        {
+            remote_ref
+        } else {
+            clean.to_string()
+        }
+    };
+
+    let ref_base = resolve_ref(base);
+    let ref_head = resolve_ref(head);
+
+    // 1. Check commits count
+    let count_output = std::process::Command::new("git")
+        .args([
+            "rev-list",
+            "--count",
+            &format!("{}..{}", ref_base, ref_head),
+        ])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+    let commits_count: usize = if count_output.status.success() {
+        String::from_utf8_lossy(&count_output.stdout)
+            .trim()
+            .parse()
+            .unwrap_or(0)
+    } else {
+        0
+    };
+
+    // 2. Get commits log oneline
+    let log_output = std::process::Command::new("git")
+        .args([
+            "log",
+            &format!("{}..{}", ref_base, ref_head),
+            "--oneline",
+            "-n",
+            "20",
+        ])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+    let commits_summary: Vec<String> = if log_output.status.success() {
+        String::from_utf8_lossy(&log_output.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    // 3. Get diff shortstat
+    let stat_output = std::process::Command::new("git")
+        .args([
+            "diff",
+            "--shortstat",
+            &format!("{}...{}", ref_base, ref_head),
+        ])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
+
+    let stat_summary = if stat_output.status.success() {
+        String::from_utf8_lossy(&stat_output.stdout)
+            .trim()
+            .to_string()
+    } else {
+        String::new()
+    };
+
+    let has_changes = commits_count > 0;
+    let is_up_to_date = commits_count == 0;
+
+    Ok(BranchDiffCheckResult {
+        has_changes,
+        commits_count,
+        commits_summary,
+        stat_summary,
+        is_up_to_date,
+    })
+}
+
 pub fn get_branch_diff_full(
     repo: &Repository,
     base: &str,
     head: &str,
 ) -> Result<String, GitEngineError> {
     let workdir = repo.workdir().ok_or(GitEngineError::BareRepository)?;
-    let clean_base = base.strip_prefix("origin/").unwrap_or(base);
-    let clean_head = head.strip_prefix("origin/").unwrap_or(head);
-    let range = format!("{}...{}", clean_base, clean_head);
+
+    let resolve_ref = |name: &str| -> String {
+        let clean = name.strip_prefix("origin/").unwrap_or(name);
+        let remote_ref = format!("origin/{}", clean);
+        if repo
+            .find_reference(&format!("refs/remotes/{}", remote_ref))
+            .is_ok()
+        {
+            remote_ref
+        } else {
+            clean.to_string()
+        }
+    };
+
+    let ref_base = resolve_ref(base);
+    let ref_head = resolve_ref(head);
+    let range = format!("{}...{}", ref_base, ref_head);
 
     let output = std::process::Command::new("git")
         .args(["diff", &range])
@@ -86,7 +199,7 @@ pub fn get_branch_diff_full(
 
     if !output.status.success() {
         let output2 = std::process::Command::new("git")
-            .args(["diff", clean_base, clean_head])
+            .args(["diff", &ref_base, &ref_head])
             .current_dir(workdir)
             .output()
             .map_err(|e| GitEngineError::GitCommandError(e.to_string()))?;
