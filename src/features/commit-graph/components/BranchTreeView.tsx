@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Folder, FolderOpen, GitBranch, Cloud, ChevronRight, ChevronDown, Check, GitFork } from "lucide-react";
+import { Folder, FolderOpen, GitBranch, Cloud, ChevronRight, ChevronDown, Check } from "lucide-react";
 import { BranchInfo } from "../../../types/git";
 
 interface BranchTreeViewProps {
@@ -13,9 +13,7 @@ interface BranchTreeViewProps {
     branchName: string,
     isHead: boolean,
     isRemote: boolean,
-    commitOid?: string,
-    parentBranch?: string | null,
-    forkPointOid?: string | null
+    commitOid?: string
   ) => void;
   onDropBranch?: (
     sourceBranch: string,
@@ -186,9 +184,7 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
               node.fullPath,
               isHead,
               isRemote,
-              node.branch?.target_oid,
-              node.branch?.parent_branch,
-              node.branch?.fork_point_oid
+              node.branch?.target_oid
             );
           }
         }}
@@ -200,15 +196,7 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
             ? "bg-[#1f6feb]/20 text-white font-medium border border-blue-600/30 shadow-sm"
             : "text-[#c9d1d9] hover:bg-[#161b22] border border-transparent"
         }`}
-        title={`${isRemote ? "Rama remota" : "Rama local"}: ${node.fullPath}${
-          node.branch?.parent_branch
-            ? `\nNace de: ${node.branch.parent_branch}${
-                node.branch.fork_point_oid
-                  ? ` (commit ${node.branch.fork_point_oid.slice(0, 7)})`
-                  : ""
-              }`
-            : ""
-        }\n(Clic derecho para menú de opciones, arrastra para merge/pull)`}
+        title={`${isRemote ? "Rama remota" : "Rama local"}: ${node.fullPath} (Clic derecho para menú de opciones, arrastra para merge/pull)`}
       >
         {isRemote ? (
           <Cloud className="w-3.5 h-3.5 text-purple-400 shrink-0" />
@@ -221,17 +209,6 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
         )}
 
         <span className="truncate font-mono text-[11px] flex-1">{node.name}</span>
-
-        {/* Branch Birth Origin Indicator (Nacimiento de la rama) */}
-        {node.branch?.parent_branch && !isRemote && (
-          <span
-            className="text-[9px] font-mono text-[#8b949e] group-hover:text-blue-300 flex items-center gap-1 shrink-0 px-1.5 py-0.2 rounded bg-[#0d1117]/80 border border-[#30363d]/50 transition-colors"
-            title={`Nace de la rama '${node.branch.parent_branch}' en el commit ${node.branch.fork_point_oid?.slice(0, 7) || ""}`}
-          >
-            <GitFork className="w-2.5 h-2.5 text-blue-400/80" />
-            <span className="truncate max-w-[65px]">{node.branch.parent_branch}</span>
-          </span>
-        )}
 
         {isHead && (
           <span className="ml-auto text-[9px] bg-blue-500/20 px-1 py-0.2 rounded text-blue-300 font-mono shrink-0 flex items-center gap-0.5">

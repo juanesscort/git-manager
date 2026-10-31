@@ -16,7 +16,6 @@ import {
   GitPullRequest,
   Link,
   Cloud,
-  GitFork,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -28,8 +27,6 @@ export interface BranchContextMenuState {
   isHead: boolean;
   isRemote: boolean;
   commitOid?: string;
-  parentBranch?: string | null;
-  forkPointOid?: string | null;
 }
 
 interface BranchContextMenuProps {
@@ -48,7 +45,6 @@ interface BranchContextMenuProps {
   onStartPullRequest?: (branchName: string) => void;
   onPull?: (branchName: string) => void;
   onPush?: (branchName: string) => void;
-  onGoToForkPoint?: (commitOid: string) => void;
 }
 
 export const BranchContextMenu: React.FC<BranchContextMenuProps> = ({
@@ -67,7 +63,6 @@ export const BranchContextMenu: React.FC<BranchContextMenuProps> = ({
   onStartPullRequest,
   onPull,
   onPush,
-  onGoToForkPoint,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [copiedType, setCopiedType] = useState<string | null>(null);
@@ -326,26 +321,6 @@ export const BranchContextMenu: React.FC<BranchContextMenuProps> = ({
                 Checkout {state.isRemote ? `origin/${cleanBranchName}` : state.branchName}
               </span>
             </button>
-
-            {/* Ir al commit de nacimiento (Fork point) */}
-            {state.parentBranch && state.forkPointOid && onGoToForkPoint && (
-              <button
-                onClick={() => {
-                  onGoToForkPoint(state.forkPointOid!);
-                  onClose();
-                }}
-                className="w-full text-left px-3 py-1.5 hover:bg-[#1f6feb]/20 text-[#c9d1d9] hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer group"
-                title={`Commit de nacimiento: ${state.forkPointOid}`}
-              >
-                <GitFork className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <div className="flex flex-col truncate">
-                  <span className="truncate">Ir al commit de nacimiento</span>
-                  <span className="text-[10px] text-[#8b949e] group-hover:text-blue-300">
-                    Nace de <code className="text-blue-400 font-mono">{state.parentBranch}</code> ({state.forkPointOid.slice(0, 7)})
-                  </span>
-                </div>
-              </button>
-            )}
 
             {/* Fast-forward Pull (Local branch) */}
             {!state.isRemote && onPull && (

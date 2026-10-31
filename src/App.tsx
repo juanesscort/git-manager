@@ -649,9 +649,7 @@ export const App: React.FC = () => {
     branchName: string,
     isHead: boolean,
     isRemote: boolean,
-    commitOid?: string,
-    parentBranch?: string | null,
-    forkPointOid?: string | null
+    commitOid?: string
   ) => {
     setContextMenuState({
       isOpen: true,
@@ -661,8 +659,6 @@ export const App: React.FC = () => {
       isHead,
       isRemote,
       commitOid,
-      parentBranch,
-      forkPointOid,
     });
   };
 
@@ -1534,7 +1530,6 @@ export const App: React.FC = () => {
         onRebase={(branchName) => rebaseBranch(branchName)}
         onRename={(oldName, newName) => renameBranch(oldName, newName)}
         onDelete={(branchName) => deleteBranch(branchName)}
-        onGoToForkPoint={handleNavigateToCommit}
         onCreateBranchHere={(_commitOid, _baseBranch) => {
           setBranchModalOpen(true);
         }}

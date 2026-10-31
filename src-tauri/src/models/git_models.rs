@@ -57,8 +57,6 @@ pub struct BranchInfo {
     pub upstream_name: Option<String>,
     pub ahead: usize,
     pub behind: usize,
-    pub parent_branch: Option<String>,
-    pub fork_point_oid: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

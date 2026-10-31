@@ -48,8 +48,6 @@ export interface BranchInfo {
   upstream_name?: string | null;
   ahead?: number;
   behind?: number;
-  parent_branch?: string | null;
-  fork_point_oid?: string | null;
 }
 
 export interface FileMediaPreview {
