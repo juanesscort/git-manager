@@ -1,5 +1,5 @@
 use crate::core::git_engine::{
-    commit::create_commit,
+    commit::{UndoCommitResult, create_commit, undo_commit},
     diff::{get_commit_changed_files, get_commit_file_diff, get_file_diff},
     get_branches, get_file_media_preview,
     history::get_commit_history,
@@ -69,6 +69,12 @@ pub async fn get_diff_cmd(
 pub async fn commit_changes_cmd(path: String, message: String) -> Result<String, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
     create_commit(&repo, &message, None, None).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn undo_commit_cmd(path: String, keep_staged: bool) -> Result<UndoCommitResult, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    undo_commit(&repo, keep_staged).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -79,6 +79,51 @@ fn test_commit_and_history() {
 }
 
 #[test]
+fn test_undo_commit_soft() {
+    let (temp_dir, repo) = setup_temp_repo();
+
+    // 1. Initial commit
+    let file1 = temp_dir.path().join("file1.txt");
+    fs::write(&file1, "first file").expect("write file1");
+    stage_file(&repo, "file1.txt").expect("stage file1");
+    let c1 = create_commit(&repo, "chore: initial commit", None, None).expect("commit 1");
+
+    // 2. Second commit
+    let file2 = temp_dir.path().join("file2.txt");
+    fs::write(&file2, "second file").expect("write file2");
+    stage_file(&repo, "file2.txt").expect("stage file2");
+    let _c2 = create_commit(&repo, "feat: second commit", None, None).expect("commit 2");
+
+    let history_before = get_commit_history(&repo, 10).expect("fetch history before");
+    assert_eq!(history_before.len(), 2);
+
+    // 3. Undo commit (soft: keep staged)
+    let undo_res = undo_commit(&repo, true).expect("undo commit");
+    assert_eq!(undo_res.undone_commit_message.trim(), "feat: second commit");
+    assert_eq!(undo_res.new_head_oid, c1);
+
+    // 4. Verify history now only has commit 1
+    let history_after = get_commit_history(&repo, 10).expect("fetch history after");
+    assert_eq!(history_after.len(), 1);
+    assert_eq!(history_after[0].oid, c1);
+
+    // 5. Verify file2.txt still exists on disk
+    assert!(file2.exists());
+    let content = fs::read_to_string(&file2).expect("read file2");
+    assert_eq!(content, "second file");
+
+    // 6. Verify file2.txt is staged
+    let statuses = get_repo_statuses(&repo).expect("statuses");
+    assert_eq!(statuses.len(), 1);
+    assert_eq!(statuses[0].path, "file2.txt");
+    assert!(statuses[0].staged_status.is_some());
+
+    // 7. Undoing initial commit should fail (no parent)
+    let fail_res = undo_commit(&repo, true);
+    assert!(fail_res.is_err());
+}
+
+#[test]
 fn test_diff_calculation() {
     let (temp_dir, repo) = setup_temp_repo();
     let file_path = temp_dir.path().join("doc.md");

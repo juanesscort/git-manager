@@ -13,6 +13,7 @@ import {
   Layers,
   ChevronDown,
   AlignLeft,
+  Undo2,
 } from "lucide-react";
 
 interface CommitDetailsPanelProps {
@@ -20,9 +21,11 @@ interface CommitDetailsPanelProps {
   files: CommitFileChange[];
   loading: boolean;
   selectedFilePath: string | null;
+  isHead?: boolean;
   githubAvatarUrl?: string | null;
   githubLogin?: string | null;
   onSelectFile: (path: string) => void;
+  onUndoCommit?: () => void;
   onClose: () => void;
 }
 
@@ -50,9 +53,11 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
   files,
   loading,
   selectedFilePath,
+  isHead = false,
   githubAvatarUrl,
   githubLogin,
   onSelectFile,
+  onUndoCommit,
   onClose,
 }) => {
   const [copiedHash, setCopiedHash] = useState(false);
@@ -228,6 +233,19 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
                 {commitBody}
               </div>
             </div>
+          )}
+
+          {/* Quick Undo Action (Only for HEAD) */}
+          {isHead && onUndoCommit && (
+            <button
+              type="button"
+              onClick={onUndoCommit}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 text-amber-300 font-semibold text-xs transition-all cursor-pointer shadow-xs mt-1"
+              title="Deshacer este commit y conservar todos los cambios en tu espacio de trabajo"
+            >
+              <Undo2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Deshacer este Commit (Conservar Cambios)</span>
+            </button>
           )}
         </div>
 

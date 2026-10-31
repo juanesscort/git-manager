@@ -37,6 +37,7 @@ import { AccordionSection } from "./components/ui/AccordionSection";
 import { TagListView } from "./features/commit-graph/components/TagListView";
 import { CreateTagModal } from "./features/commit-graph/components/CreateTagModal";
 import { TagDetailsModal } from "./features/commit-graph/components/TagDetailsModal";
+import { UndoCommitModal } from "./features/commit-graph/components/UndoCommitModal";
 import {
   GraphToolbarControls,
   GraphViewMode,
@@ -260,6 +261,38 @@ export const App: React.FC = () => {
   const [actionsHubOpen, setActionsHubOpen] = useState(false);
   const [releaseWizardOpen, setReleaseWizardOpen] = useState(false);
   const [isGitManagerRepo, setIsGitManagerRepo] = useState(false);
+
+  const [undoCommitModalOpen, setUndoCommitModalOpen] = useState(false);
+  const [commitToUndo, setCommitToUndo] = useState<CommitInfo | null>(null);
+
+  const handleOpenUndoCommit = (commit?: CommitInfo | null) => {
+    const target =
+      commit ||
+      graphNodes.find((n) => n.commit.oid === summary?.head_commit_oid)?.commit ||
+      graphNodes[0]?.commit ||
+      null;
+    if (target) {
+      setCommitToUndo(target);
+      setUndoCommitModalOpen(true);
+    }
+  };
+
+  const handleConfirmUndoCommit = async (keepStaged: boolean) => {
+    if (!activeRepoPath) return;
+    try {
+      await invoke("undo_commit_cmd", {
+        path: activeRepoPath,
+        keepStaged,
+      });
+      await handleRefreshAll();
+      setSelectedCommit(null);
+      setIsWipSelected(true);
+      setActiveCenterTab("graph");
+    } catch (err: unknown) {
+      console.error("Error al deshacer commit:", err);
+      throw err;
+    }
+  };
 
   // Check if current repo is Git-Manager
   useEffect(() => {
@@ -1272,6 +1305,7 @@ export const App: React.FC = () => {
               selectedFilePath={
                 currentActiveTab?.commitOid === selectedCommit.oid ? currentActiveTab.path : null
               }
+              isHead={selectedCommit?.oid === summary?.head_commit_oid}
               githubAvatarUrl={githubUser?.avatar_url}
               githubLogin={githubUser?.login}
               onSelectFile={(path) => {
@@ -1281,6 +1315,7 @@ export const App: React.FC = () => {
                   setActiveCenterTab("graph");
                 }
               }}
+              onUndoCommit={() => handleOpenUndoCommit(selectedCommit)}
               onClose={() => {
                 setSelectedCommit(null);
                 setIsWipSelected(true);
@@ -1299,6 +1334,8 @@ export const App: React.FC = () => {
               currentBranch={currentBranchName}
               loading={stagingLoading}
               aiGenerating={aiGenerating}
+              hasCommitsToUndo={Boolean(summary?.head_commit_oid && graphNodes.length > 0)}
+              onUndoLastCommit={() => handleOpenUndoCommit()}
               onRefresh={() => {
                 refreshStatuses();
                 checkConflicts();
@@ -1472,6 +1509,7 @@ export const App: React.FC = () => {
       <CommitContextMenu
         state={commitContextMenuState}
         remoteUrl={summary?.remote_url}
+        isHead={commitContextMenuState.commit?.oid === summary?.head_commit_oid}
         onClose={() => setCommitContextMenuState((prev) => ({ ...prev, isOpen: false }))}
         onCreateTag={(commit) => {
           setTargetCommitForTag({ oid: commit.oid, summary: commit.summary });
@@ -1480,6 +1518,7 @@ export const App: React.FC = () => {
         onCreateBranch={(_commit) => {
           setBranchModalOpen(true);
         }}
+        onUndoCommit={handleOpenUndoCommit}
       />
 
       {/* Pull Request Creator Modal with AI Assistance */}
@@ -1544,6 +1583,17 @@ export const App: React.FC = () => {
         onClose={() => setOpenRepoModalOpen(false)}
         onOpenRepo={openTab}
         onClearRecent={clearRecentRepos}
+      />
+
+      {/* Undo Last Commit Modal */}
+      <UndoCommitModal
+        isOpen={undoCommitModalOpen}
+        commit={commitToUndo}
+        onClose={() => {
+          setUndoCommitModalOpen(false);
+          setCommitToUndo(null);
+        }}
+        onConfirm={handleConfirmUndoCommit}
       />
     </div>
   );

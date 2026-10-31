@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Tag, GitBranch, Copy, Check, ExternalLink, GitCommit } from "lucide-react";
+import { Tag, GitBranch, Copy, Check, ExternalLink, GitCommit, Undo2 } from "lucide-react";
 import { CommitInfo } from "../../types/git";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -13,17 +13,21 @@ export interface CommitContextMenuState {
 interface CommitContextMenuProps {
   state: CommitContextMenuState;
   remoteUrl?: string | null;
+  isHead?: boolean;
   onClose: () => void;
   onCreateTag: (commit: CommitInfo) => void;
   onCreateBranch: (commit: CommitInfo) => void;
+  onUndoCommit?: (commit: CommitInfo) => void;
 }
 
 export const CommitContextMenu: React.FC<CommitContextMenuProps> = ({
   state,
   remoteUrl,
+  isHead = false,
   onClose,
   onCreateTag,
   onCreateBranch,
+  onUndoCommit,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [copiedType, setCopiedType] = useState<string | null>(null);
@@ -135,6 +139,22 @@ export const CommitContextMenu: React.FC<CommitContextMenuProps> = ({
           <span>Crear nueva rama aquí...</span>
         </button>
       </div>
+
+      {/* Section 1.5: Undo Last Commit (Only for HEAD) */}
+      {isHead && onUndoCommit && (
+        <div className="py-1">
+          <button
+            onClick={() => {
+              onUndoCommit(commit);
+              onClose();
+            }}
+            className="w-full text-left px-3 py-1.5 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 flex items-center gap-2.5 transition-colors cursor-pointer font-medium"
+          >
+            <Undo2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Deshacer este commit (Undo)...</span>
+          </button>
+        </div>
+      )}
 
       {/* Section 2: Copy Actions */}
       <div className="py-1">

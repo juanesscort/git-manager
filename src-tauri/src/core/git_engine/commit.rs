@@ -46,3 +46,44 @@ pub fn create_commit(
 
     Ok(commit_oid.to_string())
 }
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct UndoCommitResult {
+    pub undone_commit_oid: String,
+    pub undone_commit_message: String,
+    pub new_head_oid: String,
+}
+
+pub fn undo_commit(
+    repo: &Repository,
+    keep_staged: bool,
+) -> Result<UndoCommitResult, GitEngineError> {
+    let head = repo.head()?;
+    let current_commit = head.peel_to_commit()?;
+
+    if current_commit.parent_count() == 0 {
+        return Err(GitEngineError::GitCommandError(
+            "No se puede deshacer el commit inicial porque no tiene un commit padre anterior."
+                .to_string(),
+        ));
+    }
+
+    let parent = current_commit.parent(0)?;
+    let undone_oid = current_commit.id().to_string();
+    let undone_message = current_commit.message().unwrap_or("").to_string();
+    let new_head_oid = parent.id().to_string();
+
+    let reset_type = if keep_staged {
+        git2::ResetType::Soft
+    } else {
+        git2::ResetType::Mixed
+    };
+
+    repo.reset(parent.as_object(), reset_type, None)?;
+
+    Ok(UndoCommitResult {
+        undone_commit_oid: undone_oid,
+        undone_commit_message: undone_message,
+        new_head_oid,
+    })
+}
