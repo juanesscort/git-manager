@@ -379,7 +379,7 @@ export const App: React.FC = () => {
 
   const openFileTab = (
     file: { path: string; staged?: boolean; commitOid?: string; type: "staging" | "commit" },
-    autoSwitch: boolean = false
+    autoSwitch: boolean = true
   ) => {
     const fileName = file.path.split("/").pop() || file.path;
     const tabId =
@@ -1278,7 +1278,9 @@ export const App: React.FC = () => {
               githubLogin={githubUser?.login}
               onSelectFile={(path) => {
                 if (path) {
-                  openFileTab({ path, commitOid: selectedCommit.oid, type: "commit" }, false);
+                  openFileTab({ path, commitOid: selectedCommit.oid, type: "commit" }, true);
+                } else {
+                  setActiveCenterTab("graph");
                 }
               }}
               onClose={() => {
@@ -1309,7 +1311,9 @@ export const App: React.FC = () => {
               onUnstageAll={unstageAll}
               onSelectFile={(path, staged) => {
                 if (path) {
-                  openFileTab({ path, staged, type: "staging" }, false);
+                  openFileTab({ path, staged, type: "staging" }, true);
+                } else {
+                  setActiveCenterTab("graph");
                 }
               }}
               onCommit={async (message, tag, tagMessage) => {
