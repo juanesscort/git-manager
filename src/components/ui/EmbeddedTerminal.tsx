@@ -232,7 +232,12 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
     return () => observer.disconnect();
   }, [isOpen, isMaximized]);
 
-  if (!isOpen) return null;
+  // Click outside to close context menu
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null);
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
+  }, []);
 
   const handleClear = () => {
     if (xtermRef.current) {
@@ -261,7 +266,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
   const handleCopySelection = () => {
     const selection = xtermRef.current?.getSelection();
     if (selection) {
-      navigator.clipboard.writeText(selection).catch(() => { });
+      navigator.clipboard.writeText(selection).catch(() => {});
     }
     setContextMenu(null);
     xtermRef.current?.focus();
@@ -286,11 +291,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
     xtermRef.current?.focus();
   };
 
-  useEffect(() => {
-    const handleClickOutside = () => setContextMenu(null);
-    window.addEventListener("click", handleClickOutside);
-    return () => window.removeEventListener("click", handleClickOutside);
-  }, []);
+  if (!isOpen) return null;
 
   return (
     <div
