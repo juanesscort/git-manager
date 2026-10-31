@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Rocket,
   X,
@@ -8,6 +8,9 @@ import {
   Loader2,
   GitPullRequest,
   RotateCw,
+  Tag,
+  FileText,
+  Info,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "../../../components/ui/Button";
@@ -31,27 +34,11 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
   onClose,
   onReleaseSuccess,
 }) => {
-  const currentVersion = __APP_VERSION__ || "0.4.0";
-
-  // Calculate semantic version suggestions
-  const semverSuggestions = useMemo(() => {
-    const parts = currentVersion.split(".").map((n) => parseInt(n, 10) || 0);
-    const major = parts[0] || 0;
-    const minor = parts[1] || 0;
-    const patch = parts[2] || 0;
-
-    return {
-      patch: `${major}.${minor}.${patch + 1}`,
-      minor: `${major}.${minor + 1}.0`,
-      major: `${major + 1}.0.0`,
-    };
-  }, [currentVersion]);
-
-  const [selectedVersion, setSelectedVersion] = useState<string>(
-    semverSuggestions.patch
+  const [projectVersion, setProjectVersion] = useState<string>(
+    __APP_VERSION__ || "0.4.0"
   );
-  const [customVersion, setCustomVersion] = useState<string>("");
-  const [isCustom, setIsCustom] = useState(false);
+  const [tagName, setTagName] = useState<string>(`v${__APP_VERSION__ || "0.4.0"}`);
+  const [releaseNotes, setReleaseNotes] = useState<string>("");
 
   const isMain = currentBranch === "main";
   const isDev = currentBranch === "dev";
@@ -61,17 +48,30 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen && repoPath) {
+      invoke<string | null>("get_project_version_cmd", { path: repoPath })
+        .then((ver) => {
+          if (ver) {
+            setProjectVersion(ver);
+            setTagName(`v${ver}`);
+          }
+        })
+        .catch((err) => {
+          console.error("Error al obtener la versión del proyecto:", err);
+        });
+    }
+  }, [isOpen, repoPath]);
 
-  const finalVersion = isCustom ? customVersion.trim() : selectedVersion;
+  if (!isOpen) return null;
 
   const handleLaunch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!repoPath) return;
 
-    const cleanVer = finalVersion.replace(/^v/, "").trim();
-    if (!cleanVer || cleanVer.split(".").length < 3) {
-      setError("Por favor ingresa una versión semántica válida (ej. 0.4.1)");
+    const cleanTag = tagName.trim();
+    if (!cleanTag) {
+      setError("Por favor ingresa un nombre para la etiqueta (ej. v0.4.0)");
       return;
     }
 
@@ -81,13 +81,14 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
     try {
       await invoke<string>("execute_git_manager_release_cmd", {
         path: repoPath,
-        newVersion: cleanVer,
+        tagName: cleanTag,
+        releaseNotes: releaseNotes.trim() ? releaseNotes.trim() : null,
         mergeFromDev: isDev ? mergeFromDev : false,
         pushToOrigin,
       });
 
       onClose();
-      onReleaseSuccess(cleanVer);
+      onReleaseSuccess(cleanTag);
     } catch (err: unknown) {
       console.error("Error al lanzar la release:", err);
       setError(typeof err === "string" ? err : JSON.stringify(err));
@@ -107,14 +108,14 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-white tracking-wide">
-                  Lanzar Nueva Versión
+                  Lanzar Release Oficial
                 </h3>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950/40 text-purple-300 border border-purple-500/30">
                   Git-Manager Oficial
                 </span>
               </div>
               <p className="text-[11px] text-[#8b949e]">
-                Automatiza el cambio de versión, commit, etiqueta y despliegue a GitHub Actions.
+                Etiqueta el commit actual de main, lo publica en GitHub y dispara la compilación en GitHub Actions.
               </p>
             </div>
           </div>
@@ -134,7 +135,7 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
             </div>
           )}
 
-          {/* Pending PRs or In-Progress Actions notice */}
+          {/* In-Progress Actions or Pending PRs warning */}
           {(activeRunsCount > 0 || openPrCount > 0) && (
             <div className="space-y-1.5 text-xs">
               {activeRunsCount > 0 && (
@@ -197,103 +198,58 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
 
             {!isMain && !isDev && (
               <p className="text-[11px] text-amber-400 pt-1">
-                ⚠️ Estás en una rama no estándar. Se recomienda cambiar a 'main' o 'dev' antes de lanzar una versión.
+                ⚠️ Estás en una rama no estándar. Se recomienda cambiar a 'main' antes de lanzar una versión oficial.
               </p>
             )}
           </div>
 
-          {/* Semantic Version Selector */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-[#8b949e]">
-                Incremento de Versión (Actual: v{currentVersion}):
-              </label>
+          {/* Current Detected Version Info */}
+          <div className="p-3 bg-purple-950/15 border border-purple-500/20 rounded-xl text-xs flex items-start gap-2.5">
+            <Info className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <div className="text-white">
+                Versión configurada en archivos del proyecto:{" "}
+                <span className="font-mono font-bold text-purple-300">
+                  v{projectVersion}
+                </span>
+              </div>
+              <p className="text-[10px] text-[#8b949e]">
+                El motor etiquetará el estado actual sin alterar archivos en disco. Para cambiar la versión del código ejecuta previamente en consola:{" "}
+                <code className="text-purple-300 bg-purple-950/40 px-1 py-0.5 rounded">
+                  npm run bump &lt;versión&gt;
+                </code>
+              </p>
             </div>
+          </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedVersion(semverSuggestions.patch);
-                  setIsCustom(false);
-                }}
-                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  !isCustom && selectedVersion === semverSuggestions.patch
-                    ? "bg-emerald-950/40 border-emerald-500 text-white shadow-xs"
-                    : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:border-[#484f58]"
-                }`}
-              >
-                <div className="text-[10px] text-emerald-400 font-semibold uppercase">
-                  Patch (Bugs)
-                </div>
-                <div className="text-xs font-mono font-bold text-white mt-0.5">
-                  v{semverSuggestions.patch}
-                </div>
-              </button>
+          {/* Tag Name Input */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-[#8b949e] flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-purple-400" />
+              Nombre de la Etiqueta Git (Tag):
+            </label>
+            <input
+              type="text"
+              value={tagName}
+              onChange={(e) => setTagName(e.target.value)}
+              placeholder="ej. v0.4.0"
+              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white font-mono focus:outline-hidden focus:border-purple-500 transition-colors"
+            />
+          </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedVersion(semverSuggestions.minor);
-                  setIsCustom(false);
-                }}
-                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  !isCustom && selectedVersion === semverSuggestions.minor
-                    ? "bg-sky-950/40 border-sky-500 text-white shadow-xs"
-                    : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:border-[#484f58]"
-                }`}
-              >
-                <div className="text-[10px] text-sky-400 font-semibold uppercase">
-                  Minor (Features)
-                </div>
-                <div className="text-xs font-mono font-bold text-white mt-0.5">
-                  v{semverSuggestions.minor}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedVersion(semverSuggestions.major);
-                  setIsCustom(false);
-                }}
-                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  !isCustom && selectedVersion === semverSuggestions.major
-                    ? "bg-purple-950/40 border-purple-500 text-white shadow-xs"
-                    : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:border-[#484f58]"
-                }`}
-              >
-                <div className="text-[10px] text-purple-400 font-semibold uppercase">
-                  Major (Breaking)
-                </div>
-                <div className="text-xs font-mono font-bold text-white mt-0.5">
-                  v{semverSuggestions.major}
-                </div>
-              </button>
-            </div>
-
-            {/* Custom version input */}
-            <div className="mt-2.5">
-              <label className="flex items-center gap-2 text-xs text-[#8b949e] cursor-pointer mb-1">
-                <input
-                  type="checkbox"
-                  checked={isCustom}
-                  onChange={(e) => setIsCustom(e.target.checked)}
-                  className="rounded border-[#30363d] text-purple-500 focus:ring-0"
-                />
-                <span>Especificar versión personalizada manualmente:</span>
-              </label>
-
-              {isCustom && (
-                <input
-                  type="text"
-                  placeholder="ej. 0.5.0-beta.1"
-                  value={customVersion}
-                  onChange={(e) => setCustomVersion(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-[#0d1117] border border-[#30363d] rounded-lg text-white font-mono focus:outline-hidden focus:border-purple-500"
-                />
-              )}
-            </div>
+          {/* Release Notes Textarea */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-[#8b949e] flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-purple-400" />
+              Mensaje o Notas de la Release (Opcional):
+            </label>
+            <textarea
+              value={releaseNotes}
+              onChange={(e) => setReleaseNotes(e.target.value)}
+              placeholder="Escribe un resumen de novedades o cambios importantes..."
+              rows={3}
+              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white placeholder-[#484f58] focus:outline-hidden focus:border-purple-500 transition-colors resize-none"
+            />
           </div>
 
           {/* GitHub Push Option */}
@@ -311,7 +267,7 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
                   Subir inmediatamente a GitHub (git push origin main y tag)
                 </span>
                 <span className="text-[10px] text-[#8b949e]">
-                  Dispara el pipeline de GitHub Actions para compilar los instaladores .deb y .AppImage de forma automática.
+                  Dispara el flujo de GitHub Actions para compilar los paquetes .deb, .rpm y .AppImage automáticamente.
                 </span>
               </div>
             </label>
@@ -333,18 +289,18 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
               size="sm"
               variant="primary"
               type="submit"
-              disabled={submitting || !finalVersion}
+              disabled={submitting || !tagName.trim()}
               className="bg-purple-600 hover:bg-purple-500 text-white font-semibold cursor-pointer shadow-lg shadow-purple-900/30 flex items-center gap-1.5"
             >
               {submitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Publicando v{finalVersion}...</span>
+                  <span>Publicando {tagName}...</span>
                 </>
               ) : (
                 <>
                   <Rocket className="w-4 h-4" />
-                  <span>Lanzar v{finalVersion}</span>
+                  <span>Publicar Release {tagName}</span>
                 </>
               )}
             </Button>

@@ -3,7 +3,7 @@ use crate::core::git_engine::{
     diff::{get_commit_changed_files, get_commit_file_diff, get_file_diff},
     get_branches, get_file_media_preview,
     history::get_commit_history,
-    release_ops::{execute_git_manager_release, is_git_manager_repo},
+    release_ops::{execute_git_manager_release, get_project_version, is_git_manager_repo},
     remote_ops::{
         checkout_branch, create_branch, delete_branch, git_clone, git_delete_remote_tag, git_fetch,
         git_fetch_tag, git_get_remote_tags, git_merge, git_pull, git_push, git_push_tag,
@@ -326,15 +326,28 @@ pub async fn is_git_manager_repo_cmd(path: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub async fn get_project_version_cmd(path: String) -> Result<Option<String>, String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    Ok(get_project_version(&repo))
+}
+
+#[tauri::command]
 pub async fn execute_git_manager_release_cmd(
     path: String,
-    new_version: String,
+    tag_name: String,
+    release_notes: Option<String>,
     merge_from_dev: bool,
     push_to_origin: bool,
 ) -> Result<String, String> {
     let repo = open_repository(&path).map_err(|e| e.to_string())?;
-    execute_git_manager_release(&repo, &new_version, merge_from_dev, push_to_origin)
-        .map_err(|e| e.to_string())
+    execute_git_manager_release(
+        &repo,
+        &tag_name,
+        release_notes.as_deref().unwrap_or(""),
+        merge_from_dev,
+        push_to_origin,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
