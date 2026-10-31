@@ -216,14 +216,41 @@ pub struct TerminalExecResult {
 
 #[tauri::command]
 pub async fn exec_terminal_cmd(cwd: String, command: String) -> Result<TerminalExecResult, String> {
-    let output = std::process::Command::new("bash")
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+    let user = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    let home = std::env::var("HOME").unwrap_or_else(|_| format!("/home/{}", user));
+
+    // Construct enriched PATH containing common tool locations (Cargo, Local bin, System paths)
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let mut path_entries = vec![
+        format!("{}/.cargo/bin", home),
+        format!("{}/.local/bin", home),
+        format!("{}/bin", home),
+        "/usr/local/sbin".to_string(),
+        "/usr/local/bin".to_string(),
+        "/usr/sbin".to_string(),
+        "/usr/bin".to_string(),
+        "/sbin".to_string(),
+        "/bin".to_string(),
+    ];
+    if !current_path.is_empty() {
+        path_entries.push(current_path);
+    }
+    let enriched_path = path_entries.join(":");
+
+    // Use -i (interactive) to ensure ~/.bashrc or ~/.zshrc is loaded,
+    // initializing NVM, node, npm, pnpm, cargo, pyenv, etc.
+    let output = std::process::Command::new(&shell)
+        .arg("-i")
         .arg("-c")
         .arg(&command)
         .current_dir(&cwd)
+        .env("PATH", enriched_path)
+        .env("HOME", &home)
+        .env("USER", &user)
         .output()
         .map_err(|e| format!("Error ejecutando comando en terminal: {}", e))?;
 
-    let user = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
     let hostname = std::process::Command::new("hostname")
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
