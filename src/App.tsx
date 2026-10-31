@@ -13,7 +13,6 @@ import {
   Tag,
   Plus,
   AlertTriangle,
-  ArrowUpCircle,
 } from "lucide-react";
 import logoImg from "./assets/logo.png";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -153,7 +152,7 @@ export const App: React.FC = () => {
     closeConfigModal: closeAiConfigModal,
   } = useAiAssistant();
 
-  const [settingsTab, setSettingsTab] = useState<"ai" | "appearance" | "about">("ai");
+  const [settingsTab, setSettingsTab] = useState<"ai" | "about">("ai");
 
   const [showCommitBody, setShowCommitBody] = useState<boolean>(() => {
     return localStorage.getItem("gitmanager_show_commit_body") === "true";
@@ -198,7 +197,7 @@ export const App: React.FC = () => {
     localStorage.setItem("gitmanager_show_commit_body", show ? "true" : "false");
   };
 
-  const handleOpenSettings = (tab: "ai" | "appearance" | "about" = "ai") => {
+  const handleOpenSettings = (tab: "ai" | "about" = "ai") => {
     setSettingsTab(tab);
     openAiConfigModal();
   };
@@ -206,8 +205,19 @@ export const App: React.FC = () => {
   const {
     status: appUpdateStatus,
     updateObj: appUpdateObj,
+    manualRelease: appManualRelease,
+    progress: appUpdateProgress,
+    error: appUpdateError,
     checkForUpdates: checkAppForUpdates,
+    installUpdate: installAppUpdate,
   } = useAppUpdater();
+
+  const hasAppUpdate =
+    appUpdateStatus === "available" || appUpdateStatus === "manual-available";
+  const appUpdateVersion =
+    appUpdateObj?.version ||
+    (appManualRelease?.version ? appManualRelease.version.replace(/^v/, "") : null) ||
+    "0.5.0";
 
   useEffect(() => {
     // Check for updates in the background on startup (silent)
@@ -754,6 +764,9 @@ export const App: React.FC = () => {
         activeTabId={activeTabId}
         user={githubUser}
         notificationCount={toolbarMessage || toolbarError ? 1 : 0}
+        hasUpdate={hasAppUpdate}
+        updateVersion={appUpdateVersion}
+        onOpenUpdates={() => handleOpenSettings("about")}
         onSwitchTab={switchTab}
         onCloseTab={closeTab}
         onOpenNewTab={() => setOpenRepoModalOpen(true)}
@@ -761,7 +774,6 @@ export const App: React.FC = () => {
         onLogout={logoutGitHub}
         onOpenRepos={fetchRepositories}
         onOpenSettings={() => handleOpenSettings("ai")}
-        onOpenNotifications={() => {}}
       />
 
       {/* Top Navigation Bar & GitKraken Action Toolbar */}
@@ -769,15 +781,25 @@ export const App: React.FC = () => {
         <div className="flex items-center gap-3">
           {/* Logo & Application Brand */}
           <div className="flex items-center gap-3">
-            <img
-              src={logoImg}
-              alt="GitManager"
-              className="h-12 w-12 object-contain shrink-0 filter drop-shadow-[0_0_16px_rgba(56,189,248,0.55)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.9)] transition-transform hover:scale-105 cursor-pointer"
-              onClick={() => handleOpenSettings("about")}
-              title="GitManager PRO"
-            />
+            <div className="relative">
+              <img
+                src={logoImg}
+                alt="GitManager"
+                className={`h-11 w-11 object-contain shrink-0 filter drop-shadow-[0_0_16px_rgba(56,189,248,0.55)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.9)] transition-transform hover:scale-105 cursor-pointer ${
+                  hasAppUpdate ? "animate-pulse" : ""
+                }`}
+                onClick={() => handleOpenSettings("about")}
+                title="GitManager PRO - Clic para ver acerca de y actualizaciones"
+              />
+              {hasAppUpdate && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-[#161b22]" />
+                </span>
+              )}
+            </div>
 
-            <div className="flex flex-col">
+            <div className="flex flex-col justify-center">
               <div className="flex items-center gap-1.5">
                 <h1 className="font-bold text-sm tracking-tight bg-gradient-to-r from-white via-[#c9d1d9] to-blue-300 bg-clip-text text-transparent">
                   GitManager
@@ -789,47 +811,54 @@ export const App: React.FC = () => {
                   type="button"
                   onClick={() => handleOpenSettings("about")}
                   className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#21262d] text-[#8b949e] hover:text-blue-300 hover:border-blue-500/40 border border-[#30363d] cursor-pointer transition-all"
-                  title={`GitManager PRO v${__APP_VERSION__} (clic para ver actualizaciones y acerca de)`}
+                  title={`GitManager PRO v${__APP_VERSION__} (clic para ver actualizaciones)`}
                 >
                   v{__APP_VERSION__}
                 </button>
-
-                {appUpdateStatus === "available" && appUpdateObj && (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenSettings("about")}
-                    className="flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 animate-pulse hover:bg-emerald-500/25 transition-all cursor-pointer shadow-xs ml-1"
-                    title={`¡Nueva versión v${appUpdateObj.version} disponible! Clic para instalar`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <ArrowUpCircle className="w-3 h-3 text-emerald-400" />
-                    <span>Actualización v{appUpdateObj.version}</span>
-                  </button>
-                )}
-                <span className="text-[#484f58] font-thin mx-1">/</span>
-                {activeTab && (
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span className="text-[#8b949e] text-[11px] font-sans font-medium">Repositorio:</span>
-                    <span
-                      className="font-mono text-xs px-2 py-0.5 rounded bg-[#1f6feb]/20 text-[#58a6ff] border border-blue-500/30 font-semibold truncate max-w-[150px]"
-                      title={`Repositorio: ${activeTab.name} (${activeTab.path})`}
-                    >
-                      {activeTab.name}
-                    </span>
-                  </div>
-                )}
-                {summary?.current_branch && (
-                  <div className="flex items-center gap-1.5 text-xs ml-1.5">
-                    <span className="text-[#8b949e] text-[11px] font-sans font-medium">Rama:</span>
-                    <Badge
-                      label={summary.current_branch}
-                      variant="purple"
-                      icon={<GitBranch className="w-3 h-3 text-purple-400" />}
-                    />
-                  </div>
-                )}
               </div>
+
+              {hasAppUpdate ? (
+                <button
+                  type="button"
+                  onClick={() => handleOpenSettings("about")}
+                  className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 cursor-pointer transition-colors group mt-0.5 text-left"
+                  title={`¡Nueva versión v${appUpdateVersion} disponible! Clic para actualizar`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="group-hover:underline">
+                    Nueva versión v{appUpdateVersion} disponible
+                  </span>
+                </button>
+              ) : (
+                <span className="text-[10px] text-[#8b949e] mt-0.5">
+                  Cliente Git & GitHub nativo
+                </span>
+              )}
             </div>
+
+            <span className="text-[#484f58] font-thin mx-1">/</span>
+
+            {activeTab && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-[#8b949e] text-[11px] font-sans font-medium">Repositorio:</span>
+                <span
+                  className="font-mono text-xs px-2 py-0.5 rounded bg-[#1f6feb]/20 text-[#58a6ff] border border-blue-500/30 font-semibold truncate max-w-[150px]"
+                  title={`Repositorio: ${activeTab.name} (${activeTab.path})`}
+                >
+                  {activeTab.name}
+                </span>
+              </div>
+            )}
+            {summary?.current_branch && (
+              <div className="flex items-center gap-1.5 text-xs ml-1.5">
+                <span className="text-[#8b949e] text-[11px] font-sans font-medium">Rama:</span>
+                <Badge
+                  label={summary.current_branch}
+                  variant="purple"
+                  icon={<GitBranch className="w-3 h-3 text-purple-400" />}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -1334,8 +1363,6 @@ export const App: React.FC = () => {
               currentBranch={currentBranchName}
               loading={stagingLoading}
               aiGenerating={aiGenerating}
-              hasCommitsToUndo={Boolean(summary?.head_commit_oid && graphNodes.length > 0)}
-              onUndoLastCommit={() => handleOpenUndoCommit()}
               onRefresh={() => {
                 refreshStatuses();
                 checkConflicts();
@@ -1445,7 +1472,7 @@ export const App: React.FC = () => {
         onClose={closeReposModal}
       />
 
-      {/* App Settings Modal (AI + Appearance & Graph + About & Updates) */}
+      {/* App Settings Modal (AI + About & Updates) */}
       <AppSettingsModal
         isOpen={aiConfigModalOpen}
         initialTab={settingsTab}
@@ -1454,6 +1481,13 @@ export const App: React.FC = () => {
         onToggleShowCommitBody={handleToggleShowCommitBody}
         onSaveAiConfig={saveAiConfig}
         onClose={closeAiConfigModal}
+        updateStatus={appUpdateStatus}
+        updateObj={appUpdateObj}
+        manualRelease={appManualRelease}
+        updateProgress={appUpdateProgress}
+        updateError={appUpdateError}
+        onCheckForUpdates={checkAppForUpdates}
+        onInstallUpdate={installAppUpdate}
       />
 
       {/* 3-Way Merge Conflict Resolver Modal */}

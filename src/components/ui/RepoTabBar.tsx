@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Plus,
   X,
@@ -8,6 +8,7 @@ import {
   Cloud,
   ChevronDown,
   FolderGit2,
+  Sparkles,
 } from "lucide-react";
 import { RepoTab } from "../../hooks/useRepoTabs";
 import { GitHubUser } from "../../types/git";
@@ -17,6 +18,9 @@ interface RepoTabBarProps {
   activeTabId: string;
   user: GitHubUser | null;
   notificationCount?: number;
+  hasUpdate?: boolean;
+  updateVersion?: string | null;
+  onOpenUpdates?: () => void;
   onSwitchTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onOpenNewTab: () => void;
@@ -32,6 +36,9 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
   activeTabId,
   user,
   notificationCount = 0,
+  hasUpdate = false,
+  updateVersion = null,
+  onOpenUpdates,
   onSwitchTab,
   onCloseTab,
   onOpenNewTab,
@@ -42,6 +49,34 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
   onOpenNotifications,
 }) => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  const effectiveNotificationCount = (hasUpdate ? 1 : 0) + notificationCount;
+
+  useEffect(() => {
+    if (!notificationsOpen && !profileDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        notificationsOpen &&
+        notificationsRef.current &&
+        !notificationsRef.current.contains(target)
+      ) {
+        setNotificationsOpen(false);
+      }
+      if (
+        profileDropdownOpen &&
+        profileRef.current &&
+        !profileRef.current.contains(target)
+      ) {
+        setProfileDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [notificationsOpen, profileDropdownOpen]);
 
   return (
     <div className="h-9 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between px-2 select-none shrink-0 gap-2 z-40">
@@ -111,19 +146,105 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
         </button>
       </div>
 
-      {/* Right side: Notifications Bell, Settings Gear & User Profile (Flechas 2 y 7) */}
+      {/* Right side: Notifications Bell, Settings Gear & User Profile */}
       <div className="flex items-center gap-1.5 shrink-0 relative">
         {/* Notifications Bell */}
-        <button
-          onClick={onOpenNotifications}
-          className="p-1 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors relative"
-          title="Notificaciones"
-        >
-          <Bell className="w-3.5 h-3.5" />
-          {notificationCount > 0 && (
-            <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />
+        <div className="relative" ref={notificationsRef}>
+          <button
+            onClick={() => {
+              setNotificationsOpen(!notificationsOpen);
+              onOpenNotifications?.();
+            }}
+            className={`p-1 rounded transition-colors relative cursor-pointer ${
+              notificationsOpen
+                ? "bg-[#21262d] text-white"
+                : "text-[#8b949e] hover:text-white hover:bg-[#21262d]"
+            }`}
+            title={
+              hasUpdate
+                ? `¡Nueva versión v${updateVersion || ""} disponible!`
+                : effectiveNotificationCount > 0
+                ? `${effectiveNotificationCount} notificaciones`
+                : "Notificaciones"
+            }
+          >
+            <Bell className="w-3.5 h-3.5" />
+            {effectiveNotificationCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 flex h-2 w-2">
+                {hasUpdate && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                )}
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 ${
+                    hasUpdate ? "bg-emerald-500" : "bg-blue-500"
+                  }`}
+                />
+              </span>
+            )}
+          </button>
+
+          {/* Notifications Dropdown */}
+          {notificationsOpen && (
+            <div className="absolute right-0 top-full mt-1.5 w-76 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+              <div className="px-3 py-1.5 border-b border-[#30363d]/70 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-semibold text-white text-xs">
+                  <Bell className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Notificaciones</span>
+                  {effectiveNotificationCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      {effectiveNotificationCount}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen(false)}
+                  className="p-1 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+
+              <div className="flex flex-col p-2 gap-2 max-h-64 overflow-y-auto">
+                {hasUpdate ? (
+                  <div className="p-3 bg-gradient-to-br from-emerald-950/40 to-blue-950/30 border border-emerald-500/30 rounded-lg flex flex-col gap-2">
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div className="flex flex-col flex-1">
+                        <span className="font-semibold text-emerald-300 text-xs">
+                          Nueva versión v{updateVersion} disponible
+                        </span>
+                        <p className="text-[11px] text-[#8b949e] mt-0.5 leading-snug">
+                          Hay una actualización lista para instalar con mejoras y correcciones.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotificationsOpen(false);
+                        if (onOpenUpdates) {
+                          onOpenUpdates();
+                        } else {
+                          onOpenSettings();
+                        }
+                      }}
+                      className="w-full mt-1 py-1.5 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Actualizar aplicación</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-[#8b949e] text-[11px] flex flex-col items-center gap-1.5">
+                    <Bell className="w-5 h-5 text-[#484f58]" />
+                    <span>No tienes notificaciones pendientes</span>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
-        </button>
+        </div>
 
         {/* App Settings Gear */}
         <button
@@ -138,7 +259,7 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
 
         {/* GitHub User Profile / Login */}
         {user ? (
-          <div className="relative">
+          <div className="relative" ref={profileRef}>
             <button
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
               className="flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors text-xs text-[#c9d1d9] group"

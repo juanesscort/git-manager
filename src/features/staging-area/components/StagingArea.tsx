@@ -19,7 +19,6 @@ import {
   Maximize2,
   Tag,
   TagPlus,
-  Undo2,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -46,8 +45,6 @@ interface StagingAreaProps {
   onGenerateAiCommit?: () => Promise<string | null>;
   onOpenAiConfig?: () => void;
   onOpenConflictResolver?: (path: string) => void;
-  onUndoLastCommit?: () => void;
-  hasCommitsToUndo?: boolean;
 }
 
 interface StagingTreeNode {
@@ -109,8 +106,6 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   onGenerateAiCommit,
   onOpenAiConfig,
   onOpenConflictResolver,
-  onUndoLastCommit,
-  hasCommitsToUndo = false,
 }) => {
   const [commitTitle, setCommitTitle] = useState("");
   const [commitDescription, setCommitDescription] = useState("");
@@ -528,25 +523,11 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         className="bg-[#161b22] p-3 flex flex-col gap-2 shrink-0 min-h-[230px] overflow-y-auto no-scrollbar justify-start"
       >
         <div className="flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
-                Título
-              </span>
-              <span className="text-[10px] text-rose-400 font-bold">*</span>
-            </div>
-
-            {hasCommitsToUndo && onUndoLastCommit && (
-              <button
-                type="button"
-                onClick={onUndoLastCommit}
-                className="text-[10px] text-amber-400/80 hover:text-amber-300 hover:underline flex items-center gap-1 transition-colors cursor-pointer"
-                title="Deshacer el commit más reciente y conservar los cambios en el área de preparación"
-              >
-                <Undo2 className="w-3 h-3 text-amber-400" />
-                <span>Deshacer último</span>
-              </button>
-            )}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider">
+              Título
+            </span>
+            <span className="text-[10px] text-rose-400 font-bold">*</span>
           </div>
 
           <div className="flex items-center gap-1.5">

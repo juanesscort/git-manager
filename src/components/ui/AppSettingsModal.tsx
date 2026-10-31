@@ -3,7 +3,6 @@ import { AiConfig, SaveAiConfigRequest } from "../../types/git";
 import {
   Sparkles,
   X,
-  Shield,
   Server,
   Key,
   ExternalLink,
@@ -13,22 +12,27 @@ import {
   Info,
   Download,
   CheckCircle2,
-  Cpu,
-  Sliders,
-  GitCommit,
 } from "lucide-react";
 import { Button } from "./Button";
-import { useAppUpdater } from "../../hooks/useAppUpdater";
+import { useAppUpdater, UpdateStatus, ManualReleaseInfo } from "../../hooks/useAppUpdater";
+import { Update } from "@tauri-apps/plugin-updater";
 import logoImg from "../../assets/logo.png";
 
 interface AppSettingsModalProps {
   isOpen: boolean;
-  initialTab?: "ai" | "appearance" | "about";
+  initialTab?: "ai" | "about";
   currentConfig: AiConfig | null;
   showCommitBody?: boolean;
   onToggleShowCommitBody?: (show: boolean) => void;
   onSaveAiConfig: (config: SaveAiConfigRequest) => void;
   onClose: () => void;
+  updateStatus?: UpdateStatus;
+  updateObj?: Update | null;
+  manualRelease?: ManualReleaseInfo | null;
+  updateProgress?: number;
+  updateError?: string | null;
+  onCheckForUpdates?: () => Promise<void>;
+  onInstallUpdate?: () => Promise<void>;
 }
 
 const GEMINI_MODELS = [
@@ -58,29 +62,37 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
   isOpen,
   initialTab = "ai",
   currentConfig,
-  showCommitBody = false,
-  onToggleShowCommitBody,
   onSaveAiConfig,
   onClose,
+  updateStatus: propUpdateStatus,
+  updateObj: propUpdateObj,
+  manualRelease: propManualRelease,
+  updateProgress: propUpdateProgress,
+  updateError: propUpdateError,
+  onCheckForUpdates,
+  onInstallUpdate,
 }) => {
-  const [activeTab, setActiveTab] = useState<"ai" | "appearance" | "about">(initialTab);
+  const [activeTab, setActiveTab] = useState<"ai" | "about">(
+    initialTab === "about" ? "about" : "ai"
+  );
   const [provider, setProvider] = useState<string>("gemini");
   const [apiKey, setApiKey] = useState<string>("");
   const [model, setModel] = useState<string>("");
   const [baseUrl, setBaseUrl] = useState<string>("");
 
-  const {
-    status: updateStatus,
-    updateObj,
-    manualRelease,
-    progress: updateProgress,
-    error: updateError,
-    checkForUpdates,
-    installUpdate,
-  } = useAppUpdater();
+  const internalUpdater = useAppUpdater();
+
+  const updateStatus = propUpdateStatus ?? internalUpdater.status;
+  const updateObj = propUpdateObj !== undefined ? propUpdateObj : internalUpdater.updateObj;
+  const manualRelease =
+    propManualRelease !== undefined ? propManualRelease : internalUpdater.manualRelease;
+  const updateProgress = propUpdateProgress ?? internalUpdater.progress;
+  const updateError = propUpdateError !== undefined ? propUpdateError : internalUpdater.error;
+  const checkForUpdates = onCheckForUpdates ?? internalUpdater.checkForUpdates;
+  const installUpdate = onInstallUpdate ?? internalUpdater.installUpdate;
 
   useEffect(() => {
-    setActiveTab(initialTab);
+    setActiveTab(initialTab === "about" ? "about" : "ai");
   }, [initialTab]);
 
   useEffect(() => {
@@ -117,11 +129,11 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 select-none animate-in fade-in duration-150">
-      <div className="w-full max-w-xl bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header with Navigation Tabs */}
-        <div className="px-5 py-3 border-b border-[#30363d] flex items-center justify-between bg-[#0d1117]">
-          <div className="flex items-center gap-4">
-            <h2 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+      <div className="w-full max-w-xl bg-[#161b22] border border-[#30363d] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header Tabs */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[#30363d] bg-[#0d1117]/80 shrink-0">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <span>Configuración</span>
             </h2>
 
@@ -137,19 +149,6 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 <span>Asistente IA</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("appearance")}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors ${
-                  activeTab === "appearance"
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-[#8b949e] hover:text-white"
-                }`}
-              >
-                <Sliders className="w-3.5 h-3.5 text-cyan-300" />
-                <span>Vista & Grafo</span>
               </button>
 
               <button
@@ -198,12 +197,11 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                     className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all text-center cursor-pointer ${
                       provider === "gemini"
                         ? "bg-blue-950/40 border-blue-500 text-white shadow-sm"
-                        : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white"
+                        : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:border-[#484f58] hover:text-[#c9d1d9]"
                     }`}
                   >
-                    <Sparkles className="w-5 h-5 text-amber-400 mb-1" />
-                    <span className="font-semibold text-xs">Gemini API</span>
-                    <span className="text-[10px] text-[#8b949e] mt-0.5">Google Cloud</span>
+                    <span className="font-semibold text-xs text-blue-400">Google Gemini</span>
+                    <span className="text-[10px] text-emerald-400 mt-0.5 font-medium">Recomendado (Free)</span>
                   </button>
 
                   <button
@@ -211,16 +209,15 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                     onClick={() => {
                       setProvider("ollama");
                       setModel("qwen2.5-coder");
-                      setBaseUrl("http://localhost:11434");
+                      if (!baseUrl) setBaseUrl("http://localhost:11434");
                     }}
                     className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all text-center cursor-pointer ${
                       provider === "ollama"
-                        ? "bg-emerald-950/40 border-emerald-500 text-white shadow-sm"
-                        : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white"
+                        ? "bg-purple-950/40 border-purple-500 text-white shadow-sm"
+                        : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:border-[#484f58] hover:text-[#c9d1d9]"
                     }`}
                   >
-                    <Server className="w-5 h-5 text-emerald-400 mb-1" />
-                    <span className="font-semibold text-xs">Ollama Local</span>
+                    <span className="font-semibold text-xs text-purple-400">Ollama Local</span>
                     <span className="text-[10px] text-[#8b949e] mt-0.5">100% Privado</span>
                   </button>
 
@@ -229,154 +226,153 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                     onClick={() => {
                       setProvider("openai");
                       setModel("gpt-4o-mini");
-                      setBaseUrl("https://api.openai.com/v1");
                     }}
                     className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all text-center cursor-pointer ${
                       provider === "openai"
-                        ? "bg-purple-950/40 border-purple-500 text-white shadow-sm"
-                        : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white"
+                        ? "bg-emerald-950/40 border-emerald-500 text-white shadow-sm"
+                        : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:border-[#484f58] hover:text-[#c9d1d9]"
                     }`}
                   >
-                    <Key className="w-5 h-5 text-purple-400 mb-1" />
-                    <span className="font-semibold text-xs">OpenAI / Groq</span>
-                    <span className="text-[10px] text-[#8b949e] mt-0.5">Compatible</span>
+                    <span className="font-semibold text-xs text-emerald-400">OpenAI Compatible</span>
+                    <span className="text-[10px] text-[#8b949e] mt-0.5">GPT-4o Mini / Otros</span>
                   </button>
                 </div>
               </div>
 
-              {/* Provider Specific Inputs */}
-              {provider !== "ollama" && (
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-blue-400" />
-                      API Key
-                    </label>
-                    {provider === "gemini" && (
-                      <a
-                        href="https://aistudio.google.com/app/apikey"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] text-blue-400 hover:underline flex items-center gap-1"
-                      >
-                        Obtener API Key en Google AI Studio <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
+              {/* Provider Fields */}
+              {provider === "gemini" && (
+                <div className="flex flex-col gap-3 p-3.5 bg-[#0d1117] rounded-xl border border-[#30363d]">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-white flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-blue-400" />
+                      Gemini API Key
+                    </span>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                    >
+                      <span>Obtener API Key Gratis</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
+
                   <input
                     type="password"
-                    placeholder={
-                      currentConfig?.has_api_key
-                        ? "•••••••••••••••••••••••••••••••••••• (Guardada de forma segura en Keyring)"
-                        : "Pega tu API Key..."
-                    }
+                    placeholder="AIzaSy..."
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    className={`w-full bg-[#0d1117] border rounded px-3 py-2 text-xs text-white placeholder-[#484f58] focus:outline-none font-mono ${
-                      isGeminiOAuthClientId
-                        ? "border-amber-500"
-                        : "border-[#30363d] focus:border-blue-500"
-                    }`}
+                    className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-hidden font-mono"
                   />
 
-                  {/* Warning if OAuth Client ID is pasted */}
                   {isGeminiOAuthClientId && (
-                    <div className="mt-2 p-2.5 bg-amber-950/40 border border-amber-500/40 rounded text-[11px] text-amber-200 flex items-start gap-2">
+                    <div className="p-2.5 bg-amber-950/40 border border-amber-500/40 rounded-lg text-amber-200 text-[11px] flex items-start gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-semibold text-amber-300">¡Advertencia de Credencial! </span>
-                        Has ingresado <span className="font-mono bg-black/40 px-1 py-0.5 rounded text-amber-300">gen-lang-client-...</span>, que es un Client ID OAuth de Google Cloud, no una API Key.
-                        <br />
-                        Las API Keys de Gemini comienzan con <span className="font-mono text-emerald-400 font-bold">AIzaSy...</span> o <span className="font-mono text-emerald-400 font-bold">AQ.Ab...</span>.
+                        Has ingresado un Client ID de OAuth. Gemini requiere una <strong>API Key</strong> generada en Google AI Studio.
                       </div>
                     </div>
                   )}
 
-                  {provider === "gemini" && !isGeminiOAuthClientId && (
-                    <p className="text-[10px] text-[#8b949e] mt-1">
-                      Tu API Key queda guardada permanentemente en el llavero seguro de Linux (Secret Service API / GNOME Keyring).
-                    </p>
-                  )}
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    <label className="text-[11px] font-semibold text-[#8b949e]">
+                      Modelo Preferido (Con rotación automática inteligente):
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {GEMINI_MODELS.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setModel(m.id)}
+                          className={`p-2 rounded-lg border text-left cursor-pointer transition-all ${
+                            model === m.id
+                              ? "bg-blue-950/40 border-blue-500 text-white"
+                              : "bg-[#161b22] border-[#30363d] text-[#8b949e] hover:border-[#484f58]"
+                          }`}
+                        >
+                          <div className="font-semibold text-[11px] text-white flex items-center justify-between">
+                            <span>{m.name}</span>
+                            {model === m.id && <Check className="w-3 h-3 text-blue-400" />}
+                          </div>
+                          <div className="text-[10px] text-[#8b949e] mt-0.5">{m.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Model Selection */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider block">
-                    Modelo de IA
-                  </label>
-                  {provider === "gemini" && (
-                    <span className="text-[10px] text-emerald-400 font-medium">Mayor cuota gratuita</span>
-                  )}
+              {provider === "ollama" && (
+                <div className="flex flex-col gap-3 p-3.5 bg-[#0d1117] rounded-xl border border-[#30363d]">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-white">
+                    <Server className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Configuración de Ollama Local</span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-[#8b949e] block mb-1">URL del Servidor Ollama:</label>
+                    <input
+                      type="text"
+                      placeholder="http://localhost:11434"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                      className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-hidden font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-[#8b949e] block mb-1">Nombre del Modelo:</label>
+                    <input
+                      type="text"
+                      placeholder="qwen2.5-coder o codellama"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-hidden font-mono"
+                    />
+                  </div>
                 </div>
+              )}
 
-                {/* Quick buttons for Gemini */}
-                {provider === "gemini" && (
-                  <>
-                    <div className="grid grid-cols-2 gap-1.5 mb-2">
-                      {GEMINI_MODELS.map((m) => {
-                        const isSelected = model === m.id;
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => setModel(m.id)}
-                            className={`flex flex-col p-2 rounded border text-left cursor-pointer transition-all ${
-                              isSelected
-                                ? "bg-blue-900/30 border-blue-500 text-white"
-                                : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-[#c9d1d9] hover:border-[#484f58]"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono font-semibold text-[11px]">{m.name}</span>
-                              {isSelected && <Check className="w-3.5 h-3.5 text-blue-400" />}
-                            </div>
-                            <span className="text-[9px] text-[#8b949e] mt-0.5">{m.desc}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+              {provider === "openai" && (
+                <div className="flex flex-col gap-3 p-3.5 bg-[#0d1117] rounded-xl border border-[#30363d]">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-white">
+                    <Key className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Configuración OpenAI Compatible</span>
+                  </div>
 
-                    {/* Failover Info Banner */}
-                    <div className="p-2 bg-[#0d1117] border border-[#30363d] rounded text-[10px] text-[#8b949e] flex items-start gap-1.5 mb-2">
-                      <RefreshCw className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-semibold text-blue-300">Respaldo Automático en Cascada Activo: </span>
-                        Si el modelo principal agota su cuota de 500 peticiones diarias o límite por minuto, conmuta automáticamente a los modelos de respaldo (hasta 3 niveles) para garantizar continuidad total.
-                      </div>
-                    </div>
-                  </>
-                )}
+                  <div>
+                    <label className="text-[11px] text-[#8b949e] block mb-1">API Key:</label>
+                    <input
+                      type="password"
+                      placeholder="sk-..."
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-hidden font-mono"
+                    />
+                  </div>
 
-                <input
-                  type="text"
-                  placeholder={
-                    provider === "gemini"
-                      ? "gemini-3.5-flash-lite"
-                      : provider === "ollama"
-                      ? "qwen2.5-coder"
-                      : "gpt-4o-mini"
-                  }
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-none font-mono"
-                />
-              </div>
+                  <div>
+                    <label className="text-[11px] text-[#8b949e] block mb-1">Modelo:</label>
+                    <input
+                      type="text"
+                      placeholder="gpt-4o-mini"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-hidden font-mono"
+                    />
+                  </div>
 
-              {/* Base URL (for Ollama or custom OpenAI proxy) */}
-              {(provider === "ollama" || provider === "openai") && (
-                <div>
-                  <label className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider block mb-1.5">
-                    Endpoint URL
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={provider === "ollama" ? "http://localhost:11434" : "https://api.openai.com/v1"}
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-xs text-white placeholder-[#484f58] focus:border-blue-500 focus:outline-none font-mono"
-                  />
+                  <div>
+                    <label className="text-[11px] text-[#8b949e] block mb-1">Base URL (Opcional):</label>
+                    <input
+                      type="text"
+                      placeholder="https://api.openai.com/v1"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                      className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-hidden font-mono"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -397,91 +393,16 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
             </form>
           )}
 
-          {/* TAB 2: VISTA & GRAFO */}
-          {activeTab === "appearance" && (
-            <div className="flex flex-col gap-5 py-1">
-              <div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1 flex items-center gap-2">
-                  <GitCommit className="w-4 h-4 text-blue-400" />
-                  <span>Visualización del Grafo y Tabla</span>
-                </h3>
-                <p className="text-[11px] text-[#8b949e]">
-                  Personaliza cómo se presentan las ramas, etiquetas, commits y columnas en la vista principal.
-                </p>
-              </div>
-
-              {/* Option 1: Flecha 5 - Show commit extended description */}
-              <div className="bg-[#0d1117] border border-[#30363d] rounded-xl p-4 flex items-center justify-between gap-4 shadow-sm hover:border-blue-500/30 transition-colors">
-                <div className="flex flex-col gap-1 pr-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white text-xs">
-                      Mostrar descripción extendida en el grafo de commits
-                    </span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-950/70 border border-blue-500/40 text-blue-300">
-                      Vista Detallada
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#8b949e] leading-relaxed">
-                    Muestra el cuerpo/descripción explicativa de los commits debajo del título principal en la tabla central del grafo, cuando esté disponible.
-                  </p>
-                </div>
-
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={showCommitBody}
-                    onChange={(e) => onToggleShowCommitBody && onToggleShowCommitBody(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5.5 bg-[#21262d] peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:start-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
-                </label>
-              </div>
-
-              {/* Option 2: Column Widths persistence & reset */}
-              <div className="bg-[#0d1117] border border-[#30363d] rounded-xl p-4 flex items-center justify-between gap-4 shadow-sm">
-                <div className="flex flex-col gap-1">
-                  <span className="font-semibold text-white text-xs">
-                    Ancho de Columnas del Grafo
-                  </span>
-                  <p className="text-[11px] text-[#8b949e] leading-relaxed">
-                    Puedes ajustar interactivamente el ancho de las columnas arrastrando las líneas divisorias en el encabezado. Haz clic aquí si deseas restaurar los anchos por defecto.
-                  </p>
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    localStorage.removeItem("gitmanager_col_branch_width");
-                    localStorage.removeItem("gitmanager_col_graph_width");
-                    window.location.reload();
-                  }}
-                  className="shrink-0 text-xs hover:border-amber-500/40 hover:text-amber-300"
-                  title="Restablecer anchos guardados"
-                >
-                  Restablecer
-                </Button>
-              </div>
-
-              <div className="p-3 rounded-lg bg-blue-950/20 border border-blue-500/20 text-[#8b949e] text-[11px] flex items-center gap-2">
-                <Info className="w-4 h-4 text-blue-400 shrink-0" />
-                <span>
-                  Los cambios de visualización se guardan automáticamente en tu perfil de usuario local.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: ACERCA DE GIT-MANAGER & ACTUALIZACIONES */}
+          {/* TAB 2: ACERCA DE GIT-MANAGER & ACTUALIZACIONES */}
           {activeTab === "about" && (
-            <div className="flex flex-col gap-5">
-              {/* Hero Banner */}
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-[#0d1117] border border-[#30363d]">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-700 flex items-center justify-center p-0.5 shadow-lg shrink-0">
-                  <div className="w-full h-full bg-[#161b22] rounded-[10px] flex items-center justify-center overflow-hidden p-1">
-                    <img src={logoImg} alt="GitManager Logo" className="w-full h-full object-contain" />
-                  </div>
-                </div>
+            <div className="flex flex-col gap-5 py-1">
+              {/* Brand Presentation - Flat, without nested cards (Flechas 2, 3, 4) */}
+              <div className="flex items-center gap-4 py-1">
+                <img
+                  src={logoImg}
+                  alt="GitManager Logo"
+                  className="w-16 h-16 object-contain shrink-0 filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                />
 
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
@@ -493,21 +414,17 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                       v{__APP_VERSION__}
                     </span>
                   </div>
-                  <p className="text-[11px] text-[#8b949e] mt-0.5">
+                  <p className="text-[11px] text-[#8b949e] mt-1">
                     Cliente de escritorio nativo de Git & GitHub con Asistente IA, Grafo Interactivo y Gestor de Tags.
                   </p>
-                  <div className="flex items-center gap-3 mt-1.5 text-[10px] text-[#8b949e] font-mono">
-                    <span className="flex items-center gap-1">
-                      <Cpu className="w-3 h-3 text-purple-400" /> Linux x86_64 (Tauri v2 + Rust)
-                    </span>
-                    <span>•</span>
-                    <span>React 19 + TypeScript</span>
-                  </div>
                 </div>
               </div>
 
-              {/* Updates Section Card */}
-              <div className="p-4 rounded-xl bg-[#0d1117] border border-[#30363d] flex flex-col gap-3">
+              {/* Clean Divider */}
+              <div className="border-t border-[#30363d]" />
+
+              {/* Updates Section - Direct and Flat (Flechas 1 y 2) */}
+              <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <RefreshCw className="w-4 h-4 text-blue-400" />
@@ -540,23 +457,25 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                 )}
 
                 {updateStatus === "checking" && (
-                  <div className="text-[11px] text-blue-400 animate-pulse">
-                    Conectando con GitHub Releases y verificando firmas criptográficas...
+                  <div className="text-[11px] text-blue-400 animate-pulse flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Conectando con GitHub Releases y verificando firmas criptográficas...</span>
                   </div>
                 )}
 
                 {updateStatus === "up-to-date" && (
-                  <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-lg flex items-center gap-2.5 text-emerald-300 text-xs">
+                  <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl flex items-center gap-2.5 text-emerald-300 text-xs">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>¡Estás al día! Tienes instalada la versión más reciente de Git-Manager (v{__APP_VERSION__}).</span>
                   </div>
                 )}
 
                 {updateStatus === "available" && updateObj && (
-                  <div className="p-3.5 bg-blue-950/40 border border-blue-500/50 rounded-lg flex flex-col gap-2">
+                  <div className="p-3.5 bg-blue-950/30 border border-blue-500/40 rounded-xl flex flex-col gap-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-blue-300 text-xs">
-                        🚀 ¡Nueva versión disponible: {updateObj.version}!
+                      <span className="font-bold text-blue-300 text-xs flex items-center gap-1.5">
+                        <span>🚀</span>
+                        <span>¡Nueva versión disponible: v{updateObj.version}!</span>
                       </span>
                       <Button
                         size="sm"
@@ -570,7 +489,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                     </div>
 
                     {updateObj.body && (
-                      <div className="bg-[#161b22] p-2.5 rounded border border-[#30363d] text-[11px] text-[#c9d1d9] font-mono whitespace-pre-wrap max-h-28 overflow-y-auto">
+                      <div className="p-2.5 rounded-lg bg-[#0d1117] text-[11px] text-[#c9d1d9] font-mono whitespace-pre-wrap max-h-32 overflow-y-auto border border-[#30363d]/60">
                         {updateObj.body}
                       </div>
                     )}
@@ -578,10 +497,11 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                 )}
 
                 {updateStatus === "manual-available" && manualRelease && (
-                  <div className="p-3.5 bg-blue-950/40 border border-blue-500/50 rounded-lg flex flex-col gap-2">
+                  <div className="p-3.5 bg-blue-950/30 border border-blue-500/40 rounded-xl flex flex-col gap-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-blue-300 text-xs">
-                        🚀 ¡Nueva versión disponible en GitHub: {manualRelease.version}!
+                      <span className="font-bold text-blue-300 text-xs flex items-center gap-1.5">
+                        <span>🚀</span>
+                        <span>¡Nueva versión disponible: {manualRelease.version}!</span>
                       </span>
                       <Button
                         size="sm"
@@ -606,7 +526,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                     </p>
 
                     {manualRelease.body && (
-                      <div className="bg-[#161b22] p-2.5 rounded border border-[#30363d] text-[11px] text-[#c9d1d9] font-mono whitespace-pre-wrap max-h-28 overflow-y-auto">
+                      <div className="p-2.5 rounded-lg bg-[#0d1117] text-[11px] text-[#c9d1d9] font-mono whitespace-pre-wrap max-h-32 overflow-y-auto border border-[#30363d]/60">
                         {manualRelease.body}
                       </div>
                     )}
@@ -614,7 +534,7 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                 )}
 
                 {updateStatus === "downloading" && (
-                  <div className="flex flex-col gap-2 p-3 bg-blue-950/30 border border-blue-500/30 rounded-lg">
+                  <div className="flex flex-col gap-2 p-3 bg-blue-950/30 border border-blue-500/30 rounded-xl">
                     <div className="flex items-center justify-between text-xs text-blue-300">
                       <span>Descargando actualización desde GitHub...</span>
                       <span className="font-mono font-bold">{updateProgress}%</span>
@@ -629,44 +549,44 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({
                 )}
 
                 {updateStatus === "ready" && (
-                  <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-lg text-emerald-300 text-xs">
+                  <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs">
                     Actualización instalada con éxito. Reiniciando Git-Manager...
                   </div>
                 )}
 
                 {updateStatus === "error" && (
-                  <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-lg flex items-start gap-2 text-amber-200 text-xs">
+                  <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-xl flex items-start gap-2 text-amber-200 text-xs">
                     <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-semibold text-amber-300">Nota de Actualización: </span>
-                      {updateError?.includes("404") || updateError?.includes("release")
-                        ? `Aún no se ha publicado una versión en GitHub Releases para comparar. Esta versión v${__APP_VERSION__} es la actual.`
-                        : `No se pudo conectar al servicio de releases: ${updateError}`}
+                      <span className="font-semibold">Aviso de actualización:</span>
+                      <p className="mt-0.5 text-[#8b949e]">{updateError}</p>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Useful Links & Community */}
-              <div className="flex items-center justify-between pt-2 border-t border-[#30363d] text-[11px] text-[#8b949e]">
+              {/* Clean Footer Links */}
+              <div className="border-t border-[#30363d] pt-3 flex items-center justify-between text-[11px] text-[#8b949e]">
                 <span>Desarrollado para la comunidad de código abierto</span>
                 <div className="flex items-center gap-3">
                   <a
                     href="https://github.com/juanesscort/git-manager"
                     target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-400 hover:underline flex items-center gap-1"
+                    rel="noopener noreferrer"
+                    className="hover:text-blue-400 flex items-center gap-1"
                   >
-                    Repositorio GitHub <ExternalLink className="w-3 h-3" />
+                    <span>Repositorio GitHub</span>
+                    <ExternalLink className="w-3 h-3" />
                   </a>
                   <span>•</span>
                   <a
                     href="https://github.com/juanesscort/git-manager/issues"
                     target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-400 hover:underline flex items-center gap-1"
+                    rel="noopener noreferrer"
+                    className="hover:text-blue-400 flex items-center gap-1"
                   >
-                    Reportar Problema <ExternalLink className="w-3 h-3" />
+                    <span>Reportar Problema</span>
+                    <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
               </div>
