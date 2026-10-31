@@ -166,6 +166,22 @@ fn test_branches_and_commit_changes() {
     assert_eq!(branches.local.len(), 1);
     assert!(branches.local[0].is_head);
 
+    // Create branch 'dev' from HEAD
+    let head_commit = repo
+        .find_commit(git2::Oid::from_str(&oid).unwrap())
+        .expect("find commit");
+    repo.branch("dev", &head_commit, false)
+        .expect("create dev branch");
+
+    let branches_after = get_branches(&repo).expect("get branches after dev");
+    let dev_branch = branches_after
+        .local
+        .iter()
+        .find(|b| b.name == "dev")
+        .expect("find dev branch");
+    assert!(dev_branch.parent_branch.is_some());
+    assert_eq!(dev_branch.fork_point_oid.as_deref(), Some(oid.as_str()));
+
     // Test commit changed files
     let changes = get_commit_changed_files(&repo, &oid).expect("get commit files");
     assert_eq!(changes.len(), 1);

@@ -649,7 +649,9 @@ export const App: React.FC = () => {
     branchName: string,
     isHead: boolean,
     isRemote: boolean,
-    commitOid?: string
+    commitOid?: string,
+    parentBranch?: string | null,
+    forkPointOid?: string | null
   ) => {
     setContextMenuState({
       isOpen: true,
@@ -659,6 +661,8 @@ export const App: React.FC = () => {
       isHead,
       isRemote,
       commitOid,
+      parentBranch,
+      forkPointOid,
     });
   };
 
@@ -712,8 +716,8 @@ export const App: React.FC = () => {
     }
   };
 
-  // Navigate to branch tip commit on graph without checkout
-  const handleSelectBranchCommit = (_branchName: string, targetOid: string) => {
+  // Navigate to commit on graph without checkout
+  const handleNavigateToCommit = (targetOid: string) => {
     setActiveCenterTab("graph");
     setIsWipSelected(false);
     const node = graphNodes.find((n) => n.commit.oid === targetOid);
@@ -726,6 +730,11 @@ export const App: React.FC = () => {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }, 50);
+  };
+
+  // Navigate to branch tip commit on graph without checkout
+  const handleSelectBranchCommit = (_branchName: string, targetOid: string) => {
+    handleNavigateToCommit(targetOid);
   };
 
   // Multi-tab Active Tab & Diff resolution
@@ -1525,6 +1534,7 @@ export const App: React.FC = () => {
         onRebase={(branchName) => rebaseBranch(branchName)}
         onRename={(oldName, newName) => renameBranch(oldName, newName)}
         onDelete={(branchName) => deleteBranch(branchName)}
+        onGoToForkPoint={handleNavigateToCommit}
         onCreateBranchHere={(_commitOid, _baseBranch) => {
           setBranchModalOpen(true);
         }}

@@ -259,11 +259,23 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               <ChevronDown className="w-3 h-3 text-[#484f58] shrink-0" />
             )}
             {isCollapsed ? (
-              <Folder className="w-3.5 h-3.5 text-amber-500/80 shrink-0" />
+              <Folder
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  isStaged ? "text-emerald-400/80" : "text-[#8b949e] group-hover:text-blue-400"
+                }`}
+              />
             ) : (
-              <FolderOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <FolderOpen
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  isStaged ? "text-emerald-400" : "text-blue-400"
+                }`}
+              />
             )}
-            <span className="font-mono text-[11px] text-amber-200/90 truncate flex-1">
+            <span
+              className={`font-mono text-[11px] truncate flex-1 ${
+                isStaged ? "text-emerald-200/90" : "text-[#c9d1d9] group-hover:text-white"
+              }`}
+            >
               {node.name}
             </span>
             <span className="text-[9px] text-[#484f58] group-hover:text-[#8b949e]">

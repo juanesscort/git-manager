@@ -336,72 +336,68 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
       )}
 
       {/* Release Wizard Button (Exclusive for Git-Manager Repo) */}
-      {isGitManagerRepo && onOpenReleaseWizard && (
-        <button
-          onClick={() => {
-            if (hasUncommittedChanges) {
-              if (onShowBanner) {
-                onShowBanner(
-                  "El espacio de trabajo tiene cambios pendientes. Realiza commit o stash antes de lanzar una versión."
-                );
+      {isGitManagerRepo && onOpenReleaseWizard && (() => {
+        const isReleaseDisabled = hasUncommittedChanges || activeRunsCount > 0 || operating;
+        return (
+          <button
+            onClick={() => {
+              if (hasUncommittedChanges) {
+                if (onShowBanner) {
+                  onShowBanner(
+                    "El espacio de trabajo tiene cambios pendientes. Realiza commit o stash antes de lanzar una versión."
+                  );
+                }
+                return;
               }
-              return;
+              if (activeRunsCount > 0) {
+                if (onShowBanner) {
+                  onShowBanner(
+                    `Hay ${activeRunsCount} flujo(s) de Actions en ejecución. Espera a que termine antes de lanzar otra release.`
+                  );
+                }
+                return;
+              }
+              onOpenReleaseWizard();
+            }}
+            disabled={isReleaseDisabled}
+            title={
+              hasUncommittedChanges
+                ? "Release bloqueada: Tienes cambios pendientes de confirmar en el espacio de trabajo. Haz commit o stash primero."
+                : activeRunsCount > 0
+                ? `Release bloqueada: Hay ${activeRunsCount} pipeline(s) de GitHub Actions en ejecución. Espera a que finalice.`
+                : openPrCount > 0
+                ? `Atención: Hay ${openPrCount} Pull Request(s) pendientes de revisión. Haz clic para configurar la release.`
+                : "Lanzar Release: Automatizar nueva versión oficial de Git-Manager"
             }
-            onOpenReleaseWizard();
-          }}
-          title={
-            hasUncommittedChanges
-              ? "Release bloqueada: Tienes cambios pendientes de confirmar en el espacio de trabajo. Haz commit o stash primero."
-              : activeRunsCount > 0
-              ? `Atención: Hay ${activeRunsCount} pipeline(s) de Actions en ejecución. Haz clic para configurar la release.`
-              : openPrCount > 0
-              ? `Atención: Hay ${openPrCount} Pull Request(s) pendientes de revisión. Haz clic para configurar la release.`
-              : "Lanzar Release: Automatizar nueva versión oficial de Git-Manager"
-          }
-          className={`relative flex flex-col items-center justify-center h-10 px-2.5 rounded transition-all min-w-[46px] group ml-1 ${
-            hasUncommittedChanges
-              ? "bg-[#21262d]/60 border border-amber-500/30 text-amber-300/60 opacity-60 cursor-not-allowed hover:bg-[#21262d]"
-              : "bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/40 cursor-pointer"
-          }`}
-        >
-          <div className="relative flex items-center justify-center">
-            <Rocket
-              className={`w-4 h-4 ${
-                hasUncommittedChanges
-                  ? "text-amber-400/70"
-                  : "text-purple-400 group-hover:scale-110 group-hover:-translate-y-0.5"
-              } transition-transform`}
-            />
-
-            {/* Badges on the Release button */}
-            {hasUncommittedChanges ? (
-              <span
-                className="absolute -top-1 -right-2 px-1 min-w-[13px] h-[13px] flex items-center justify-center text-[8px] font-mono font-bold rounded-full bg-amber-500 text-black shadow-xs"
-                title="Cambios pendientes sin confirmar"
-              >
-                !
-              </span>
-            ) : activeRunsCount > 0 ? (
-              <span
-                className="absolute -top-1 -right-2 w-2.5 h-2.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin"
-                title={`${activeRunsCount} pipeline(s) en ejecución`}
-              />
-            ) : openPrCount > 0 ? (
-              <span
-                className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-purple-400 animate-pulse"
-                title={`${openPrCount} PR(s) pendientes de revisión`}
-              />
-            ) : null}
-          </div>
-          <span
-            className={`text-[10px] font-bold tracking-tight mt-0.5 ${
-              hasUncommittedChanges ? "text-amber-300/60" : "text-purple-200"
+            className={`relative flex flex-col items-center justify-center h-10 px-2.5 rounded transition-all min-w-[46px] group ml-1 ${
+              isReleaseDisabled
+                ? "bg-[#21262d]/40 border border-[#30363d] text-[#8b949e] opacity-50 cursor-not-allowed"
+                : "bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/40 cursor-pointer"
             }`}
           >
-            Release
-          </span>
-        </button>
-      )}
+            <div className="relative flex items-center justify-center">
+              <Rocket
+                className={`w-4 h-4 ${
+                  isReleaseDisabled
+                    ? "text-[#8b949e]"
+                    : "text-purple-400 group-hover:scale-110 group-hover:-translate-y-0.5"
+                } transition-transform`}
+              />
+
+              {/* Only show warning badge if uncommitted changes exist */}
+              {hasUncommittedChanges && (
+                <span
+                  className="absolute -top-1 -right-2 px-1 min-w-[13px] h-[13px] flex items-center justify-center text-[8px] font-mono font-bold rounded-full bg-amber-500 text-black shadow-xs"
+                  title="Cambios pendientes sin confirmar"
+                >
+                  !
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-medium tracking-tight mt-0.5">Release</span>
+          </button>
+        );
+      })()}
 
       {/* Floating Status / Error Notifications */}
       {message && (

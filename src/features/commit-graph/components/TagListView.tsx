@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Tag, Trash2, Copy, Check, UploadCloud, Download, Edit3, Cloud, HardDrive, CheckCircle2 } from "lucide-react";
+import { Tag, Trash2, Copy, Check, UploadCloud, Download, Edit3 } from "lucide-react";
 import { UnifiedGitTag } from "../../../types/git";
 
 interface TagListViewProps {
@@ -126,43 +126,12 @@ export const TagListView: React.FC<TagListViewProps> = ({
               tag.message ? `\n\n"${tag.message}"` : ""
             }\n\n(Doble clic para ver/editar, clic derecho para opciones)`}
           >
-            {/* First Row: Tag Name, Status Badge & Actions */}
+            {/* First Row: Tag Name & State Action Icons */}
             <div className="flex items-center justify-between min-w-0">
               <div className="flex items-center gap-1.5 truncate flex-1 min-w-0 mr-1">
                 <span className="font-mono text-[11px] font-semibold text-emerald-300 truncate block">
                   {tag.name}
                 </span>
-
-                {/* Status Badges */}
-                {isSynced && (
-                  <span
-                    className="px-1 py-0.2 rounded text-[9px] font-mono bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 flex items-center gap-0.5 shrink-0"
-                    title="Etiqueta sincronizada en local y en GitHub"
-                  >
-                    <CheckCircle2 className="w-2.5 h-2.5" />
-                    <span>Sync</span>
-                  </span>
-                )}
-
-                {isLocalOnly && (
-                  <span
-                    className="px-1 py-0.2 rounded text-[9px] font-mono bg-amber-950/40 text-amber-300 border border-amber-500/30 flex items-center gap-0.5 shrink-0"
-                    title="Etiqueta presente solo en tu clon local"
-                  >
-                    <HardDrive className="w-2.5 h-2.5" />
-                    <span>Local</span>
-                  </span>
-                )}
-
-                {isRemoteOnly && (
-                  <span
-                    className="px-1 py-0.2 rounded text-[9px] font-mono bg-sky-950/40 text-sky-300 border border-sky-500/30 flex items-center gap-0.5 shrink-0"
-                    title="Etiqueta presente en GitHub pero ausente en local"
-                  >
-                    <Cloud className="w-2.5 h-2.5" />
-                    <span>GitHub</span>
-                  </span>
-                )}
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
