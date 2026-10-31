@@ -1,6 +1,6 @@
 [package]
 name = "git-manager"
-version = "0.4.0"
+version = "0.5.0"
 description = "Native Git and GitHub Desktop Client"
 authors = ["juanesscort"]
 edition = "2024"
