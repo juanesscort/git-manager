@@ -11,6 +11,9 @@ import {
   Minimize2,
   Trash2,
   RotateCcw,
+  Copy,
+  ClipboardPaste,
+  CheckSquare,
 } from "lucide-react";
 
 interface EmbeddedTerminalProps {
@@ -32,6 +35,11 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 
   const [isMaximized, setIsMaximized] = useState(false);
   const [sessionCount, setSessionCount] = useState(1);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    hasSelection: boolean;
+  } | null>(null);
 
   const cleanDisplayPath = repoPath.replace(/^\/home\/[^/]+/, "~");
 
@@ -97,6 +105,62 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
+
+    // Intercept keyboard shortcuts for Copy (Ctrl+C), Paste (Ctrl+V), etc.
+    term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      if (event.type !== "keydown") {
+        return true;
+      }
+
+      const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+
+      // 1. Copy: Ctrl+C / Cmd+C (when text is selected) or Ctrl+Shift+C
+      if (isCtrlOrCmd && !event.altKey && (event.key === "c" || event.key === "C")) {
+        if (event.shiftKey || term.hasSelection()) {
+          const selection = term.getSelection();
+          if (selection) {
+            navigator.clipboard.writeText(selection).catch((err) => {
+              console.error("Error al copiar texto al portapapeles:", err);
+            });
+          }
+          return false; // Intercept: don't send \x03 (SIGINT) to bash
+        }
+        // No selection: let xterm send SIGINT (\x03) to bash
+        return true;
+      }
+
+      // 2. Paste: Ctrl+V / Cmd+V / Ctrl+Shift+V / Shift+Insert
+      const isPaste =
+        (isCtrlOrCmd && !event.altKey && (event.key === "v" || event.key === "V")) ||
+        (event.shiftKey && event.key === "Insert");
+
+      if (isPaste) {
+        navigator.clipboard
+          .readText()
+          .then((text) => {
+            if (text) {
+              term.paste(text);
+            }
+          })
+          .catch((err) => {
+            console.warn("Error leyendo portapapeles con navigator:", err);
+          });
+        return false; // Intercept: don't send \x16 to bash
+      }
+
+      return true;
+    });
+
+    // Native DOM paste listener on container
+    const containerElem = containerRef.current;
+    const handleDomPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      const text = e.clipboardData?.getData("text");
+      if (text) {
+        term.paste(text);
+      }
+    };
+    containerElem.addEventListener("paste", handleDomPaste);
 
     // Send user keystrokes directly into PTY master
     term.onData((data) => {
@@ -190,6 +254,50 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
     xtermRef.current?.focus();
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const hasSelection = Boolean(xtermRef.current?.hasSelection());
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      hasSelection,
+    });
+  };
+
+  const handleCopySelection = () => {
+    const selection = xtermRef.current?.getSelection();
+    if (selection) {
+      navigator.clipboard.writeText(selection).catch(() => {});
+    }
+    setContextMenu(null);
+    xtermRef.current?.focus();
+  };
+
+  const handlePasteClipboard = async () => {
+    setContextMenu(null);
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && xtermRef.current) {
+        xtermRef.current.paste(text);
+      }
+    } catch (err) {
+      console.warn("Error pegando del portapapeles:", err);
+    }
+    xtermRef.current?.focus();
+  };
+
+  const handleSelectAll = () => {
+    xtermRef.current?.selectAll();
+    setContextMenu(null);
+    xtermRef.current?.focus();
+  };
+
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null);
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
+  }, []);
+
   return (
     <div
       className={`border-t border-[#30363d] bg-[#0d1117] flex flex-col z-30 transition-all ${
@@ -263,8 +371,71 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
       <div
         ref={containerRef}
         onClick={() => xtermRef.current?.focus()}
-        className="flex-1 w-full h-full p-2 overflow-hidden bg-[#0d1117] select-text cursor-text font-mono text-xs"
+        onContextMenu={handleContextMenu}
+        className="flex-1 w-full h-full p-2 overflow-hidden bg-[#0d1117] select-text cursor-text font-mono text-xs relative"
       />
+
+      {/* Floating Context Menu */}
+      {contextMenu && (
+        <div
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-50 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-1 w-44 text-xs select-none backdrop-blur-md animate-in fade-in duration-100"
+        >
+          <button
+            onClick={handleCopySelection}
+            disabled={!contextMenu.hasSelection}
+            className="w-full px-3 py-1.5 flex items-center justify-between text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <span className="flex items-center gap-2">
+              <Copy className="w-3.5 h-3.5" /> Copiar
+            </span>
+            <span className="text-[10px] text-[#8b949e] font-mono">Ctrl+C</span>
+          </button>
+
+          <button
+            onClick={handlePasteClipboard}
+            className="w-full px-3 py-1.5 flex items-center justify-between text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <ClipboardPaste className="w-3.5 h-3.5" /> Pegar
+            </span>
+            <span className="text-[10px] text-[#8b949e] font-mono">Ctrl+V</span>
+          </button>
+
+          <div className="h-px bg-[#30363d] my-1" />
+
+          <button
+            onClick={handleSelectAll}
+            className="w-full px-3 py-1.5 flex items-center gap-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition-colors cursor-pointer"
+          >
+            <CheckSquare className="w-3.5 h-3.5" /> Seleccionar todo
+          </button>
+
+          <button
+            onClick={() => {
+              handleClear();
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 flex items-center justify-between text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Trash2 className="w-3.5 h-3.5" /> Limpiar pantalla
+            </span>
+            <span className="text-[10px] text-[#8b949e] font-mono">Ctrl+L</span>
+          </button>
+
+          <button
+            onClick={() => {
+              handleRestart();
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 flex items-center gap-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition-colors cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Reiniciar terminal
+          </button>
+        </div>
+      )}
     </div>
   );
 };
