@@ -9,8 +9,7 @@ import {
   X,
   Maximize2,
   Minimize2,
-  Trash2,
-  RotateCcw,
+  BrushCleaning,
   Copy,
   ClipboardPaste,
   CheckSquare,
@@ -34,7 +33,6 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
   const sessionIdRef = useRef<string>(Math.random().toString(36).substring(2, 10));
 
   const [isMaximized, setIsMaximized] = useState(false);
-  const [sessionCount, setSessionCount] = useState(1);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -56,7 +54,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
       xtermRef.current = null;
     }
     if (sessionIdRef.current) {
-      invoke("pty_close_session_cmd", { sessionId: sessionIdRef.current }).catch(() => {});
+      invoke("pty_close_session_cmd", { sessionId: sessionIdRef.current }).catch(() => { });
     }
 
     // New session ID
@@ -106,6 +104,9 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
+    let lastPasteTime = 0;
+    let lastPasteText = "";
+
     // Intercept keyboard shortcuts for Copy (Ctrl+C), Paste (Ctrl+V), etc.
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
       if (event.type !== "keydown") {
@@ -138,9 +139,14 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
         navigator.clipboard
           .readText()
           .then((text) => {
-            if (text) {
-              term.paste(text);
+            if (!text) return;
+            const now = Date.now();
+            if (now - lastPasteTime < 250 && text === lastPasteText) {
+              return;
             }
+            lastPasteTime = now;
+            lastPasteText = text;
+            term.paste(text);
           })
           .catch((err) => {
             console.warn("Error leyendo portapapeles con navigator:", err);
@@ -150,17 +156,6 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 
       return true;
     });
-
-    // Native DOM paste listener on container
-    const containerElem = containerRef.current;
-    const handleDomPaste = (e: ClipboardEvent) => {
-      e.preventDefault();
-      const text = e.clipboardData?.getData("text");
-      if (text) {
-        term.paste(text);
-      }
-    };
-    containerElem.addEventListener("paste", handleDomPaste);
 
     // Send user keystrokes directly into PTY master
     term.onData((data) => {
@@ -200,7 +195,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
       return () => clearTimeout(timer);
     } else {
       if (sessionIdRef.current) {
-        invoke("pty_close_session_cmd", { sessionId: sessionIdRef.current }).catch(() => {});
+        invoke("pty_close_session_cmd", { sessionId: sessionIdRef.current }).catch(() => { });
       }
       if (unlistenRef.current) {
         unlistenRef.current();
@@ -211,7 +206,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
         xtermRef.current = null;
       }
     }
-  }, [isOpen, repoPath, startPtySession, sessionCount]);
+  }, [isOpen, repoPath, startPtySession]);
 
   // Window resize observer to update PTY dimensions
   useEffect(() => {
@@ -227,9 +222,9 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
               sessionId: sessionIdRef.current,
               cols,
               rows,
-            }).catch(() => {});
+            }).catch(() => { });
           }
-        } catch {}
+        } catch { }
       }
     });
 
@@ -239,12 +234,11 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleRestart = () => {
-    setSessionCount((prev) => prev + 1);
-  };
-
   const handleClear = () => {
-    xtermRef.current?.clear();
+    if (xtermRef.current) {
+      xtermRef.current.clear();
+      xtermRef.current.write("\x1b[2J\x1b[H");
+    }
     if (sessionIdRef.current) {
       invoke("pty_write_cmd", {
         sessionId: sessionIdRef.current,
@@ -267,7 +261,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
   const handleCopySelection = () => {
     const selection = xtermRef.current?.getSelection();
     if (selection) {
-      navigator.clipboard.writeText(selection).catch(() => {});
+      navigator.clipboard.writeText(selection).catch(() => { });
     }
     setContextMenu(null);
     xtermRef.current?.focus();
@@ -300,11 +294,10 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 
   return (
     <div
-      className={`border-t border-[#30363d] bg-[#0d1117] flex flex-col z-30 transition-all ${
-        isMaximized
+      className={`border-t border-[#30363d] bg-[#0d1117] flex flex-col z-30 transition-all ${isMaximized
           ? "fixed inset-0 z-50 h-screen w-screen"
           : "h-64 shrink-0 shadow-inner"
-      }`}
+        }`}
     >
       {/* Terminal Title Bar */}
       <div className="h-8 bg-[#161b22] border-b border-[#30363d] px-3 flex items-center justify-between select-none shrink-0">
@@ -316,28 +309,16 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
           <span className="text-[10px] text-[#8b949e] font-mono truncate max-w-sm">
             ({cleanDisplayPath})
           </span>
-          <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold bg-blue-950/60 text-blue-300 border border-blue-500/30">
-            PTY Nativo
-          </span>
         </div>
 
         <div className="flex items-center gap-1 text-[#8b949e]">
-          {/* Restart Shell */}
-          <button
-            onClick={handleRestart}
-            className="p-1 rounded hover:bg-[#21262d] hover:text-white transition-colors cursor-pointer"
-            title="Reiniciar sesión de terminal"
-          >
-            <RotateCcw className="w-3 h-3" />
-          </button>
-
-          {/* Clear Terminal */}
+          {/* Clear Terminal with brush-cleaning */}
           <button
             onClick={handleClear}
             className="p-1 rounded hover:bg-[#21262d] hover:text-white transition-colors cursor-pointer"
-            title="Limpiar pantalla (Ctrl+L)"
+            title="Limpiar terminal (Ctrl+L)"
           >
-            <Trash2 className="w-3 h-3" />
+            <BrushCleaning className="w-3.5 h-3.5" />
           </button>
 
           {/* Maximize/Minimize Toggle */}
@@ -420,19 +401,9 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
             className="w-full px-3 py-1.5 flex items-center justify-between text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition-colors cursor-pointer"
           >
             <span className="flex items-center gap-2">
-              <Trash2 className="w-3.5 h-3.5" /> Limpiar pantalla
+              <BrushCleaning className="w-3.5 h-3.5" /> Limpiar terminal
             </span>
             <span className="text-[10px] text-[#8b949e] font-mono">Ctrl+L</span>
-          </button>
-
-          <button
-            onClick={() => {
-              handleRestart();
-              setContextMenu(null);
-            }}
-            className="w-full px-3 py-1.5 flex items-center gap-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Reiniciar terminal
           </button>
         </div>
       )}

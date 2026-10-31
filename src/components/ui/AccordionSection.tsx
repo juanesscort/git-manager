@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 interface AccordionSectionProps {
   title: string;
   count?: number;
+  badgeClassName?: string;
   icon?: React.ReactNode;
   action?: React.ReactNode;
   defaultOpen?: boolean;
@@ -13,6 +14,7 @@ interface AccordionSectionProps {
 export const AccordionSection: React.FC<AccordionSectionProps> = ({
   title,
   count,
+  badgeClassName,
   icon,
   action,
   defaultOpen = true,
@@ -39,15 +41,26 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
           <span className="text-[10px] font-bold uppercase tracking-wider truncate flex-1">
             {title}
           </span>
+        </button>
+
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          {action && (
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+              {action}
+            </div>
+          )}
 
           {typeof count === "number" && (
-            <span className="text-[9px] font-mono font-medium px-1.5 py-0.2 rounded-full bg-[#161b22] border border-[#30363d] text-[#8b949e]">
+            <span
+              className={
+                badgeClassName ||
+                "min-w-5 h-5 px-1.5 rounded-full text-[11px] font-mono font-bold flex items-center justify-center bg-[#21262d] border border-[#30363d] text-[#c9d1d9] shadow-xs"
+              }
+            >
               {count}
             </span>
           )}
-        </button>
-
-        {action && <div className="shrink-0 ml-1">{action}</div>}
+        </div>
       </div>
 
       {isOpen && <div className="mt-1 pl-1 flex flex-col gap-0.5">{children}</div>}

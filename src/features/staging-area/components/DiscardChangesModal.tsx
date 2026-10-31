@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertTriangle, X, Loader2, RotateCcw, FileText, Files } from "lucide-react";
+import { AlertTriangle, X, Loader2, Undo2, FileText, Files } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 
 export interface DiscardChangesModalProps {
@@ -121,7 +121,7 @@ export const DiscardChangesModal: React.FC<DiscardChangesModalProps> = ({
               </>
             ) : (
               <>
-                <RotateCcw className="w-3.5 h-3.5" />
+                <Undo2 className="w-3.5 h-3.5" />
                 {isSingle ? "Descartar Cambios" : "Descartar Todo"}
               </>
             )}

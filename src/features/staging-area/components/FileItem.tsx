@@ -1,6 +1,6 @@
 import React from "react";
 import { FileStatusKind } from "../../../types/git";
-import { Plus, Minus, FileCode, GitMerge, RotateCcw } from "lucide-react";
+import { Plus, Minus, FileCode, GitMerge, Undo2 } from "lucide-react";
 
 interface FileItemProps {
   path: string;
@@ -58,21 +58,32 @@ export const FileItem: React.FC<FileItemProps> = ({
           : "border-transparent hover:bg-[#161b22] text-[#c9d1d9]"
       }`}
     >
-      <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+      <div className="flex items-start gap-2 overflow-hidden flex-1 min-w-0 mr-2 py-0.5">
         <span
-          className={`w-4 h-4 rounded text-[10px] font-bold flex items-center justify-center border shrink-0 ${badge.bg} ${badge.color}`}
+          className={`w-4 h-4 rounded text-[10px] font-bold flex items-center justify-center border shrink-0 mt-0.5 ${badge.bg} ${badge.color}`}
           title={isConflicted ? "Conflicted" : status}
         >
           {badge.label}
         </span>
-        <FileCode className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
-        <span className="font-mono text-xs truncate">
-          {fileName}
-          {dirPath && <span className="text-[10px] text-[#484f58] ml-1.5">({dirPath})</span>}
-        </span>
+        <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <FileCode className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
+            <span className="font-mono text-xs font-medium text-[#e6edf3] truncate">
+              {fileName}
+            </span>
+          </div>
+          {dirPath && (
+            <span
+              className="font-mono text-[10px] text-[#7d8590] truncate block w-full pl-5 mt-0.5"
+              title={dirPath}
+            >
+              {dirPath}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         {isConflicted && onResolveConflict && (
           <button
             onClick={(e) => {
@@ -80,7 +91,7 @@ export const FileItem: React.FC<FileItemProps> = ({
               onResolveConflict();
             }}
             title="Resolver conflictos de fusión"
-            className="p-1 rounded bg-purple-600/30 text-purple-300 hover:bg-purple-600/50 transition-colors"
+            className="p-1 rounded bg-purple-600/30 text-purple-300 hover:bg-purple-600/50 transition-colors cursor-pointer"
           >
             <GitMerge className="w-3.5 h-3.5" />
           </button>
@@ -93,9 +104,9 @@ export const FileItem: React.FC<FileItemProps> = ({
               onDiscard();
             }}
             title="Descartar cambios de este archivo"
-            className="p-1 rounded transition-colors shrink-0 hover:bg-rose-950/50 text-[#8b949e] hover:text-rose-400 opacity-0 group-hover:opacity-100"
+            className="p-1 rounded transition-colors shrink-0 hover:bg-rose-950/50 text-[#8b949e] hover:text-rose-400 cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <Undo2 className="w-3.5 h-3.5" />
           </button>
         )}
 
@@ -105,7 +116,7 @@ export const FileItem: React.FC<FileItemProps> = ({
             onAction();
           }}
           title={isStaged ? "Deshacer preparación (Unstage)" : "Preparar archivo (Stage)"}
-          className={`p-1 rounded transition-colors shrink-0 ${
+          className={`p-1 rounded transition-colors shrink-0 cursor-pointer ${
             isStaged
               ? "hover:bg-rose-950/50 text-[#8b949e] hover:text-rose-400"
               : "hover:bg-emerald-950/50 text-[#8b949e] hover:text-emerald-400"

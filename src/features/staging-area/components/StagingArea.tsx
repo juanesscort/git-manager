@@ -19,7 +19,7 @@ import {
   Maximize2,
   Tag,
   TagPlus,
-  RotateCcw,
+  Undo2,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -265,21 +265,18 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
             )}
             {isCollapsed ? (
               <Folder
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  isStaged ? "text-emerald-400/80" : "text-[#8b949e] group-hover:text-blue-400"
-                }`}
+                className={`w-3.5 h-3.5 shrink-0 ${isStaged ? "text-emerald-400/80" : "text-[#8b949e] group-hover:text-blue-400"
+                  }`}
               />
             ) : (
               <FolderOpen
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  isStaged ? "text-emerald-400" : "text-blue-400"
-                }`}
+                className={`w-3.5 h-3.5 shrink-0 ${isStaged ? "text-emerald-400" : "text-blue-400"
+                  }`}
               />
             )}
             <span
-              className={`font-mono text-[11px] truncate flex-1 ${
-                isStaged ? "text-emerald-200/90" : "text-[#c9d1d9] group-hover:text-white"
-              }`}
+              className={`font-mono text-[11px] truncate flex-1 ${isStaged ? "text-emerald-200/90" : "text-[#c9d1d9] group-hover:text-white"
+                }`}
             >
               {node.name}
             </span>
@@ -308,28 +305,27 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         key={`file-${file.path}`}
         style={{ paddingLeft: `${depth * 10 + 6}px` }}
         onClick={() => handleToggleFile(file.path, isStaged)}
-        className={`flex items-center justify-between py-1 px-2 rounded text-xs cursor-pointer group select-none transition-colors ${
-          isSelected
+        className={`flex items-center justify-between py-1 px-2 rounded text-xs cursor-pointer group select-none transition-colors ${isSelected
             ? "bg-[#1f6feb]/20 text-white font-medium border-l-2 border-l-blue-500"
             : "text-[#c9d1d9] hover:bg-[#161b22]"
-        }`}
+          }`}
       >
         <div className="flex items-center gap-1.5 truncate flex-1 mr-2">
           <FileCode className="w-3.5 h-3.5 text-blue-400/80 shrink-0" />
           <span className="truncate font-mono text-[11px]">{node.name}</span>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           {!isStaged && onDiscardFile && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onDiscardFile(file.path);
               }}
-              className="p-0.5 rounded transition-colors hover:bg-rose-950/40 text-[#8b949e] hover:text-rose-400 opacity-0 group-hover:opacity-100"
+              className="p-0.5 rounded transition-colors hover:bg-rose-950/40 text-[#8b949e] hover:text-rose-400 cursor-pointer"
               title="Descartar cambios de este archivo"
             >
-              <RotateCcw className="w-3 h-3" />
+              <Undo2 className="w-3.5 h-3.5" />
             </button>
           )}
 
@@ -342,14 +338,13 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                 onStageFile(file.path);
               }
             }}
-            className={`p-0.5 rounded transition-colors ${
-              isStaged
+            className={`p-0.5 rounded transition-colors cursor-pointer ${isStaged
                 ? "hover:bg-rose-950/40 text-[#8b949e] hover:text-rose-400"
                 : "hover:bg-emerald-950/40 text-[#8b949e] hover:text-emerald-400"
-            }`}
+              }`}
             title={isStaged ? "Quitar de preparados (Unstage)" : "Preparar archivo (Stage)"}
           >
-            {isStaged ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+            {isStaged ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
@@ -392,11 +387,10 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         <div className="flex items-center bg-[#0d1117] p-0.5 rounded border border-[#30363d]">
           <button
             onClick={() => setViewMode("path")}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-              viewMode === "path"
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${viewMode === "path"
                 ? "bg-[#21262d] text-white shadow-xs"
                 : "text-[#8b949e] hover:text-[#c9d1d9]"
-            }`}
+              }`}
             title="Vista plana de archivos (Path)"
           >
             <List className="w-3 h-3 text-blue-400" />
@@ -404,11 +398,10 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           </button>
           <button
             onClick={() => setViewMode("tree")}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-              viewMode === "tree"
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${viewMode === "tree"
                 ? "bg-[#21262d] text-white shadow-xs"
                 : "text-[#8b949e] hover:text-[#c9d1d9]"
-            }`}
+              }`}
             title="Vista de árbol por carpetas (Tree)"
           >
             <FolderTree className="w-3 h-3 text-emerald-400" />
@@ -450,16 +443,17 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         <AccordionSection
           title="Preparados (Staged)"
           count={stagedFiles.length}
+          badgeClassName="min-w-5 h-5 px-1.5 rounded-full text-[11px] font-mono font-bold flex items-center justify-center bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs"
           defaultOpen={true}
           action={
             stagedFiles.length > 0 ? (
               <button
                 type="button"
                 onClick={onUnstageAll}
-                className="text-[10px] text-[#8b949e] hover:text-rose-400 flex items-center gap-0.5 cursor-pointer"
-                title="Deshacer todos (Unstage All)"
+                className="p-1 rounded hover:bg-rose-950/50 text-[#8b949e] hover:text-rose-400 transition-colors cursor-pointer"
+                title="Quitar todos los archivos preparados (Unstage All)"
               >
-                <Minus className="w-3 h-3" /> Unstage All
+                <Minus className="w-3.5 h-3.5" />
               </button>
             ) : undefined
           }
@@ -495,27 +489,28 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         <AccordionSection
           title="Sin Preparar (Unstaged)"
           count={unstagedFiles.length}
+          badgeClassName="min-w-5 h-5 px-1.5 rounded-full text-[11px] font-mono font-bold flex items-center justify-center bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs"
           defaultOpen={true}
           action={
             unstagedFiles.length > 0 ? (
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-1">
                 {onDiscardAll && (
                   <button
                     type="button"
                     onClick={onDiscardAll}
-                    className="text-[10px] text-[#8b949e] hover:text-rose-400 flex items-center gap-1 cursor-pointer transition-colors"
+                    className="p-1 rounded hover:bg-rose-950/50 text-[#8b949e] hover:text-rose-400 transition-colors cursor-pointer"
                     title="Descartar todos los cambios no preparados"
                   >
-                    <RotateCcw className="w-2.5 h-2.5" /> Descartar todo
+                    <Undo2 className="w-3.5 h-3.5" />
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={onStageAll}
-                  className="text-[10px] text-[#8b949e] hover:text-emerald-400 flex items-center gap-0.5 cursor-pointer"
-                  title="Preparar todos (Stage All)"
+                  className="p-1 rounded hover:bg-emerald-950/50 text-[#8b949e] hover:text-emerald-400 transition-colors cursor-pointer"
+                  title="Preparar todos los cambios (Stage All)"
                 >
-                  <Plus className="w-3 h-3" /> Stage All
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : undefined
@@ -575,13 +570,12 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
 
           <div className="flex items-center gap-1.5">
             <span
-              className={`text-[10px] font-mono mr-1 ${
-                commitTitle.length > 72
+              className={`text-[10px] font-mono mr-1 ${commitTitle.length > 72
                   ? "text-amber-400 font-bold"
                   : commitTitle.length > 50
-                  ? "text-[#8b949e]"
-                  : "text-[#484f58]"
-              }`}
+                    ? "text-[#8b949e]"
+                    : "text-[#484f58]"
+                }`}
             >
               {commitTitle.length}/72
             </span>
@@ -591,19 +585,18 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
               type="button"
               disabled={aiGenerating}
               onClick={handleAiGenerate}
-              className={`p-1.5 rounded transition-colors cursor-pointer border ${
-                aiGenerating
+              className={`p-1.5 rounded transition-colors cursor-pointer border ${aiGenerating
                   ? "bg-amber-950/40 border-amber-500/50 text-amber-300"
                   : stagedFiles.length === 0
-                  ? "text-amber-400/70 hover:text-amber-300 hover:bg-amber-950/20 border-amber-500/20 bg-amber-950/10"
-                  : "text-amber-400 hover:text-amber-300 hover:bg-amber-950/30 border-amber-500/20 bg-amber-950/10"
-              }`}
+                    ? "text-amber-400/70 hover:text-amber-300 hover:bg-amber-950/20 border-amber-500/20 bg-amber-950/10"
+                    : "text-amber-400 hover:text-amber-300 hover:bg-amber-950/30 border-amber-500/20 bg-amber-950/10"
+                }`}
               title={
                 stagedFiles.length === 0
                   ? "Haz clic para saber cómo usar la IA (requiere archivos preparados)"
                   : aiGenerating
-                  ? "Analizando cambios con IA..."
-                  : "Generar título y descripción con IA"
+                    ? "Analizando cambios con IA..."
+                    : "Generar título y descripción con IA"
               }
             >
               <Sparkles
@@ -615,11 +608,10 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
             <button
               type="button"
               onClick={() => setShowTagInput((prev) => !prev)}
-              className={`p-1.5 rounded transition-colors cursor-pointer border ${
-                showTagInput || commitTag.trim()
+              className={`p-1.5 rounded transition-colors cursor-pointer border ${showTagInput || commitTag.trim()
                   ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300 shadow-xs"
                   : "text-[#8b949e] hover:text-white hover:bg-[#21262d] border-transparent"
-              }`}
+                }`}
               title={
                 showTagInput
                   ? "Ocultar campo de etiqueta / tag"
