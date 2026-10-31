@@ -1112,20 +1112,18 @@ export const App: React.FC = () => {
                   {centerViewMode === "full" ? (
                     <button
                       onClick={() => setCenterViewMode("split")}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors cursor-pointer"
+                      className="flex items-center justify-center p-1.5 rounded text-xs text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors cursor-pointer"
                       title="Dividir pantalla: Ver Grafo y Diff simultáneamente"
                     >
                       <Split className="w-3.5 h-3.5" />
-                      <span>Dividir</span>
                     </button>
                   ) : (
                     <button
                       onClick={() => setCenterViewMode("full")}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors cursor-pointer"
-                      title="Pantalla Completa para el Diff"
+                      className="flex items-center justify-center p-1.5 rounded text-xs text-[#8b949e] hover:text-white hover:bg-[#21262d] border border-transparent hover:border-[#30363d] transition-colors cursor-pointer"
+                      title="Pantalla completa para el Diff"
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
-                      <span>Maximizar</span>
                     </button>
                   )}
                 </div>

@@ -3,7 +3,7 @@ import {
   Search,
   X,
   Columns3,
-  SlidersHorizontal,
+  Settings,
   RotateCcw,
 } from "lucide-react";
 
@@ -124,7 +124,7 @@ export const GraphToolbarControls: React.FC<GraphToolbarControlsProps> = ({
             setColumnsMenuOpen(!columnsMenuOpen);
             setSettingsMenuOpen(false);
           }}
-          className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors cursor-pointer ${
+          className={`flex items-center justify-center p-1.5 rounded text-xs font-medium border transition-colors cursor-pointer ${
             columnsMenuOpen
               ? "bg-[#21262d] text-white border-blue-500/50 shadow-xs"
               : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white hover:bg-[#21262d]"
@@ -132,7 +132,6 @@ export const GraphToolbarControls: React.FC<GraphToolbarControlsProps> = ({
           title="Seleccionar columnas visibles del grafo"
         >
           <Columns3 className="w-3.5 h-3.5 text-blue-400" />
-          <span className="hidden sm:inline">Columnas</span>
         </button>
 
         {columnsMenuOpen && (
@@ -185,15 +184,14 @@ export const GraphToolbarControls: React.FC<GraphToolbarControlsProps> = ({
             setSettingsMenuOpen(!settingsMenuOpen);
             setColumnsMenuOpen(false);
           }}
-          className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors cursor-pointer ${
+          className={`flex items-center justify-center p-1.5 rounded text-xs font-medium border transition-colors cursor-pointer ${
             settingsMenuOpen
               ? "bg-[#21262d] text-white border-blue-500/50 shadow-xs"
               : "bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white hover:bg-[#21262d]"
           }`}
           title="Ajustes de vista y densidad del grafo"
         >
-          <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="hidden sm:inline">Vista</span>
+          <Settings className="w-3.5 h-3.5 text-cyan-400" />
         </button>
 
         {settingsMenuOpen && (
