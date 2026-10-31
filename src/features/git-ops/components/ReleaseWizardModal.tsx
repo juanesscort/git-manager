@@ -22,6 +22,8 @@ interface ReleaseWizardModalProps {
   openPrCount?: number;
   activeRunsCount?: number;
   onClose: () => void;
+  onReleaseStart?: () => void;
+  onReleaseError?: () => void;
   onReleaseSuccess: (version: string) => void;
 }
 
@@ -32,6 +34,8 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
   openPrCount = 0,
   activeRunsCount = 0,
   onClose,
+  onReleaseStart,
+  onReleaseError,
   onReleaseSuccess,
 }) => {
   const [projectVersion, setProjectVersion] = useState<string>(
@@ -77,6 +81,7 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
 
     setSubmitting(true);
     setError(null);
+    onReleaseStart?.();
 
     try {
       await invoke<string>("execute_git_manager_release_cmd", {
@@ -93,6 +98,7 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
       console.error("Error al lanzar la release:", err);
       setError(typeof err === "string" ? err : JSON.stringify(err));
       setSubmitting(false);
+      onReleaseError?.();
     }
   };
 
@@ -289,13 +295,18 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
               size="sm"
               variant="primary"
               type="submit"
-              disabled={submitting || !tagName.trim()}
-              className="bg-purple-600 hover:bg-purple-500 text-white font-semibold cursor-pointer shadow-lg shadow-purple-900/30 flex items-center gap-1.5"
+              disabled={submitting || !tagName.trim() || activeRunsCount > 0}
+              className="bg-purple-600 hover:bg-purple-500 text-white font-semibold cursor-pointer shadow-lg shadow-purple-900/30 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Publicando {tagName}...</span>
+                </>
+              ) : activeRunsCount > 0 ? (
+                <>
+                  <RotateCw className="w-4 h-4 animate-spin" />
+                  <span>Pipeline en ejecución...</span>
                 </>
               ) : (
                 <>

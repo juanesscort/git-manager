@@ -329,7 +329,25 @@ export const App: React.FC = () => {
     return clean.replace(/\.git$/, "");
   }, [summary?.remote_url]);
 
-  const { activeRunsCount, latestRunStatus } = useGitHubActions(actionsRepoSlug);
+  const { activeRunsCount, latestRunStatus, fetchRuns } = useGitHubActions(actionsRepoSlug);
+  const [isReleaseTriggered, setIsReleaseTriggered] = useState<boolean>(false);
+
+  // Sync optimistic release state once real GitHub workflow run arrives
+  useEffect(() => {
+    if (activeRunsCount > 0 && isReleaseTriggered) {
+      setIsReleaseTriggered(false);
+    }
+  }, [activeRunsCount, isReleaseTriggered]);
+
+  // Safety fallback: if no run appears after 60s, reset optimistic flag
+  useEffect(() => {
+    if (!isReleaseTriggered) return;
+    const timer = setTimeout(() => setIsReleaseTriggered(false), 60000);
+    return () => clearTimeout(timer);
+  }, [isReleaseTriggered]);
+
+  const effectiveActiveRunsCount = isReleaseTriggered ? Math.max(activeRunsCount, 1) : activeRunsCount;
+  const effectiveActionsStatus = isReleaseTriggered && activeRunsCount === 0 ? "in_progress" : latestRunStatus;
 
   // Sync native OS window title with GitManager PRO and current project
   useEffect(() => {
@@ -579,6 +597,18 @@ export const App: React.FC = () => {
     }
     handleRefreshAll();
   };
+
+  const handleReleaseSuccess = useCallback((_version: string) => {
+    setIsReleaseTriggered(true);
+    handleRefreshAll();
+    // Aggressive polling to catch GitHub Actions run as soon as it initializes on GitHub
+    const delays = [1000, 2500, 4500, 7000, 10000, 15000, 20000];
+    delays.forEach((delay) => {
+      setTimeout(() => {
+        fetchRuns().catch(() => {});
+      }, delay);
+    });
+  }, [handleRefreshAll, fetchRuns]);
 
   // Active repository filesystem watcher
   useEffect(() => {
@@ -941,8 +971,8 @@ export const App: React.FC = () => {
           aheadCount={aheadCount}
           behindCount={behindCount}
           openPrCount={openPrCount}
-          activeRunsCount={activeRunsCount}
-          actionsStatus={latestRunStatus}
+          activeRunsCount={effectiveActiveRunsCount}
+          actionsStatus={effectiveActionsStatus}
           isGitManagerRepo={isGitManagerRepo}
           hasUpstream={hasUpstream}
           hasUncommittedChanges={hasUncommittedChanges}
@@ -1671,12 +1701,11 @@ export const App: React.FC = () => {
         repoPath={activeRepoPath}
         currentBranch={summary?.current_branch}
         openPrCount={openPrCount}
-        activeRunsCount={activeRunsCount}
+        activeRunsCount={effectiveActiveRunsCount}
         onClose={() => setReleaseWizardOpen(false)}
-        onReleaseSuccess={(_ver) => {
-          handleRefreshAll();
-          setActionsHubOpen(true);
-        }}
+        onReleaseStart={() => setIsReleaseTriggered(true)}
+        onReleaseError={() => setIsReleaseTriggered(false)}
+        onReleaseSuccess={handleReleaseSuccess}
       />
 
       {/* Open / Clone Repository Modal */}

@@ -179,26 +179,6 @@ export function useGitHubActions(repoSlug: string | null) {
     [repoSlug, fetchRuns]
   );
 
-  // Auto-refresh interval (30s)
-  useEffect(() => {
-    if (!autoRefresh || !repoSlug) return;
-    const interval = setInterval(() => {
-      fetchRuns();
-      if (selectedRun) {
-        fetchRunJobs(selectedRun.id);
-      }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, repoSlug, fetchRuns, selectedRun, fetchRunJobs]);
-
-  // Initial load
-  useEffect(() => {
-    if (repoSlug) {
-      fetchRuns();
-      fetchWorkflows();
-    }
-  }, [repoSlug, fetchRuns, fetchWorkflows]);
-
   const activeRunsCount = useMemo(() => {
     return runs.filter(
       (r) => r.status === "in_progress" || r.status === "queued" || r.status === "waiting"
@@ -216,6 +196,27 @@ export function useGitHubActions(repoSlug: string | null) {
     }
     return latestRun.conclusion || latestRun.status;
   }, [latestRun]);
+
+  // Auto-refresh interval (6s when active runs exist, 30s when idle)
+  useEffect(() => {
+    if (!autoRefresh || !repoSlug) return;
+    const pollIntervalMs = activeRunsCount > 0 ? 6000 : 30000;
+    const interval = setInterval(() => {
+      fetchRuns();
+      if (selectedRun) {
+        fetchRunJobs(selectedRun.id);
+      }
+    }, pollIntervalMs);
+    return () => clearInterval(interval);
+  }, [autoRefresh, repoSlug, fetchRuns, selectedRun, fetchRunJobs, activeRunsCount]);
+
+  // Initial load
+  useEffect(() => {
+    if (repoSlug) {
+      fetchRuns();
+      fetchWorkflows();
+    }
+  }, [repoSlug, fetchRuns, fetchWorkflows]);
 
   return {
     runs,

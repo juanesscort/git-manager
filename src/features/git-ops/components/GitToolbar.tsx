@@ -319,6 +319,8 @@ export const GitToolbar: React.FC<GitToolbarProps> = ({
               <RotateCw className="w-4 h-4 text-amber-400 animate-spin" />
             ) : actionsStatus === "failure" ? (
               <AlertCircle className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform" />
+            ) : actionsStatus === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
             ) : (
               <PlayCircle className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
             )}
