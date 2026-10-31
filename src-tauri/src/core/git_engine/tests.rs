@@ -86,6 +86,54 @@ fn test_discard_unstaged_changes() {
 }
 
 #[test]
+fn test_unstage_modified_file_with_head() {
+    let (temp_dir, repo) = setup_temp_repo();
+    let file1 = temp_dir.path().join("tracked.txt");
+    fs::write(&file1, "initial content").expect("write tracked");
+    stage_file(&repo, "tracked.txt").expect("stage tracked");
+    create_commit(&repo, "initial commit", None, None).expect("commit");
+
+    // Modify tracked file and stage it
+    fs::write(&file1, "modified content").expect("write modified");
+    stage_file(&repo, "tracked.txt").expect("stage tracked again");
+
+    let statuses_staged = get_repo_statuses(&repo).expect("statuses staged");
+    assert_eq!(statuses_staged.len(), 1);
+    assert_eq!(
+        statuses_staged[0].staged_status,
+        Some(FileStatusKind::Modified)
+    );
+    assert_eq!(statuses_staged[0].unstaged_status, None);
+
+    // Now unstage it!
+    unstage_file(&repo, "tracked.txt").expect("unstage file");
+
+    let statuses_unstaged = get_repo_statuses(&repo).expect("statuses unstaged");
+    assert_eq!(statuses_unstaged.len(), 1);
+    assert_eq!(statuses_unstaged[0].staged_status, None);
+    assert_eq!(
+        statuses_unstaged[0].unstaged_status,
+        Some(FileStatusKind::Modified)
+    );
+
+    // Stage again and test unstage_all
+    stage_all(&repo).expect("stage all");
+    let statuses_staged2 = get_repo_statuses(&repo).expect("statuses staged 2");
+    assert_eq!(
+        statuses_staged2[0].staged_status,
+        Some(FileStatusKind::Modified)
+    );
+
+    unstage_all(&repo).expect("unstage all");
+    let statuses_unstaged2 = get_repo_statuses(&repo).expect("statuses unstaged 2");
+    assert_eq!(statuses_unstaged2[0].staged_status, None);
+    assert_eq!(
+        statuses_unstaged2[0].unstaged_status,
+        Some(FileStatusKind::Modified)
+    );
+}
+
+#[test]
 fn test_commit_and_history() {
     let (temp_dir, repo) = setup_temp_repo();
     let file_path = temp_dir.path().join("code.rs");

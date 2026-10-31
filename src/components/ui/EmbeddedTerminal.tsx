@@ -57,6 +57,9 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
       invoke("pty_close_session_cmd", { sessionId: sessionIdRef.current }).catch(() => { });
     }
 
+    // Clean DOM container
+    containerRef.current.innerHTML = "";
+
     // New session ID
     const newSessionId = `gm-pty-${Math.random().toString(36).substring(2, 10)}`;
     sessionIdRef.current = newSessionId;
@@ -123,6 +126,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
             navigator.clipboard.writeText(selection).catch((err) => {
               console.error("Error al copiar texto al portapapeles:", err);
             });
+            term.clearSelection();
           }
           return false; // Intercept: don't send \x03 (SIGINT) to bash
         }
@@ -267,6 +271,7 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
     const selection = xtermRef.current?.getSelection();
     if (selection) {
       navigator.clipboard.writeText(selection).catch(() => {});
+      xtermRef.current?.clearSelection();
     }
     setContextMenu(null);
     xtermRef.current?.focus();

@@ -27,8 +27,7 @@ pub fn unstage_file(repo: &Repository, relative_path: &str) -> Result<(), GitEng
 
     if let Ok(head) = repo.head() {
         let commit = head.peel_to_commit()?;
-        let tree = commit.tree()?;
-        repo.reset_default(Some(&tree.into_object()), [path])?;
+        repo.reset_default(Some(commit.as_object()), [path])?;
     } else {
         // In an initial commit without HEAD, removing from index unstages it
         let mut index = repo.index()?;
@@ -50,8 +49,7 @@ pub fn stage_all(repo: &Repository) -> Result<(), GitEngineError> {
 pub fn unstage_all(repo: &Repository) -> Result<(), GitEngineError> {
     if let Ok(head) = repo.head() {
         let commit = head.peel_to_commit()?;
-        let tree = commit.tree()?;
-        repo.reset_default(Some(&tree.into_object()), ["*"])?;
+        repo.reset(commit.as_object(), git2::ResetType::Mixed, None)?;
     } else {
         let mut index = repo.index()?;
         index.clear()?;
