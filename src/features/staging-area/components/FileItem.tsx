@@ -1,6 +1,6 @@
 import React from "react";
 import { FileStatusKind } from "../../../types/git";
-import { Plus, Minus, FileCode, GitMerge } from "lucide-react";
+import { Plus, Minus, FileCode, GitMerge, RotateCcw } from "lucide-react";
 
 interface FileItemProps {
   path: string;
@@ -10,6 +10,7 @@ interface FileItemProps {
   isConflicted?: boolean;
   onSelect: () => void;
   onAction: () => void;
+  onDiscard?: () => void;
   onResolveConflict?: () => void;
 }
 
@@ -21,6 +22,7 @@ export const FileItem: React.FC<FileItemProps> = ({
   isConflicted,
   onSelect,
   onAction,
+  onDiscard,
   onResolveConflict,
 }) => {
   const statusConfig: Record<FileStatusKind, { label: string; color: string; bg: string }> = {
@@ -81,6 +83,19 @@ export const FileItem: React.FC<FileItemProps> = ({
             className="p-1 rounded bg-purple-600/30 text-purple-300 hover:bg-purple-600/50 transition-colors"
           >
             <GitMerge className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {!isStaged && onDiscard && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDiscard();
+            }}
+            title="Descartar cambios de este archivo"
+            className="p-1 rounded transition-colors shrink-0 hover:bg-rose-950/50 text-[#8b949e] hover:text-rose-400 opacity-0 group-hover:opacity-100"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         )}
 

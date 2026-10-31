@@ -59,3 +59,73 @@ pub fn unstage_all(repo: &Repository) -> Result<(), GitEngineError> {
     }
     Ok(())
 }
+
+pub fn discard_unstaged_file(repo: &Repository, relative_path: &str) -> Result<(), GitEngineError> {
+    let path = Path::new(relative_path);
+    let workdir = repo.workdir().ok_or_else(|| {
+        GitEngineError::InvalidPath(
+            "No se puede descartar cambios en un repositorio bare".to_string(),
+        )
+    })?;
+    let full_path = workdir.join(path);
+
+    let status = repo.status_file(path)?;
+
+    if status.contains(git2::Status::WT_NEW) {
+        if full_path.is_file() {
+            std::fs::remove_file(&full_path)?;
+        } else if full_path.is_dir() {
+            std::fs::remove_dir_all(&full_path)?;
+        }
+    } else {
+        let mut checkout = git2::build::CheckoutBuilder::new();
+        checkout.path(path).force();
+        repo.checkout_index(None, Some(&mut checkout))?;
+    }
+
+    Ok(())
+}
+
+pub fn discard_all_unstaged(repo: &Repository) -> Result<(), GitEngineError> {
+    let mut opts = git2::StatusOptions::new();
+    opts.include_untracked(true).recurse_untracked_dirs(true);
+
+    let statuses = repo.statuses(Some(&mut opts))?;
+    let workdir = repo.workdir().ok_or_else(|| {
+        GitEngineError::InvalidPath(
+            "No se puede descartar cambios en un repositorio bare".to_string(),
+        )
+    })?;
+
+    let mut has_tracked_changes = false;
+
+    for entry in statuses.iter() {
+        let status = entry.status();
+        let path_str = match entry.path() {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+
+        if status.contains(git2::Status::WT_NEW) {
+            let full_path = workdir.join(path_str);
+            if full_path.is_file() {
+                let _ = std::fs::remove_file(&full_path);
+            } else if full_path.is_dir() {
+                let _ = std::fs::remove_dir_all(&full_path);
+            }
+        } else if status.contains(git2::Status::WT_MODIFIED)
+            || status.contains(git2::Status::WT_DELETED)
+            || status.contains(git2::Status::WT_RENAMED)
+        {
+            has_tracked_changes = true;
+        }
+    }
+
+    if has_tracked_changes {
+        let mut checkout = git2::build::CheckoutBuilder::new();
+        checkout.force();
+        repo.checkout_index(None, Some(&mut checkout))?;
+    }
+
+    Ok(())
+}

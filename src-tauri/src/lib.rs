@@ -2,6 +2,8 @@ pub mod core;
 pub mod ipc;
 pub mod models;
 
+use core::git_engine::RepoWatcherManager;
+use core::terminal_engine::TerminalManager;
 use ipc::ai_commands::{
     check_branch_diff_cmd, generate_ai_commit, generate_ai_pull_request, get_ai_config,
     review_pull_request_with_ai, save_ai_config,
@@ -12,14 +14,15 @@ use ipc::conflict_commands::{
 };
 use ipc::git_commands::{
     checkout_branch_cmd, clone_repo_cmd, commit_changes_cmd, create_branch_cmd, create_tag_cmd,
-    delete_branch_cmd, delete_remote_tag_cmd, delete_tag_cmd, exec_terminal_cmd,
-    execute_git_manager_release_cmd, fetch_tag_cmd, get_commit_file_diff_cmd, get_commit_files_cmd,
-    get_commits_cmd, get_diff_cmd, get_file_media_cmd, get_project_version_cmd,
-    get_remote_tags_cmd, get_repo_branches_cmd, get_repo_info, get_repo_status, get_repo_tags_cmd,
-    get_terminal_prompt_info, git_fetch_cmd, git_merge_cmd, git_pull_cmd, git_push_cmd,
-    git_rebase_cmd, git_stash_cmd, git_stash_pop_cmd, is_git_manager_repo_cmd,
-    list_unified_tags_cmd, pick_folder_dialog_cmd, push_tag_cmd, rename_branch_cmd, stage_all_cmd,
-    stage_file_cmd, undo_commit_cmd, unstage_all_cmd, unstage_file_cmd, update_tag_cmd,
+    delete_branch_cmd, delete_remote_tag_cmd, delete_tag_cmd, discard_all_unstaged_cmd,
+    discard_unstaged_file_cmd, exec_terminal_cmd, execute_git_manager_release_cmd, fetch_tag_cmd,
+    get_commit_file_diff_cmd, get_commit_files_cmd, get_commits_cmd, get_diff_cmd,
+    get_file_media_cmd, get_project_version_cmd, get_remote_tags_cmd, get_repo_branches_cmd,
+    get_repo_info, get_repo_status, get_repo_tags_cmd, get_terminal_prompt_info, git_fetch_cmd,
+    git_merge_cmd, git_pull_cmd, git_push_cmd, git_rebase_cmd, git_stash_cmd, git_stash_pop_cmd,
+    is_git_manager_repo_cmd, list_unified_tags_cmd, pick_folder_dialog_cmd, push_tag_cmd,
+    rename_branch_cmd, stage_all_cmd, stage_file_cmd, undo_commit_cmd, unstage_all_cmd,
+    unstage_file_cmd, update_tag_cmd, watch_repo_path_cmd,
 };
 use ipc::github_commands::{
     cancel_workflow_run_cmd, check_github_session, create_pull_request_cmd, dispatch_workflow_cmd,
@@ -30,10 +33,15 @@ use ipc::github_commands::{
     rerun_workflow_run_cmd, save_github_token_cmd, start_github_device_flow,
     submit_pull_request_review_cmd,
 };
+use ipc::terminal_commands::{
+    pty_close_session_cmd, pty_open_session_cmd, pty_resize_cmd, pty_write_cmd,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(TerminalManager::new())
+        .manage(RepoWatcherManager::new())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -109,6 +117,13 @@ pub fn run() {
             cancel_workflow_run_cmd,
             rerun_workflow_run_cmd,
             dispatch_workflow_cmd,
+            pty_open_session_cmd,
+            pty_write_cmd,
+            pty_resize_cmd,
+            pty_close_session_cmd,
+            discard_unstaged_file_cmd,
+            discard_all_unstaged_cmd,
+            watch_repo_path_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

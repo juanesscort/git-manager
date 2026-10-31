@@ -4,6 +4,7 @@ pub mod ai_commands;
 pub mod conflict_commands;
 pub mod git_commands;
 pub mod github_commands;
+pub mod terminal_commands;
 
 use crate::models::AppStatus;
 

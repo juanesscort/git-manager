@@ -17,6 +17,7 @@ import {
 import logoImg from "./assets/logo.png";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Badge } from "./components/ui/Badge";
 import { Button } from "./components/ui/Button";
 import { Splitter } from "./components/ui/Splitter";
@@ -37,6 +38,7 @@ import { TagListView } from "./features/commit-graph/components/TagListView";
 import { CreateTagModal } from "./features/commit-graph/components/CreateTagModal";
 import { TagDetailsModal } from "./features/commit-graph/components/TagDetailsModal";
 import { UndoCommitModal } from "./features/commit-graph/components/UndoCommitModal";
+import { DiscardChangesModal } from "./features/staging-area/components/DiscardChangesModal";
 import {
   GraphToolbarControls,
   GraphViewMode,
@@ -356,6 +358,8 @@ export const App: React.FC = () => {
     unstageFile,
     stageAll,
     unstageAll,
+    discardFile,
+    discardAll,
     commitChanges,
   } = useStaging(repoPath, () => {
     refreshCommits();
@@ -508,7 +512,7 @@ export const App: React.FC = () => {
     refreshPrCount();
   }, [refreshPrCount]);
 
-  const handleRefreshAll = () => {
+  const handleRefreshAll = useCallback(() => {
     refreshRepo();
     refreshStatuses();
     refreshCommits();
@@ -536,7 +540,74 @@ export const App: React.FC = () => {
           .catch(() => {});
       }
     });
+  }, [
+    refreshRepo,
+    refreshStatuses,
+    refreshCommits,
+    checkConflicts,
+    refreshBranches,
+    refreshTags,
+    refreshPrCount,
+    openDiffTabs,
+    repoPath,
+  ]);
+
+  // Discard Unstaged Changes State & Handlers
+  const [discardModalOpen, setDiscardModalOpen] = useState(false);
+  const [discardTarget, setDiscardTarget] = useState<{
+    type: "single" | "all";
+    filePath?: string;
+    totalCount?: number;
+  } | null>(null);
+
+  const handleRequestDiscardFile = (filePath: string) => {
+    setDiscardTarget({ type: "single", filePath });
+    setDiscardModalOpen(true);
   };
+
+  const handleRequestDiscardAll = () => {
+    setDiscardTarget({ type: "all", totalCount: unstagedFiles.length });
+    setDiscardModalOpen(true);
+  };
+
+  const handleConfirmDiscard = async () => {
+    if (!discardTarget) return;
+    if (discardTarget.type === "single" && discardTarget.filePath) {
+      await discardFile(discardTarget.filePath);
+    } else if (discardTarget.type === "all") {
+      await discardAll();
+    }
+    handleRefreshAll();
+  };
+
+  // Active repository filesystem watcher
+  useEffect(() => {
+    if (activeRepoPath) {
+      invoke("watch_repo_path_cmd", { path: activeRepoPath }).catch((err) => {
+        console.warn("Error starting repository watcher:", err);
+      });
+    }
+  }, [activeRepoPath]);
+
+  // Real-time synchronization: repo-fs-changed and window focus
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen("repo-fs-changed", () => {
+      handleRefreshAll();
+    }).then((unsub) => {
+      unlisten = unsub;
+    });
+
+    const handleFocus = () => {
+      handleRefreshAll();
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      if (unlisten) unlisten();
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [handleRefreshAll]);
 
   const handleSelectWip = () => {
     setSelectedCommit(null);
@@ -1376,6 +1447,8 @@ export const App: React.FC = () => {
               onUnstageFile={unstageFile}
               onStageAll={stageAll}
               onUnstageAll={unstageAll}
+              onDiscardFile={handleRequestDiscardFile}
+              onDiscardAll={handleRequestDiscardAll}
               onSelectFile={(path, staged) => {
                 if (path) {
                   openFileTab({ path, staged, type: "staging" }, true);
@@ -1633,6 +1706,17 @@ export const App: React.FC = () => {
           setCommitToUndo(null);
         }}
         onConfirm={handleConfirmUndoCommit}
+      />
+
+      {/* Discard Unstaged Changes Modal */}
+      <DiscardChangesModal
+        isOpen={discardModalOpen}
+        target={discardTarget}
+        onClose={() => {
+          setDiscardModalOpen(false);
+          setDiscardTarget(null);
+        }}
+        onConfirm={handleConfirmDiscard}
       />
     </div>
   );

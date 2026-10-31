@@ -55,6 +55,37 @@ fn test_staging_and_status() {
 }
 
 #[test]
+fn test_discard_unstaged_changes() {
+    let (temp_dir, repo) = setup_temp_repo();
+    let file1 = temp_dir.path().join("tracked.txt");
+    fs::write(&file1, "initial content").expect("write tracked");
+    stage_file(&repo, "tracked.txt").expect("stage tracked");
+    create_commit(&repo, "initial commit", None, None).expect("commit");
+
+    // Modify tracked file
+    fs::write(&file1, "modified content").expect("write modified");
+
+    // Create untracked file
+    let file2 = temp_dir.path().join("untracked.txt");
+    fs::write(&file2, "untracked content").expect("write untracked");
+
+    let statuses = get_repo_statuses(&repo).expect("statuses");
+    assert_eq!(statuses.len(), 2);
+
+    // Discard single untracked file
+    discard_unstaged_file(&repo, "untracked.txt").expect("discard untracked");
+    assert!(!file2.exists());
+
+    // Discard single modified file
+    discard_unstaged_file(&repo, "tracked.txt").expect("discard modified");
+    let content = fs::read_to_string(&file1).expect("read tracked");
+    assert_eq!(content, "initial content");
+
+    let statuses_clean = get_repo_statuses(&repo).expect("statuses clean");
+    assert_eq!(statuses_clean.len(), 0);
+}
+
+#[test]
 fn test_commit_and_history() {
     let (temp_dir, repo) = setup_temp_repo();
     let file_path = temp_dir.path().join("code.rs");

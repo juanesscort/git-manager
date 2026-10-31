@@ -12,6 +12,7 @@ pub mod repository;
 pub mod staging;
 pub mod status;
 pub mod tags;
+pub mod watcher;
 
 #[cfg(test)]
 mod tests;
@@ -32,6 +33,9 @@ pub use remote_ops::{
     git_stash, git_stash_pop, list_unified_tags, pick_folder, rename_branch,
 };
 pub use repository::{get_repo_summary, open_repository};
-pub use staging::{stage_all, stage_file, unstage_all, unstage_file};
+pub use staging::{
+    discard_all_unstaged, discard_unstaged_file, stage_all, stage_file, unstage_all, unstage_file,
+};
 pub use status::get_repo_statuses;
 pub use tags::{create_tag, delete_tag, list_tags, update_tag};
+pub use watcher::RepoWatcherManager;

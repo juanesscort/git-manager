@@ -91,6 +91,36 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
     }
   };
 
+  const discardFile = async (relativePath: string) => {
+    try {
+      await invoke("discard_unstaged_file_cmd", { path: repoPath, relativePath });
+      await refreshStatuses();
+      if (selectedFile?.path === relativePath) {
+        setSelectedFile(null);
+        setDiff(null);
+      }
+    } catch (err: unknown) {
+      const msg = typeof err === "string" ? err : JSON.stringify(err);
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const discardAll = async () => {
+    try {
+      await invoke("discard_all_unstaged_cmd", { path: repoPath });
+      await refreshStatuses();
+      if (selectedFile && !selectedFile.staged) {
+        setSelectedFile(null);
+        setDiff(null);
+      }
+    } catch (err: unknown) {
+      const msg = typeof err === "string" ? err : JSON.stringify(err);
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
   const commitChanges = async (message: string): Promise<string | null> => {
     if (!message.trim()) return null;
     try {
@@ -130,6 +160,8 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
     unstageFile,
     stageAll,
     unstageAll,
+    discardFile,
+    discardAll,
     commitChanges,
     selectedFile,
     diff,

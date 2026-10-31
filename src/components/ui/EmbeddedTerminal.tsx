@@ -1,29 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Terminal as XTerm } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
-import { Terminal, Plus, X, Maximize2, Minimize2, Trash2 } from "lucide-react";
-
-interface TerminalExecResult {
-  stdout: string;
-  stderr: string;
-  exit_code: number;
-  user: string;
-  hostname: string;
-}
-
-interface TerminalPromptInfo {
-  user: string;
-  hostname: string;
-}
-
-interface CommandEntry {
-  id: string;
-  command: string;
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  cwd: string;
-  time: string;
-}
+import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import {
+  Terminal as TerminalIcon,
+  X,
+  Maximize2,
+  Minimize2,
+  Trash2,
+  RotateCcw,
+} from "lucide-react";
 
 interface EmbeddedTerminalProps {
   repoPath: string;
@@ -36,233 +24,247 @@ export const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const [entries, setEntries] = useState<CommandEntry[]>([]);
-  const [inputVal, setInputVal] = useState("");
-  const [history, setHistory] = useState<string[]>([]);
-  const [historyIdx, setHistoryIdx] = useState<number>(-1);
-  const [executing, setExecuting] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const xtermRef = useRef<XTerm | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const unlistenRef = useRef<UnlistenFn | null>(null);
+  const sessionIdRef = useRef<string>(Math.random().toString(36).substring(2, 10));
+
   const [isMaximized, setIsMaximized] = useState(false);
-  const [promptInfo, setPromptInfo] = useState<TerminalPromptInfo>({
-    user: "user",
-    hostname: "linux",
-  });
-
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  // Fetch prompt info on mount
-  useEffect(() => {
-    invoke<TerminalPromptInfo>("get_terminal_prompt_info")
-      .then((info) => setPromptInfo(info))
-      .catch(() => {});
-  }, []);
-
-  // Auto scroll down when entries change
-  useEffect(() => {
-    if (isOpen) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-      inputRef.current?.focus();
-    }
-  }, [entries, isOpen]);
-
-  if (!isOpen) return null;
+  const [sessionCount, setSessionCount] = useState(1);
 
   const cleanDisplayPath = repoPath.replace(/^\/home\/[^/]+/, "~");
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cmd = inputVal.trim();
-    if (!cmd) return;
+  const startPtySession = useCallback(async () => {
+    if (!containerRef.current) return;
 
-    if (cmd === "clear") {
-      setEntries([]);
-      setInputVal("");
-      setHistory((prev) => [cmd, ...prev.filter((h) => h !== cmd)].slice(0, 50));
-      setHistoryIdx(-1);
-      return;
+    // Clean up previous session if any
+    if (unlistenRef.current) {
+      unlistenRef.current();
+      unlistenRef.current = null;
+    }
+    if (xtermRef.current) {
+      xtermRef.current.dispose();
+      xtermRef.current = null;
+    }
+    if (sessionIdRef.current) {
+      invoke("pty_close_session_cmd", { sessionId: sessionIdRef.current }).catch(() => {});
     }
 
-    setExecuting(true);
-    setInputVal("");
-    setHistory((prev) => [cmd, ...prev.filter((h) => h !== cmd)].slice(0, 50));
-    setHistoryIdx(-1);
+    // New session ID
+    const newSessionId = `gm-pty-${Math.random().toString(36).substring(2, 10)}`;
+    sessionIdRef.current = newSessionId;
 
-    const now = new Date().toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
+    // Initialize xterm.js instance
+    const term = new XTerm({
+      cursorBlink: true,
+      cursorStyle: "bar",
+      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace, sans-serif",
+      fontSize: 12,
+      lineHeight: 1.25,
+      theme: {
+        background: "#0d1117",
+        foreground: "#c9d1d9",
+        cursor: "#58a6ff",
+        selectionBackground: "rgba(56, 139, 253, 0.4)",
+        black: "#484f58",
+        red: "#ff7b72",
+        green: "#3fb950",
+        yellow: "#d29922",
+        blue: "#58a6ff",
+        magenta: "#bc8cff",
+        cyan: "#39c5cf",
+        white: "#b1bac4",
+        brightBlack: "#6e7681",
+        brightRed: "#ffa198",
+        brightGreen: "#56d364",
+        brightYellow: "#e3b341",
+        brightBlue: "#79c0ff",
+        brightMagenta: "#d2a8ff",
+        brightCyan: "#56d4dd",
+        brightWhite: "#f0f6fc",
+      },
+      convertEol: true,
+      scrollback: 5000,
     });
 
-    try {
-      const res = await invoke<TerminalExecResult>("exec_terminal_cmd", {
-        cwd: repoPath,
-        command: cmd,
-      });
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
 
-      setEntries((prev) => [
-        ...prev,
-        {
-          id: `cmd-${Date.now()}`,
-          command: cmd,
-          stdout: res.stdout,
-          stderr: res.stderr,
-          exitCode: res.exit_code,
-          cwd: cleanDisplayPath,
-          time: now,
-        },
-      ]);
-    } catch (err: unknown) {
-      setEntries((prev) => [
-        ...prev,
-        {
-          id: `cmd-${Date.now()}`,
-          command: cmd,
-          stdout: "",
-          stderr: String(err),
-          exitCode: 1,
-          cwd: cleanDisplayPath,
-          time: now,
-        },
-      ]);
-    } finally {
-      setExecuting(false);
+    // Render into DOM container
+    term.open(containerRef.current);
+    fitAddon.fit();
+
+    xtermRef.current = term;
+    fitAddonRef.current = fitAddon;
+
+    // Send user keystrokes directly into PTY master
+    term.onData((data) => {
+      invoke("pty_write_cmd", {
+        sessionId: newSessionId,
+        data,
+      }).catch((err) => console.error("Error enviando datos a PTY:", err));
+    });
+
+    // Listen for incoming PTY output streaming from Rust
+    const unlisten = await listen<string>(`pty-data-${newSessionId}`, (event) => {
+      term.write(event.payload);
+    });
+    unlistenRef.current = unlisten;
+
+    // Spawn native Linux PTY session in Rust
+    try {
+      await invoke("pty_open_session_cmd", {
+        sessionId: newSessionId,
+        cwd: repoPath,
+        cols: term.cols || 80,
+        rows: term.rows || 24,
+      });
+    } catch (err) {
+      term.write(`\r\n\x1b[31mError al iniciar la terminal PTY nativa: ${err}\x1b[0m\r\n`);
     }
+
+    term.focus();
+  }, [repoPath]);
+
+  // Start session when terminal opens or repository path changes
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        startPtySession();
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      if (sessionIdRef.current) {
+        invoke("pty_close_session_cmd", { sessionId: sessionIdRef.current }).catch(() => {});
+      }
+      if (unlistenRef.current) {
+        unlistenRef.current();
+        unlistenRef.current = null;
+      }
+      if (xtermRef.current) {
+        xtermRef.current.dispose();
+        xtermRef.current = null;
+      }
+    }
+  }, [isOpen, repoPath, startPtySession, sessionCount]);
+
+  // Window resize observer to update PTY dimensions
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    const observer = new ResizeObserver(() => {
+      if (fitAddonRef.current && xtermRef.current && sessionIdRef.current) {
+        try {
+          fitAddonRef.current.fit();
+          const { cols, rows } = xtermRef.current;
+          if (cols > 0 && rows > 0) {
+            invoke("pty_resize_cmd", {
+              sessionId: sessionIdRef.current,
+              cols,
+              rows,
+            }).catch(() => {});
+          }
+        } catch {}
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [isOpen, isMaximized]);
+
+  if (!isOpen) return null;
+
+  const handleRestart = () => {
+    setSessionCount((prev) => prev + 1);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      if (history.length > 0) {
-        const nextIdx = Math.min(historyIdx + 1, history.length - 1);
-        setHistoryIdx(nextIdx);
-        setInputVal(history[nextIdx]);
-      }
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (historyIdx > 0) {
-        const nextIdx = historyIdx - 1;
-        setHistoryIdx(nextIdx);
-        setInputVal(history[nextIdx]);
-      } else if (historyIdx === 0) {
-        setHistoryIdx(-1);
-        setInputVal("");
-      }
+  const handleClear = () => {
+    xtermRef.current?.clear();
+    if (sessionIdRef.current) {
+      invoke("pty_write_cmd", {
+        sessionId: sessionIdRef.current,
+        data: "\x0c",
+      }).catch(() => {});
     }
+    xtermRef.current?.focus();
   };
 
   return (
     <div
-      style={{ height: isMaximized ? "450px" : "210px" }}
-      className="shrink-0 flex flex-col bg-[#090d13] border-t border-[#30363d] select-text transition-all duration-150 z-20"
+      className={`border-t border-[#30363d] bg-[#0d1117] flex flex-col z-30 transition-all ${
+        isMaximized
+          ? "fixed inset-0 z-50 h-screen w-screen"
+          : "h-64 shrink-0 shadow-inner"
+      }`}
     >
       {/* Terminal Title Bar */}
-      <div className="h-7 bg-[#161b22] border-b border-[#30363d] px-2 flex items-center justify-between select-none shrink-0">
-        <div className="flex items-center gap-1">
-          {/* Active Terminal Tab */}
-          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-t text-xs font-mono bg-[#090d13] border-t-2 border-t-cyan-500 border-x border-[#30363d] text-white">
-            <Terminal className="w-3 h-3 text-cyan-400" />
-            <span>bash</span>
-            <span className="text-[10px] text-[#8b949e] font-sans">({cleanDisplayPath})</span>
-          </div>
-
-          <button
-            onClick={() => setEntries([])}
-            className="p-1 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors ml-1"
-            title="Nueva sesión"
-          >
-            <Plus className="w-3 h-3" />
-          </button>
+      <div className="h-8 bg-[#161b22] border-b border-[#30363d] px-3 flex items-center justify-between select-none shrink-0">
+        <div className="flex items-center gap-2">
+          <TerminalIcon className="w-3.5 h-3.5 text-blue-400" />
+          <span className="text-xs font-mono font-semibold text-white">
+            bash
+          </span>
+          <span className="text-[10px] text-[#8b949e] font-mono truncate max-w-sm">
+            ({cleanDisplayPath})
+          </span>
+          <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold bg-blue-950/60 text-blue-300 border border-blue-500/30">
+            PTY Nativo
+          </span>
         </div>
 
-        {/* Window Controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 text-[#8b949e]">
+          {/* Restart Shell */}
           <button
-            onClick={() => setEntries([])}
-            className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#21262d] transition-colors"
-            title="Limpiar salida (clear)"
+            onClick={handleRestart}
+            className="p-1 rounded hover:bg-[#21262d] hover:text-white transition-colors cursor-pointer"
+            title="Reiniciar sesión de terminal"
+          >
+            <RotateCcw className="w-3 h-3" />
+          </button>
+
+          {/* Clear Terminal */}
+          <button
+            onClick={handleClear}
+            className="p-1 rounded hover:bg-[#21262d] hover:text-white transition-colors cursor-pointer"
+            title="Limpiar pantalla (Ctrl+L)"
           >
             <Trash2 className="w-3 h-3" />
           </button>
 
+          {/* Maximize/Minimize Toggle */}
           <button
-            onClick={() => setIsMaximized(!isMaximized)}
-            className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#21262d] transition-colors"
-            title={isMaximized ? "Restaurar tamaño" : "Maximizar terminal"}
+            onClick={() => {
+              setIsMaximized(!isMaximized);
+              setTimeout(() => fitAddonRef.current?.fit(), 100);
+            }}
+            className="p-1 rounded hover:bg-[#21262d] hover:text-white transition-colors cursor-pointer"
+            title={isMaximized ? "Restaurar tamaño" : "Maximizar"}
           >
-            {isMaximized ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+            {isMaximized ? (
+              <Minimize2 className="w-3 h-3" />
+            ) : (
+              <Maximize2 className="w-3 h-3" />
+            )}
           </button>
 
+          {/* Close Terminal */}
           <button
             onClick={onClose}
-            className="p-1 text-[#8b949e] hover:text-rose-400 rounded hover:bg-[#21262d] transition-colors"
+            className="p-1 rounded hover:bg-rose-950/40 hover:text-rose-400 transition-colors cursor-pointer ml-1"
             title="Cerrar terminal"
           >
-            <X className="w-3 h-3" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Terminal Output Stream */}
+      {/* xterm.js DOM Viewport */}
       <div
-        onClick={() => inputRef.current?.focus()}
-        className="flex-1 overflow-y-auto p-2.5 font-mono text-xs flex flex-col gap-1 text-[#c9d1d9] cursor-text"
-      >
-        <div className="text-[11px] text-[#484f58] mb-1">
-          Git-Manager Terminal v0.1 • bash en {repoPath} • escribe 'clear' para limpiar
-        </div>
-
-        {entries.map((entry) => (
-          <div key={entry.id} className="flex flex-col gap-0.5">
-            {/* Prompt + Command Header */}
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className="text-emerald-400 font-semibold">
-                {promptInfo.user}@{promptInfo.hostname}
-              </span>
-              <span className="text-white">:</span>
-              <span className="text-blue-400 font-semibold">{entry.cwd}</span>
-              <span className="text-white">$</span>
-              <span className="text-white font-bold ml-1">{entry.command}</span>
-            </div>
-
-            {/* Standard Output */}
-            {entry.stdout && (
-              <pre className="text-[#c9d1d9] whitespace-pre-wrap leading-relaxed overflow-x-auto pl-1">
-                {entry.stdout}
-              </pre>
-            )}
-
-            {/* Standard Error */}
-            {entry.stderr && (
-              <pre className="text-rose-400 whitespace-pre-wrap leading-relaxed overflow-x-auto pl-1">
-                {entry.stderr}
-              </pre>
-            )}
-          </div>
-        ))}
-
-        {/* Current Active Input Prompt */}
-        <form onSubmit={handleSubmit} className="flex items-center gap-1 mt-0.5">
-          <span className="text-emerald-400 font-semibold shrink-0">
-            {promptInfo.user}@{promptInfo.hostname}
-          </span>
-          <span className="text-white shrink-0">:</span>
-          <span className="text-blue-400 font-semibold shrink-0">{cleanDisplayPath}</span>
-          <span className="text-white shrink-0">$</span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={executing}
-            className="flex-1 bg-transparent text-white focus:outline-none ml-1 caret-cyan-400 font-mono text-xs"
-            placeholder={executing ? "Ejecutando..." : ""}
-            autoFocus
-          />
-        </form>
-
-        <div ref={bottomRef} />
-      </div>
+        ref={containerRef}
+        onClick={() => xtermRef.current?.focus()}
+        className="flex-1 w-full h-full p-2 overflow-hidden bg-[#0d1117] select-text cursor-text font-mono text-xs"
+      />
     </div>
   );
 };

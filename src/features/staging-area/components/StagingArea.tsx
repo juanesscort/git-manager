@@ -19,6 +19,7 @@ import {
   Maximize2,
   Tag,
   TagPlus,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -40,6 +41,8 @@ interface StagingAreaProps {
   onUnstageFile: (path: string) => void;
   onStageAll: () => void;
   onUnstageAll: () => void;
+  onDiscardFile?: (path: string) => void;
+  onDiscardAll?: () => void;
   onSelectFile: (path: string, staged: boolean) => void;
   onCommit: (message: string, tag?: string, tagMessage?: string) => void;
   onGenerateAiCommit?: () => Promise<string | null>;
@@ -101,6 +104,8 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   onUnstageFile,
   onStageAll,
   onUnstageAll,
+  onDiscardFile,
+  onDiscardAll,
   onSelectFile,
   onCommit,
   onGenerateAiCommit,
@@ -315,6 +320,19 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
+          {!isStaged && onDiscardFile && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscardFile(file.path);
+              }}
+              className="p-0.5 rounded transition-colors hover:bg-rose-950/40 text-[#8b949e] hover:text-rose-400 opacity-0 group-hover:opacity-100"
+              title="Descartar cambios de este archivo"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          )}
+
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -480,14 +498,26 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           defaultOpen={true}
           action={
             unstagedFiles.length > 0 ? (
-              <button
-                type="button"
-                onClick={onStageAll}
-                className="text-[10px] text-[#8b949e] hover:text-emerald-400 flex items-center gap-0.5 cursor-pointer"
-                title="Preparar todos (Stage All)"
-              >
-                <Plus className="w-3 h-3" /> Stage All
-              </button>
+              <div className="flex items-center gap-2.5">
+                {onDiscardAll && (
+                  <button
+                    type="button"
+                    onClick={onDiscardAll}
+                    className="text-[10px] text-[#8b949e] hover:text-rose-400 flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Descartar todos los cambios no preparados"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" /> Descartar todo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onStageAll}
+                  className="text-[10px] text-[#8b949e] hover:text-emerald-400 flex items-center gap-0.5 cursor-pointer"
+                  title="Preparar todos (Stage All)"
+                >
+                  <Plus className="w-3 h-3" /> Stage All
+                </button>
+              </div>
             ) : undefined
           }
         >
@@ -507,6 +537,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   isConflicted={conflictedFiles.includes(file.path) || file.is_conflicted}
                   onSelect={() => handleToggleFile(file.path, false)}
                   onAction={() => onStageFile(file.path)}
+                  onDiscard={onDiscardFile ? () => onDiscardFile(file.path) : undefined}
                   onResolveConflict={
                     onOpenConflictResolver ? () => onOpenConflictResolver(file.path) : undefined
                   }

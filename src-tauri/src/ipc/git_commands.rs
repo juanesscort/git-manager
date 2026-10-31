@@ -10,7 +10,10 @@ use crate::core::git_engine::{
         git_rebase, git_stash, git_stash_pop, list_unified_tags, pick_folder, rename_branch,
     },
     repository::{get_repo_summary, open_repository},
-    staging::{stage_all, stage_file, unstage_all, unstage_file},
+    staging::{
+        discard_all_unstaged, discard_unstaged_file, stage_all, stage_file, unstage_all,
+        unstage_file,
+    },
     status::get_repo_statuses,
     tags::{create_tag, delete_tag, list_tags, update_tag},
 };
@@ -412,4 +415,25 @@ pub async fn update_tag_cmd(
         message.as_deref(),
     )
     .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn discard_unstaged_file_cmd(path: String, relative_path: String) -> Result<(), String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    discard_unstaged_file(&repo, &relative_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn discard_all_unstaged_cmd(path: String) -> Result<(), String> {
+    let repo = open_repository(&path).map_err(|e| e.to_string())?;
+    discard_all_unstaged(&repo).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn watch_repo_path_cmd(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::core::git_engine::RepoWatcherManager>,
+    path: String,
+) -> Result<(), String> {
+    state.watch_path(app, &path)
 }
