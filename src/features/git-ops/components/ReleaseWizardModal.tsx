@@ -13,6 +13,8 @@ import {
   Info,
   Lock,
   Sparkles,
+  Copy,
+  Check,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "../../../components/ui/Button";
@@ -84,6 +86,15 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
     } finally {
       setAiGenerating(false);
     }
+  };
+
+  const [copiedBump, setCopiedBump] = useState(false);
+
+  const handleCopyBumpCommand = () => {
+    const cmd = `npm run bump ${projectVersion}`;
+    navigator.clipboard.writeText(cmd);
+    setCopiedBump(true);
+    setTimeout(() => setCopiedBump(false), 2000);
   };
 
   useEffect(() => {
@@ -259,22 +270,34 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
             )}
           </div>
 
-          {/* Current Detected Version Info */}
+          {/* Current Detected Version Info con Comando de Copia Rápida */}
           <div className="p-3 bg-purple-950/15 border border-purple-500/20 rounded-xl text-xs flex items-start gap-2.5">
             <Info className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
+            <div className="space-y-1.5 flex-1 min-w-0">
               <div className="text-white">
                 Versión configurada en archivos del proyecto:{" "}
                 <span className="font-mono font-bold text-purple-300">
                   v{projectVersion}
                 </span>
               </div>
-              <p className="text-[10px] text-[#8b949e]">
-                El motor etiquetará el estado actual sin alterar archivos en disco. Para cambiar la versión del código ejecuta previamente en consola:{" "}
-                <code className="text-purple-300 bg-purple-950/40 px-1 py-0.5 rounded">
-                  npm run bump &lt;versión&gt;
-                </code>
-              </p>
+              <div className="text-[10px] text-[#8b949e] flex flex-wrap items-center gap-1.5 leading-relaxed">
+                <span>Para cambiar la versión del código ejecuta previamente en consola:</span>
+                <span className="inline-flex items-center gap-1.5 bg-[#0d1117] border border-[#30363d] px-2 py-0.5 rounded font-mono text-purple-300">
+                  <code>npm run bump {projectVersion}</code>
+                  <button
+                    type="button"
+                    onClick={handleCopyBumpCommand}
+                    className="p-0.5 hover:text-white transition-colors cursor-pointer text-[#8b949e]"
+                    title={copiedBump ? "¡Comando copiado!" : "Copiar comando a portapapeles"}
+                  >
+                    {copiedBump ? (
+                      <Check className="w-3 h-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3 h-3 text-purple-400 hover:text-purple-300" />
+                    )}
+                  </button>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -302,7 +325,7 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
             </div>
           </div>
 
-          {/* Release Notes Textarea con Generador IA */}
+          {/* Release Notes Textarea con Generador IA Estandarizado */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <label className="font-semibold text-[#8b949e] flex items-center gap-1.5">
@@ -313,11 +336,20 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
                 type="button"
                 onClick={handleGenerateAiReleaseNotes}
                 disabled={aiGenerating || submitting || hasUncommittedChanges}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-purple-300 bg-purple-950/40 border border-purple-500/40 hover:bg-purple-900/40 hover:border-purple-400/60 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
-                title="Generar resumen de cambios y notas de versión con IA a partir de commits recientes"
+                className={`p-1.5 rounded transition-colors cursor-pointer border ${
+                  aiGenerating
+                    ? "bg-amber-950/40 border-amber-500/50 text-amber-300"
+                    : "text-amber-400 hover:text-amber-300 hover:bg-amber-950/30 border-amber-500/20 bg-amber-950/10"
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                title={
+                  aiGenerating
+                    ? "Generando notas de versión con IA..."
+                    : "Generar resumen de cambios y notas de versión con IA a partir de commits recientes"
+                }
               >
-                <Sparkles className={`w-3.5 h-3.5 text-purple-400 ${aiGenerating ? "animate-spin" : ""}`} />
-                <span>{aiGenerating ? "Generando..." : "Generar con IA"}</span>
+                <Sparkles
+                  className={`w-3.5 h-3.5 ${aiGenerating ? "animate-pulse text-amber-300" : "text-amber-400"}`}
+                />
               </button>
             </div>
 
