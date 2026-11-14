@@ -26,7 +26,7 @@ pub use diff::{
 pub use errors::GitEngineError;
 pub use history::get_commit_history;
 pub use media::get_file_media_preview;
-pub use release_ops::{execute_git_manager_release, is_git_manager_repo};
+pub use release_ops::{execute_git_manager_release, get_commits_for_release, is_git_manager_repo};
 pub use remote_ops::{
     checkout_branch, create_branch, delete_branch, git_clone, git_delete_remote_tag, git_fetch,
     git_fetch_tag, git_get_remote_tags, git_merge, git_pull, git_push, git_push_tag, git_rebase,

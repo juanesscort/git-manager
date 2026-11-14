@@ -3,12 +3,16 @@ use super::templates::pr_review::{
     PR_REVIEW_SYSTEM_PROMPT, PrReviewContext, build_pr_review_user_prompt,
 };
 use super::templates::pull_request::{PR_SYSTEM_PROMPT, build_pr_user_prompt};
+use super::templates::release_notes::{
+    RELEASE_NOTES_SYSTEM_PROMPT, build_release_notes_user_prompt,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiTaskKind {
     CommitMessage,
     PullRequest,
     PullRequestReview,
+    ReleaseNotes,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +46,15 @@ impl<'a> PromptContext<'a> {
             commits_summary,
         }
     }
+
+    pub fn for_release_notes(version: &'a str, commits_summary: &'a [String]) -> Self {
+        Self {
+            sanitized_diff: "",
+            head_branch: Some(version),
+            base_branch: None,
+            commits_summary,
+        }
+    }
 }
 
 pub struct AiPromptRegistry;
@@ -52,6 +65,7 @@ impl AiPromptRegistry {
             AiTaskKind::CommitMessage => COMMIT_SYSTEM_PROMPT,
             AiTaskKind::PullRequest => PR_SYSTEM_PROMPT,
             AiTaskKind::PullRequestReview => PR_REVIEW_SYSTEM_PROMPT,
+            AiTaskKind::ReleaseNotes => RELEASE_NOTES_SYSTEM_PROMPT,
         }
     }
 
@@ -77,6 +91,10 @@ impl AiPromptRegistry {
                     commits_summary: context.commits_summary,
                 };
                 build_pr_review_user_prompt(&review_ctx)
+            }
+            AiTaskKind::ReleaseNotes => {
+                let ver = context.head_branch.unwrap_or("v1.0.0");
+                build_release_notes_user_prompt(ver, context.commits_summary)
             }
         }
     }

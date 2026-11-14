@@ -4,7 +4,9 @@ use crate::core::ai_service::{
     AiPromptRegistry, AiTaskKind, PromptContext, generate_commit_for_staged, get_ai_settings,
     save_ai_settings,
 };
-use crate::core::git_engine::{check_branch_diff, get_branch_diff_full, open_repository};
+use crate::core::git_engine::{
+    check_branch_diff, get_branch_diff_full, get_commits_for_release, open_repository,
+};
 use crate::models::ai_models::{AiConfig, SaveAiConfigRequest};
 use crate::models::git_models::BranchDiffCheckResult;
 
@@ -82,6 +84,26 @@ pub async fn generate_ai_pull_request(
     }
 
     Ok(PullRequestAiDto { title, description })
+}
+
+#[tauri::command]
+pub async fn generate_ai_release_notes(
+    repo_path: String,
+    tag_name: String,
+) -> Result<String, String> {
+    let repo = open_repository(&repo_path).map_err(|e| e.to_string())?;
+    let commits = get_commits_for_release(&repo, 50).map_err(|e| e.to_string())?;
+
+    let provider = create_active_provider().map_err(|e| e.to_string())?;
+    let context = PromptContext::for_release_notes(&tag_name, &commits);
+    let prompt = AiPromptRegistry::user_prompt(AiTaskKind::ReleaseNotes, &context);
+
+    let notes = provider
+        .generate_commit(&prompt)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(notes.trim().to_string())
 }
 
 #[tauri::command]

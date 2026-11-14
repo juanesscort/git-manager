@@ -5,8 +5,8 @@ pub mod models;
 use core::git_engine::RepoWatcherManager;
 use core::terminal_engine::TerminalManager;
 use ipc::ai_commands::{
-    check_branch_diff_cmd, generate_ai_commit, generate_ai_pull_request, get_ai_config,
-    review_pull_request_with_ai, save_ai_config,
+    check_branch_diff_cmd, generate_ai_commit, generate_ai_pull_request, generate_ai_release_notes,
+    get_ai_config, review_pull_request_with_ai, save_ai_config,
 };
 use ipc::check_system_status;
 use ipc::conflict_commands::{
@@ -86,6 +86,7 @@ pub fn run() {
             check_branch_diff_cmd,
             generate_ai_commit,
             generate_ai_pull_request,
+            generate_ai_release_notes,
             create_pull_request_cmd,
             save_ai_config,
             get_ai_config,

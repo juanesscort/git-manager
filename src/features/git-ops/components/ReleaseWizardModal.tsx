@@ -11,6 +11,8 @@ import {
   Tag,
   FileText,
   Info,
+  Lock,
+  Sparkles,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "../../../components/ui/Button";
@@ -55,6 +57,34 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
   const [pushToOrigin, setPushToOrigin] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const handleGenerateAiReleaseNotes = async () => {
+    if (!repoPath || !tagName) return;
+    setAiGenerating(true);
+    setAiError(null);
+    try {
+      const generated = await invoke<string>("generate_ai_release_notes", {
+        repoPath,
+        tagName,
+      });
+      if (generated) {
+        setReleaseNotes(generated);
+      }
+    } catch (err: unknown) {
+      console.error("Error generando notas de release con IA:", err);
+      const msg =
+        typeof err === "string"
+          ? err
+          : err instanceof Error
+          ? err.message
+          : JSON.stringify(err);
+      setAiError(msg);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen && repoPath) {
@@ -248,35 +278,63 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
             </div>
           </div>
 
-          {/* Tag Name Input */}
+          {/* Tag Name Input (Protegido contra edición accidental) */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#8b949e] flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5 text-purple-400" />
-              Nombre de la Etiqueta Git (Tag):
-            </label>
-            <input
-              type="text"
-              value={tagName}
-              disabled={submitting || hasUncommittedChanges}
-              onChange={(e) => setTagName(e.target.value)}
-              placeholder="ej. v0.4.0"
-              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white font-mono focus:outline-hidden focus:border-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            />
+            <div className="flex items-center justify-between text-xs">
+              <label className="font-semibold text-[#8b949e] flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-purple-400" />
+                Nombre de la Etiqueta Git (Tag):
+              </label>
+              <span className="text-[10px] text-purple-300/80 font-mono flex items-center gap-1">
+                <Lock className="w-3 h-3 text-purple-400" />
+                Vinculada a package.json
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={tagName}
+                readOnly
+                disabled={submitting || hasUncommittedChanges}
+                placeholder="ej. v0.4.0"
+                className="w-full px-3 py-2 text-xs bg-[#0d1117]/80 border border-[#30363d] rounded-xl text-purple-300 font-mono font-medium focus:outline-hidden cursor-default select-all disabled:opacity-50"
+              />
+            </div>
           </div>
 
-          {/* Release Notes Textarea */}
+          {/* Release Notes Textarea con Generador IA */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#8b949e] flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-purple-400" />
-              Mensaje o Notas de la Release (Opcional):
-            </label>
+            <div className="flex items-center justify-between text-xs">
+              <label className="font-semibold text-[#8b949e] flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-purple-400" />
+                Mensaje o Notas de la Release (Opcional):
+              </label>
+              <button
+                type="button"
+                onClick={handleGenerateAiReleaseNotes}
+                disabled={aiGenerating || submitting || hasUncommittedChanges}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-purple-300 bg-purple-950/40 border border-purple-500/40 hover:bg-purple-900/40 hover:border-purple-400/60 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+                title="Generar resumen de cambios y notas de versión con IA a partir de commits recientes"
+              >
+                <Sparkles className={`w-3.5 h-3.5 text-purple-400 ${aiGenerating ? "animate-spin" : ""}`} />
+                <span>{aiGenerating ? "Generando..." : "Generar con IA"}</span>
+              </button>
+            </div>
+
+            {aiError && (
+              <div className="p-2 bg-rose-950/40 border border-rose-500/30 text-rose-300 rounded-lg text-[11px] flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span>{aiError}</span>
+              </div>
+            )}
+
             <textarea
               value={releaseNotes}
-              disabled={submitting || hasUncommittedChanges}
+              disabled={submitting || hasUncommittedChanges || aiGenerating}
               onChange={(e) => setReleaseNotes(e.target.value)}
-              placeholder="Escribe un resumen de novedades o cambios importantes..."
-              rows={3}
-              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white placeholder-[#484f58] focus:outline-hidden focus:border-purple-500 transition-colors resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+              placeholder="Escribe o genera un resumen de novedades o cambios importantes..."
+              rows={4}
+              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white placeholder-[#484f58] focus:outline-hidden focus:border-purple-500 transition-colors resize-none disabled:opacity-50 disabled:cursor-not-allowed font-sans"
             />
           </div>
 

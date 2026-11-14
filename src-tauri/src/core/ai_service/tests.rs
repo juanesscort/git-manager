@@ -99,6 +99,27 @@ fn test_prompt_registry_pr_review_without_emojis() {
 }
 
 #[test]
+fn test_prompt_registry_release_notes_without_emojis() {
+    use super::prompts::{AiPromptRegistry, AiTaskKind, PromptContext};
+
+    let commits = [
+        "feat(core): add AI release generator".to_string(),
+        "fix(ui): align tag badges".to_string(),
+    ];
+    let ctx = PromptContext::for_release_notes("v1.1.2", &commits);
+    let user_prompt = AiPromptRegistry::user_prompt(AiTaskKind::ReleaseNotes, &ctx);
+    let sys_prompt = AiPromptRegistry::system_prompt(AiTaskKind::ReleaseNotes);
+
+    assert!(user_prompt.contains("v1.1.2"));
+    assert!(user_prompt.contains("feat(core): add AI release generator"));
+    assert!(sys_prompt.contains("ESTA TERMINANTEMENTE PROHIBIDO EL USO DE CUALQUIER EMOJI"));
+    assert!(!sys_prompt.contains("📌"));
+    assert!(!sys_prompt.contains("🚀"));
+    assert!(!user_prompt.contains("📌"));
+    assert!(!user_prompt.contains("🚀"));
+}
+
+#[test]
 fn test_fallback_chain() {
     use super::gemini::GeminiProvider;
     let provider = GeminiProvider::new(

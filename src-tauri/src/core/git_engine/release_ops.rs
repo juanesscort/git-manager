@@ -39,6 +39,67 @@ pub fn get_project_version(repo: &Repository) -> Option<String> {
     None
 }
 
+pub fn get_commits_for_release(
+    repo: &Repository,
+    max_commits: usize,
+) -> Result<Vec<String>, GitEngineError> {
+    if repo.is_empty().unwrap_or(false) || repo.head().is_err() {
+        return Ok(Vec::new());
+    }
+
+    // 1. Find the target commit of the latest tag before HEAD, if any
+    let mut latest_tag_oid: Option<git2::Oid> = None;
+    if let Ok(tag_names) = repo.tag_names(None) {
+        let mut tags_with_time = Vec::new();
+        for name_res in tag_names.iter() {
+            let Ok(Some(name_str)) = name_res else {
+                continue;
+            };
+            let refname = format!("refs/tags/{}", name_str);
+            if let Ok(reference) = repo.find_reference(&refname)
+                && let Ok(peeled) = reference.peel_to_commit()
+            {
+                tags_with_time.push((peeled.time().seconds(), peeled.id()));
+            }
+        }
+        tags_with_time.sort_by_key(|a| std::cmp::Reverse(a.0));
+        if let Some((_, oid)) = tags_with_time.first() {
+            latest_tag_oid = Some(*oid);
+        }
+    }
+
+    // 2. Walk commits from HEAD
+    let mut revwalk = repo.revwalk()?;
+    let _ = revwalk.push_head();
+    revwalk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
+
+    let mut summaries = Vec::new();
+    for oid_res in revwalk.take(max_commits) {
+        let oid = oid_res?;
+        if let Some(tag_oid) = latest_tag_oid
+            && oid == tag_oid
+            && !summaries.is_empty()
+        {
+            // Reached the previous tagged commit
+            break;
+        }
+
+        let commit = repo.find_commit(oid)?;
+        let summary = commit.summary().ok().flatten().unwrap_or("").to_string();
+        if !summary.trim().is_empty() {
+            let full_oid = oid.to_string();
+            let short_id = if full_oid.len() >= 7 {
+                &full_oid[..7]
+            } else {
+                &full_oid
+            };
+            summaries.push(format!("{} {}", short_id, summary.trim()));
+        }
+    }
+
+    Ok(summaries)
+}
+
 pub fn execute_git_manager_release(
     repo: &Repository,
     tag_name: &str,
