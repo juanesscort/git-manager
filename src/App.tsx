@@ -104,12 +104,18 @@ export const App: React.FC = () => {
 
   const { repoPath, summary, refreshRepo } = useRepo(activeRepoPath);
 
-  // Sync active tab's branch badge with the current summary
+  // Sync active tab's branch badge with the current summary (strictly validating path match)
   useEffect(() => {
-    if (summary?.current_branch && activeTabId) {
+    if (
+      summary?.current_branch &&
+      activeTabId &&
+      summary.path &&
+      activeRepoPath &&
+      summary.path === activeRepoPath
+    ) {
       updateTabBranch(activeTabId, summary.current_branch);
     }
-  }, [summary?.current_branch, activeTabId, updateTabBranch]);
+  }, [summary?.current_branch, summary?.path, activeTabId, activeRepoPath, updateTabBranch]);
 
   // Resizable panel dimensions & collapsed states (Flechas 2, 3, 4)
   const [leftWidth, setLeftWidth] = useState<number>(() => {
@@ -354,7 +360,7 @@ export const App: React.FC = () => {
 
   // Actions Repo Slug and Hook
   const actionsRepoSlug = useMemo(() => {
-    if (!summary?.remote_url) return "";
+    if (!summary?.remote_url || !summary.path || summary.path !== activeRepoPath) return "";
     let clean = summary.remote_url.trim();
     if (clean.startsWith("git@github.com:")) {
       clean = clean.replace("git@github.com:", "");
@@ -362,7 +368,7 @@ export const App: React.FC = () => {
       clean = clean.replace("https://github.com/", "");
     }
     return clean.replace(/\.git$/, "");
-  }, [summary?.remote_url]);
+  }, [summary?.remote_url, summary?.path, activeRepoPath]);
 
   const { activeRunsCount, latestRunStatus, fetchRuns } = useGitHubActions(actionsRepoSlug);
   const [isReleaseTriggered, setIsReleaseTriggered] = useState<boolean>(false);
@@ -534,7 +540,7 @@ export const App: React.FC = () => {
   };
 
   const refreshPrCount = useCallback(async () => {
-    if (!summary?.remote_url || !githubUser) {
+    if (!summary?.remote_url || !summary.path || summary.path !== activeRepoPath || !githubUser) {
       setOpenPrCount(0);
       return;
     }
@@ -559,13 +565,14 @@ export const App: React.FC = () => {
     } catch {
       setOpenPrCount(0);
     }
-  }, [summary?.remote_url, githubUser]);
+  }, [summary?.remote_url, summary?.path, activeRepoPath, githubUser]);
 
   useEffect(() => {
     refreshPrCount();
   }, [refreshPrCount]);
 
   const handleRefreshAll = useCallback(() => {
+    if (!activeRepoPath || activeRepoPath === ".") return;
     refreshRepo();
     refreshStatuses();
     refreshCommits();
@@ -577,7 +584,7 @@ export const App: React.FC = () => {
     openDiffTabs.forEach((tab) => {
       if (tab.type === "commit" && tab.commitOid) {
         invoke<DiffDelta>("get_commit_file_diff_cmd", {
-          path: repoPath,
+          path: activeRepoPath,
           commitOid: tab.commitOid,
           relativePath: tab.path,
         })
@@ -585,7 +592,7 @@ export const App: React.FC = () => {
           .catch(() => {});
       } else {
         invoke<DiffDelta>("get_diff_cmd", {
-          path: repoPath,
+          path: activeRepoPath,
           relativePath: tab.path,
           staged: Boolean(tab.staged),
         })
@@ -602,7 +609,7 @@ export const App: React.FC = () => {
     refreshTags,
     refreshPrCount,
     openDiffTabs,
-    repoPath,
+    activeRepoPath,
   ]);
 
   // Discard Unstaged Changes State & Handlers
@@ -654,12 +661,28 @@ export const App: React.FC = () => {
     }
   }, [activeRepoPath]);
 
-  // Real-time synchronization: repo-fs-changed (only refreshes working tree & conflicts)
+  const activeRepoPathRef = useRef(activeRepoPath);
+  activeRepoPathRef.current = activeRepoPath;
+
+  const refreshStatusesRef = useRef(refreshStatuses);
+  refreshStatusesRef.current = refreshStatuses;
+
+  const checkConflictsRef = useRef(checkConflicts);
+  checkConflictsRef.current = checkConflicts;
+
+  // Real-time synchronization: repo-fs-changed (filtered by repository path payload)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    listen("repo-fs-changed", () => {
-      refreshStatuses();
-      checkConflicts();
+    listen<string>("repo-fs-changed", (event) => {
+      if (
+        event.payload &&
+        activeRepoPathRef.current &&
+        event.payload !== activeRepoPathRef.current
+      ) {
+        return;
+      }
+      refreshStatusesRef.current();
+      checkConflictsRef.current();
     }).then((unsub) => {
       unlisten = unsub;
     });
@@ -667,19 +690,19 @@ export const App: React.FC = () => {
     return () => {
       if (unlisten) unlisten();
     };
-  }, [refreshStatuses, checkConflicts]);
+  }, []);
 
   // Window focus synchronization when user returns from external editors or terminals
   useEffect(() => {
     const handleWindowFocus = () => {
-      refreshStatuses();
-      checkConflicts();
+      refreshStatusesRef.current();
+      checkConflictsRef.current();
     };
     window.addEventListener("focus", handleWindowFocus);
     return () => {
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [refreshStatuses, checkConflicts]);
+  }, []);
 
   const handleSelectWip = () => {
     setSelectedCommit(null);
@@ -1042,16 +1065,36 @@ export const App: React.FC = () => {
     }
   }, [openDiffTabs.length, centerViewMode]);
 
-  // Reset commit/file selections and tabs when active repo changes
+  const handleSwitchTab = useCallback(
+    (tabId: string) => {
+      if (tabId === activeTabId) return;
+      setSelectedCommit(null);
+      setIsWipSelected(false);
+      setOpenDiffTabs([]);
+      setDiffCache({});
+      setDiffLoadingMap({});
+      setTabLimitWarning(null);
+      setActiveCenterTab("graph");
+      switchTab(tabId);
+    },
+    [activeTabId, switchTab]
+  );
+
+  // Trigger full refresh when activeRepoPath changes
+  const prevActiveRepoPathRef = useRef<string>(activeRepoPath);
   useEffect(() => {
-    setSelectedCommit(null);
-    setIsWipSelected(false);
-    setOpenDiffTabs([]);
-    setDiffCache({});
-    setDiffLoadingMap({});
-    setTabLimitWarning(null);
-    setActiveCenterTab("graph");
-  }, [activeTabId]);
+    if (activeRepoPath && activeRepoPath !== prevActiveRepoPathRef.current) {
+      prevActiveRepoPathRef.current = activeRepoPath;
+      setSelectedCommit(null);
+      setIsWipSelected(false);
+      setOpenDiffTabs([]);
+      setDiffCache({});
+      setDiffLoadingMap({});
+      setTabLimitWarning(null);
+      setActiveCenterTab("graph");
+      handleRefreshAll();
+    }
+  }, [activeRepoPath, handleRefreshAll]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0d1117] text-[#c9d1d9] select-none overflow-hidden">
@@ -1064,7 +1107,7 @@ export const App: React.FC = () => {
         hasUpdate={hasAppUpdate}
         updateVersion={appUpdateVersion}
         onOpenUpdates={() => handleOpenSettings("about")}
-        onSwitchTab={switchTab}
+        onSwitchTab={handleSwitchTab}
         onCloseTab={closeTab}
         onReorderTabs={reorderTabs}
         onOpenNewTab={() => setOpenRepoModalOpen(true)}
@@ -1304,6 +1347,7 @@ export const App: React.FC = () => {
                     defaultOpen={true}
                   >
                     <BranchTreeView
+                      key={`local-${activeRepoPath}`}
                       branches={branches.local}
                       currentBranch={currentBranchName}
                       onSelectBranch={handleSelectBranchCommit}
@@ -1340,6 +1384,7 @@ export const App: React.FC = () => {
                     }
                   >
                     <BranchTreeView
+                      key={`remote-${activeRepoPath}`}
                       branches={branches.remote}
                       isRemote={true}
                       onSelectBranch={handleSelectBranchCommit}
@@ -1630,6 +1675,7 @@ export const App: React.FC = () => {
                 />
               ) : (
                 <CommitGraph
+                  key={activeRepoPath}
                   nodes={graphNodes}
                   selectedCommit={selectedCommit}
                   loading={commitsLoading}
@@ -1656,6 +1702,7 @@ export const App: React.FC = () => {
             <div className="flex-1 flex flex-col overflow-hidden">
               <div className="flex-1 flex flex-col overflow-hidden min-h-[120px]">
                 <CommitGraph
+                  key={activeRepoPath}
                   nodes={graphNodes}
                   selectedCommit={selectedCommit}
                   loading={commitsLoading}
@@ -1803,6 +1850,7 @@ export const App: React.FC = () => {
                 />
               ) : (
                 <StagingArea
+                  key={activeRepoPath}
                   repoPath={activeRepoPath}
                   stagedFiles={stagedFiles}
                   unstagedFiles={unstagedFiles}

@@ -3,11 +3,19 @@ import { invoke } from "@tauri-apps/api/core";
 import { ConflictedFileDetail } from "../../../types/git";
 
 export function useConflictResolver(repoPath: string, onResolved?: () => void) {
+  const [currentRepoPath, setCurrentRepoPath] = useState(repoPath);
   const [conflictedFiles, setConflictedFiles] = useState<string[]>([]);
   const [selectedConflict, setSelectedConflict] = useState<ConflictedFileDetail | null>(null);
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronously reset conflicts when switching repositories
+  if (currentRepoPath !== repoPath) {
+    setCurrentRepoPath(repoPath);
+    setConflictedFiles([]);
+    setSelectedConflict(null);
+  }
 
   const checkConflicts = useCallback(async () => {
     if (!repoPath || repoPath === ".") {

@@ -61,6 +61,8 @@ impl RepoWatcherManager {
             .watch(&new_path, RecursiveMode::Recursive)
             .map_err(|e| format!("Error observando ruta {}: {}", path_str, e))?;
 
+        let watched_repo_path = new_path.to_string_lossy().to_string();
+
         // Background thread to debounce events and emit to frontend
         std::thread::spawn(move || {
             while let Ok(event) = rx.recv() {
@@ -83,7 +85,7 @@ impl RepoWatcherManager {
                 let now = Instant::now();
                 if now.duration_since(*guard) >= Duration::from_millis(250) {
                     *guard = now;
-                    let _ = app_handle.emit("repo-fs-changed", ());
+                    let _ = app_handle.emit("repo-fs-changed", &watched_repo_path);
                 }
             }
         });

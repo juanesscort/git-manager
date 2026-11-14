@@ -3,11 +3,22 @@ import { invoke } from "@tauri-apps/api/core";
 import { CommitFileChange, CommitInfo, DiffDelta } from "../../../types/git";
 
 export function useCommitDetails(repoPath: string, selectedCommit: CommitInfo | null) {
+  const [currentRepoPath, setCurrentRepoPath] = useState(repoPath);
+  const [currentCommitOid, setCurrentCommitOid] = useState(selectedCommit?.oid);
   const [files, setFiles] = useState<CommitFileChange[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState<DiffDelta | null>(null);
   const [diffLoading, setDiffLoading] = useState<boolean>(false);
+
+  // Synchronously reset commit details on repo or commit change
+  if (currentRepoPath !== repoPath || currentCommitOid !== selectedCommit?.oid) {
+    setCurrentRepoPath(repoPath);
+    setCurrentCommitOid(selectedCommit?.oid);
+    setFiles([]);
+    setSelectedFile(null);
+    setFileDiff(null);
+  }
 
   const fetchCommitFiles = useCallback(async () => {
     if (!selectedCommit?.oid) {

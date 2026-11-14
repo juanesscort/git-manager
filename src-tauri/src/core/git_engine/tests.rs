@@ -19,6 +19,11 @@ fn test_open_and_summary() {
     let summary = get_repo_summary(&opened).expect("Failed to get summary");
     assert!(summary.is_empty);
     assert!(!summary.is_bare);
+
+    // Relative and empty paths must be strictly rejected
+    assert!(open_repository("").is_err());
+    assert!(open_repository(".").is_err());
+    assert!(open_repository("relative/path").is_err());
 }
 
 #[test]

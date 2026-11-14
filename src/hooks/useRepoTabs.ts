@@ -76,7 +76,7 @@ export function useRepoTabs() {
 
   const tabsWithCounts = tabs.map((t) => ({
     ...t,
-    pendingChanges: repoPendingChanges[t.path] ?? t.pendingChanges ?? 0,
+    pendingChanges: repoPendingChanges[t.path] ?? 0,
   }));
 
   const activeTab = tabsWithCounts.find((t) => t.id === activeTabId) || tabsWithCounts[0] || null;
