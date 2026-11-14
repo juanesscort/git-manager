@@ -14,8 +14,6 @@ import {
   Plus,
   AlertTriangle,
   ChevronLeft,
-  ChevronRight,
-  Layers,
 } from "lucide-react";
 import logoImg from "./assets/logo.png";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -1289,32 +1287,15 @@ export const App: React.FC = () => {
           {leftCollapsed ? (
             <div
               onClick={handleToggleLeftPanel}
-              className="w-9 h-full bg-[#0d1117] border-r border-[#30363d] flex flex-col items-center py-3 gap-3 shrink-0 cursor-pointer select-none hover:bg-[#161b22] transition-colors group z-10"
+              className="w-9 h-full bg-[#0d1117] border-r border-[#30363d] flex flex-col items-center justify-center shrink-0 cursor-pointer select-none hover:bg-[#161b22] transition-colors group z-10"
               title="Expandir panel izquierdo (Ramas y Etiquetas)"
             >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleLeftPanel();
-                }}
-                className="p-1.5 rounded text-[#8b949e] group-hover:text-white group-hover:bg-[#21262d] transition-colors cursor-pointer"
-                title="Expandir panel lateral izquierdo"
+              <span
+                className="text-[11px] font-semibold text-[#8b949e] group-hover:text-[#c9d1d9] tracking-wider uppercase whitespace-nowrap select-none"
+                style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
               >
-                <ChevronRight className="w-4 h-4 text-blue-400" />
-              </button>
-              <div className="flex items-center gap-1 mt-1">
-                <GitBranch className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-[10px] font-mono text-[#8b949e]">{branches.local.length}</span>
-              </div>
-              <div className="flex-1 flex items-center justify-center">
-                <span
-                  className="text-[11px] font-semibold text-[#8b949e] group-hover:text-[#c9d1d9] tracking-wider uppercase whitespace-nowrap select-none"
-                  style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
-                >
-                  Ramas & Etiquetas
-                </span>
-              </div>
+                Ramas & Etiquetas
+              </span>
             </div>
           ) : (
             <>
@@ -1771,36 +1752,15 @@ export const App: React.FC = () => {
         {rightCollapsed ? (
           <div
             onClick={handleToggleRightPanel}
-            className="w-9 h-full bg-[#0d1117] border-l border-[#30363d] flex flex-col items-center py-3 gap-3 shrink-0 cursor-pointer select-none hover:bg-[#161b22] transition-colors group z-10"
+            className="w-9 h-full bg-[#0d1117] border-l border-[#30363d] flex flex-col items-center justify-center shrink-0 cursor-pointer select-none hover:bg-[#161b22] transition-colors group z-10"
             title="Expandir panel derecho (Área de Cambios)"
           >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleRightPanel();
-              }}
-              className="p-1.5 rounded text-[#8b949e] group-hover:text-white group-hover:bg-[#21262d] transition-colors cursor-pointer"
-              title="Expandir panel lateral derecho"
+            <span
+              className="text-[11px] font-semibold text-[#8b949e] group-hover:text-[#c9d1d9] tracking-wider uppercase whitespace-nowrap select-none"
+              style={{ writingMode: "vertical-rl" }}
             >
-              <ChevronLeft className="w-4 h-4 text-blue-400" />
-            </button>
-            <div className="flex items-center gap-1 mt-1">
-              <Layers className="w-3.5 h-3.5 text-blue-400" />
-              {stagedFiles.length + unstagedFiles.length > 0 && (
-                <span className="text-[10px] font-mono text-amber-300 bg-amber-500/20 px-1 rounded">
-                  {stagedFiles.length + unstagedFiles.length}
-                </span>
-              )}
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-              <span
-                className="text-[11px] font-semibold text-[#8b949e] group-hover:text-[#c9d1d9] tracking-wider uppercase whitespace-nowrap select-none"
-                style={{ writingMode: "vertical-rl" }}
-              >
-                {selectedCommit ? "Detalles del Commit" : "Área de Cambios (WIP)"}
-              </span>
-            </div>
+              {selectedCommit ? "Detalles del Commit" : "Área de Cambios (WIP)"}
+            </span>
           </div>
         ) : (
           <>

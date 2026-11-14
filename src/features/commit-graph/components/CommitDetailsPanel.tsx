@@ -118,27 +118,29 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
 
   return (
     <aside className="w-full h-full flex flex-col bg-[#0d1117] overflow-hidden select-none">
-      {/* Header with Back button */}
-      <div className="h-10 border-b border-[#30363d] px-3 flex items-center justify-between text-xs bg-[#161b22] shrink-0">
-        <button
-          onClick={onClose}
-          className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-medium transition-colors cursor-pointer"
-          title="Regresar al Área de Cambios (WIP)"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Volver a Cambios</span>
-        </button>
-
-        <div className="flex items-center gap-1">
+      {/* Header with Back button and Collapse */}
+      <div className="h-10 border-b border-[#30363d] px-2.5 flex items-center justify-between text-xs bg-[#161b22] shrink-0">
+        <div className="flex items-center gap-1.5">
           {onToggleCollapse && (
             <button
               onClick={onToggleCollapse}
-              className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"
+              className="p-1 -ml-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"
               title="Minimizar panel derecho"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           )}
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-medium transition-colors cursor-pointer"
+            title="Regresar al Área de Cambios (WIP)"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Volver a Cambios</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1">
           <button
             onClick={onClose}
             className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"

@@ -441,8 +441,18 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   return (
     <aside className="w-full h-full bg-[#0d1117] flex flex-col overflow-hidden select-none">
       {/* Header */}
-      <div className="h-10 border-b border-[#30363d] px-3 flex items-center justify-between text-xs bg-[#161b22] shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="h-10 border-b border-[#30363d] px-2.5 flex items-center justify-between text-xs bg-[#161b22] shrink-0">
+        <div className="flex items-center gap-1.5">
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="p-1 -ml-1 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors cursor-pointer"
+              title="Minimizar panel derecho"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
           <Layers className="w-4 h-4 text-blue-400" />
           <span className="font-semibold text-white">Área de Cambios (WIP)</span>
           {loading && <RefreshCw className="w-3 h-3 text-blue-400 animate-pulse" />}
@@ -451,16 +461,6 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/30 font-medium">
             {stagedFiles.length + unstagedFiles.length} cambios
           </span>
-          {onToggleCollapse && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="p-1 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors cursor-pointer"
-              title="Minimizar panel derecho"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
 
