@@ -13,6 +13,9 @@ import {
   Tag,
   Plus,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
 } from "lucide-react";
 import logoImg from "./assets/logo.png";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -95,7 +98,7 @@ export const App: React.FC = () => {
 
   const [openRepoModalOpen, setOpenRepoModalOpen] = useState<boolean>(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false);
-  const activeRepoPath = activeTab?.path || ".";
+  const activeRepoPath = activeTab?.path || "";
 
   const { repoPath, summary, refreshRepo } = useRepo(activeRepoPath);
 
@@ -106,9 +109,38 @@ export const App: React.FC = () => {
     }
   }, [summary?.current_branch, activeTabId, updateTabBranch]);
 
-  // Resizable panel dimensions (Flechas 2, 3, 4)
-  const [leftWidth, setLeftWidth] = useState<number>(230);
-  const [rightWidth, setRightWidth] = useState<number>(340);
+  // Resizable panel dimensions & collapsed states (Flechas 2, 3, 4)
+  const [leftWidth, setLeftWidth] = useState<number>(() => {
+    const saved = localStorage.getItem("gitmanager_panel_left_width");
+    return saved ? Math.max(180, Math.min(500, parseInt(saved, 10))) : 280;
+  });
+  const [rightWidth, setRightWidth] = useState<number>(() => {
+    const saved = localStorage.getItem("gitmanager_panel_right_width");
+    return saved ? Math.max(280, Math.min(650, parseInt(saved, 10))) : 340;
+  });
+  const [leftCollapsed, setLeftCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem("gitmanager_panel_left_collapsed") === "true";
+  });
+  const [rightCollapsed, setRightCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem("gitmanager_panel_right_collapsed") === "true";
+  });
+
+  const handleToggleLeftPanel = () => {
+    setLeftCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("gitmanager_panel_left_collapsed", next ? "true" : "false");
+      return next;
+    });
+  };
+
+  const handleToggleRightPanel = () => {
+    setRightCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("gitmanager_panel_right_collapsed", next ? "true" : "false");
+      return next;
+    });
+  };
+
   const [diffHeight, setDiffHeight] = useState<number>(320);
 
   // Center Area display mode & Multi-tab Diff Management (Flecha 1)
@@ -232,7 +264,7 @@ export const App: React.FC = () => {
     loading: commitsLoading,
     setSelectedCommit,
     refreshCommits,
-  } = useCommitGraph(repoPath);
+  } = useCommitGraph(activeRepoPath);
 
   const matchesCount = useMemo(() => {
     if (!graphSearchQuery.trim()) return graphNodes.length;
@@ -248,10 +280,11 @@ export const App: React.FC = () => {
     ).length;
   }, [graphNodes, graphSearchQuery]);
 
-  const { branches, refreshBranches } = useBranches(repoPath);
+  const { branches, refreshBranches } = useBranches(activeRepoPath);
 
   const {
     tags,
+    loading: tagsLoading,
     refreshTags,
     pushTag,
     fetchTag,
@@ -365,7 +398,7 @@ export const App: React.FC = () => {
   const {
     files: commitFiles,
     loading: commitFilesLoading,
-  } = useCommitDetails(repoPath, selectedCommit);
+  } = useCommitDetails(activeRepoPath, selectedCommit);
 
   const {
     stagedFiles,
@@ -379,7 +412,7 @@ export const App: React.FC = () => {
     discardFile,
     discardAll,
     commitChanges,
-  } = useStaging(repoPath, () => {
+  } = useStaging(activeRepoPath, () => {
     refreshCommits();
     refreshRepo();
     refreshBranches();
@@ -396,7 +429,7 @@ export const App: React.FC = () => {
     openConflictModal,
     resolveConflict,
     closeModal: closeConflictModal,
-  } = useConflictResolver(repoPath, () => {
+  } = useConflictResolver(activeRepoPath, () => {
     refreshStatuses();
     refreshCommits();
     refreshRepo();
@@ -406,7 +439,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     checkConflicts();
-  }, [checkConflicts, repoPath]);
+  }, [checkConflicts, activeRepoPath]);
 
   const loadTabDiff = async (tab: OpenDiffTab) => {
     if (diffCache[tab.id]) return;
@@ -619,25 +652,20 @@ export const App: React.FC = () => {
     }
   }, [activeRepoPath]);
 
-  // Real-time synchronization: repo-fs-changed and window focus
+  // Real-time synchronization: repo-fs-changed (only refreshes working tree & conflicts)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen("repo-fs-changed", () => {
-      handleRefreshAll();
+      refreshStatuses();
+      checkConflicts();
     }).then((unsub) => {
       unlisten = unsub;
     });
 
-    const handleFocus = () => {
-      handleRefreshAll();
-    };
-    window.addEventListener("focus", handleFocus);
-
     return () => {
       if (unlisten) unlisten();
-      window.removeEventListener("focus", handleFocus);
     };
-  }, [handleRefreshAll]);
+  }, [refreshStatuses, checkConflicts]);
 
   const handleSelectWip = () => {
     setSelectedCommit(null);
@@ -654,6 +682,39 @@ export const App: React.FC = () => {
       );
     }
   };
+
+  const handleToolbarOperationSuccess = useCallback(
+    (opName?: string) => {
+      if (opName === "Fetch") {
+        refreshBranches();
+        refreshCommits();
+        return;
+      }
+      if (
+        opName === "Nueva Rama" ||
+        opName?.startsWith("Checkout") ||
+        opName?.startsWith("Renombrar") ||
+        opName?.startsWith("Eliminar")
+      ) {
+        refreshBranches();
+        refreshRepo();
+        refreshCommits();
+        return;
+      }
+      if (opName === "Stash" || opName === "Pop Stash") {
+        refreshStatuses();
+        refreshRepo();
+        return;
+      }
+      // Operations modifying tree and commits (Pull, Push, Merge, Rebase)
+      refreshRepo();
+      refreshStatuses();
+      refreshCommits();
+      refreshBranches();
+      checkConflicts();
+    },
+    [refreshBranches, refreshCommits, refreshRepo, refreshStatuses, checkConflicts]
+  );
 
   // Git Operations Toolbar (Flecha 1)
   const {
@@ -674,7 +735,7 @@ export const App: React.FC = () => {
     rebaseBranch,
     clearNotification: clearToolbarNotification,
     setNotification: setToolbarNotification,
-  } = useGitToolbar(repoPath, handleRefreshAll);
+  } = useGitToolbar(activeRepoPath, handleToolbarOperationSuccess);
 
   const handlePushTag = async (tagName: string) => {
     setPushingTag(tagName);
@@ -691,10 +752,15 @@ export const App: React.FC = () => {
   // Keep each repository's pending changes counter updated without leaking between tabs (Flecha 5)
   const pendingChangesCount = stagedFiles.length + unstagedFiles.length;
   useEffect(() => {
-    if (!stagingLoading && repoPath && activeTab?.path === repoPath) {
-      setRepoPathChanges(repoPath, pendingChangesCount);
+    if (
+      !stagingLoading &&
+      activeRepoPath &&
+      activeRepoPath !== "." &&
+      activeTab?.path === activeRepoPath
+    ) {
+      setRepoPathChanges(activeRepoPath, pendingChangesCount);
     }
-  }, [stagingLoading, repoPath, activeTab?.path, pendingChangesCount, setRepoPathChanges]);
+  }, [stagingLoading, activeRepoPath, activeTab?.path, pendingChangesCount, setRepoPathChanges]);
 
   // Drag & drop branch merge / pull / push state
   const [mergeModal, setMergeModal] = useState<{
@@ -1050,144 +1116,215 @@ export const App: React.FC = () => {
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
-          {/* Left Sidebar: Navigation & Repositories */}
-          <aside
-            style={{ width: leftWidth }}
-            className="bg-[#0d1117] flex flex-col p-3 gap-3 shrink-0 overflow-hidden select-none"
-          >
-            <nav className="flex flex-col gap-2 text-xs overflow-y-auto flex-1 no-scrollbar">
-              {/* 1. Local Branches Accordion */}
-              <AccordionSection
-                title="Ramas Locales"
-                count={branches.local.length}
-                icon={<GitBranch className="w-3.5 h-3.5 text-blue-400" />}
-                defaultOpen={true}
+          {/* Left Sidebar: Collapsed 36px rail OR Expanded Aside (Flechas 3 & 4) */}
+          {leftCollapsed ? (
+            <div
+              onClick={handleToggleLeftPanel}
+              className="w-9 h-full bg-[#0d1117] border-r border-[#30363d] flex flex-col items-center py-3 gap-3 shrink-0 cursor-pointer select-none hover:bg-[#161b22] transition-colors group z-10"
+              title="Expandir panel izquierdo (Ramas y Etiquetas)"
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleLeftPanel();
+                }}
+                className="p-1.5 rounded text-[#8b949e] group-hover:text-white group-hover:bg-[#21262d] transition-colors cursor-pointer"
+                title="Expandir panel lateral izquierdo"
               >
-                <BranchTreeView
-                  branches={branches.local}
-                  currentBranch={currentBranchName}
-                  onSelectBranch={handleSelectBranchCommit}
-                  onContextMenu={handleOpenBranchContextMenu}
-                  onDropBranch={handleDropBranch}
-                />
-              </AccordionSection>
-
-              {/* 2. Remote Branches Accordion */}
-              <AccordionSection
-                title="Ramas Remotas"
-                count={branches.remote.length}
-                icon={<Cloud className="w-3.5 h-3.5 text-purple-400" />}
-                defaultOpen={true}
-                action={
+                <ChevronRight className="w-4 h-4 text-blue-400" />
+              </button>
+              <div className="flex items-center gap-1 mt-1">
+                <GitBranch className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[10px] font-mono text-[#8b949e]">{branches.local.length}</span>
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <span
+                  className="text-[11px] font-semibold text-[#8b949e] group-hover:text-[#c9d1d9] tracking-wider uppercase whitespace-nowrap select-none"
+                  style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+                >
+                  Ramas & Etiquetas
+                </span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <aside
+                style={{ width: leftWidth }}
+                className="bg-[#0d1117] flex flex-col p-3 gap-2.5 shrink-0 overflow-hidden select-none"
+              >
+                {/* Header with Minimize Button */}
+                <div className="flex items-center justify-between pb-1.5 border-b border-[#30363d]/60 shrink-0">
+                  <span className="text-[11px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
+                    <GitBranch className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Explorador Git</span>
+                  </span>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fetchRemote();
-                    }}
-                    disabled={toolbarOperating}
-                    className="p-1 rounded text-[#8b949e] hover:text-purple-400 hover:bg-[#161b22] transition-colors cursor-pointer"
-                    title="Sincronizar ramas remotas con GitHub (Fetch & Prune)"
+                    onClick={handleToggleLeftPanel}
+                    className="p-1 rounded text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors cursor-pointer"
+                    title="Minimizar panel izquierdo"
                   >
-                    <RefreshCw
-                      className={`w-3.5 h-3.5 ${
-                        toolbarOperating && toolbarActiveOp === "fetch"
-                          ? "animate-spin text-purple-400"
-                          : ""
-                      }`}
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <nav className="flex flex-col gap-2 text-xs overflow-y-auto flex-1 no-scrollbar">
+                  {/* 1. Local Branches Accordion */}
+                  <AccordionSection
+                    title="Ramas Locales"
+                    count={branches.local.length}
+                    icon={<GitBranch className="w-3.5 h-3.5 text-blue-400" />}
+                    defaultOpen={true}
+                  >
+                    <BranchTreeView
+                      branches={branches.local}
+                      currentBranch={currentBranchName}
+                      onSelectBranch={handleSelectBranchCommit}
+                      onContextMenu={handleOpenBranchContextMenu}
+                      onDropBranch={handleDropBranch}
                     />
-                  </button>
-                }
-              >
-                <BranchTreeView
-                  branches={branches.remote}
-                  isRemote={true}
-                  onSelectBranch={handleSelectBranchCommit}
-                  onContextMenu={handleOpenBranchContextMenu}
-                  onDropBranch={handleDropBranch}
-                />
-              </AccordionSection>
+                  </AccordionSection>
 
-              {/* 3. Tags / Etiquetas Accordion (Flecha 4) */}
-              <AccordionSection
-                title="Etiquetas (Tags)"
-                count={tags.length}
-                icon={<Tag className="w-3.5 h-3.5 text-emerald-400" />}
-                defaultOpen={true}
-                action={
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (selectedCommit) {
-                        setTargetCommitForTag({
-                          oid: selectedCommit.oid,
-                          summary: selectedCommit.summary,
-                        });
-                      } else {
-                        setTargetCommitForTag({ oid: "HEAD" });
-                      }
-                      setCreateTagModalOpen(true);
-                    }}
-                    className="p-1 rounded text-[#8b949e] hover:text-emerald-400 hover:bg-[#161b22] transition-colors cursor-pointer"
-                    title={
-                      selectedCommit
-                        ? `Crear etiqueta sobre commit ${selectedCommit.short_oid}`
-                        : "Crear nueva etiqueta sobre HEAD"
+                  {/* 2. Remote Branches Accordion */}
+                  <AccordionSection
+                    title="Ramas Remotas"
+                    count={branches.remote.length}
+                    icon={<Cloud className="w-3.5 h-3.5 text-purple-400" />}
+                    defaultOpen={true}
+                    action={
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fetchRemote();
+                        }}
+                        disabled={toolbarOperating}
+                        className="p-1 rounded text-[#8b949e] hover:text-purple-400 hover:bg-[#161b22] transition-colors cursor-pointer"
+                        title="Sincronizar ramas remotas con GitHub (Fetch & Prune)"
+                      >
+                        <RefreshCw
+                          className={`w-3.5 h-3.5 ${
+                            toolbarOperating && toolbarActiveOp === "fetch"
+                              ? "animate-spin text-purple-400"
+                              : ""
+                          }`}
+                        />
+                      </button>
                     }
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                }
-              >
-                <TagListView
-                  tags={tags}
-                  onSelectTag={(targetCommitId) => {
-                    const node = graphNodes.find((n) => n.commit.oid === targetCommitId);
-                    if (node) {
-                      setSelectedCommit(node.commit);
-                    }
-                    setIsWipSelected(false);
-                    setActiveCenterTab("graph");
-                    setTimeout(() => {
-                      const el = document.getElementById(`commit-row-${targetCommitId}`);
-                      if (el) {
-                        el.scrollIntoView({ behavior: "smooth", block: "center" });
-                      }
-                    }, 50);
-                  }}
-                  onOpenTagDetails={(tag) => {
-                    setTagModalInitialDelete(false);
-                    setSelectedTagForModal(tag);
-                    setTagDetailsModalOpen(true);
-                  }}
-                  onOpenDeleteTag={(tag) => {
-                    setTagModalInitialDelete(true);
-                    setSelectedTagForModal(tag);
-                    setTagDetailsModalOpen(true);
-                  }}
-                  onDeleteTag={async (name, deleteLocal, deleteRemote) => {
-                    await deleteTag(name, deleteLocal, deleteRemote);
-                  }}
-                  onPushTag={handlePushTag}
-                  onFetchTag={async (name) => {
-                    try {
-                      await fetchTag(name);
-                    } catch (err) {
-                      console.error("Error al descargar tag:", err);
-                    }
-                  }}
-                  pushingTag={pushingTag}
-                />
-              </AccordionSection>
-            </nav>
-        </aside>
+                    <BranchTreeView
+                      branches={branches.remote}
+                      isRemote={true}
+                      onSelectBranch={handleSelectBranchCommit}
+                      onContextMenu={handleOpenBranchContextMenu}
+                      onDropBranch={handleDropBranch}
+                    />
+                  </AccordionSection>
 
-        {/* Flecha 2: Resizable Left Splitter */}
-        <Splitter
-          direction="vertical"
-          title="Arrastra para cambiar el ancho de la barra izquierda"
-          onDrag={(e) => setLeftWidth(Math.min(Math.max(e.clientX, 170), 450))}
-        />
+                  {/* 3. Tags / Etiquetas Accordion (Flechas 2 y 4) */}
+                  <AccordionSection
+                    title="Etiquetas (Tags)"
+                    count={tags.length}
+                    icon={<Tag className="w-3.5 h-3.5 text-emerald-400" />}
+                    defaultOpen={true}
+                    action={
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            refreshTags();
+                          }}
+                          className="p-1 rounded text-[#8b949e] hover:text-emerald-400 hover:bg-[#161b22] transition-colors cursor-pointer"
+                          title="Actualizar lista de etiquetas (Tags)"
+                        >
+                          <RefreshCw
+                            className={`w-3.5 h-3.5 ${
+                              tagsLoading ? "animate-spin text-emerald-400" : ""
+                            }`}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedCommit) {
+                              setTargetCommitForTag({
+                                oid: selectedCommit.oid,
+                                summary: selectedCommit.summary,
+                              });
+                            } else {
+                              setTargetCommitForTag({ oid: "HEAD" });
+                            }
+                            setCreateTagModalOpen(true);
+                          }}
+                          className="p-1 rounded text-[#8b949e] hover:text-emerald-400 hover:bg-[#161b22] transition-colors cursor-pointer"
+                          title={
+                            selectedCommit
+                              ? `Crear etiqueta sobre commit ${selectedCommit.short_oid}`
+                              : "Crear nueva etiqueta sobre HEAD"
+                          }
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    }
+                  >
+                    <TagListView
+                      tags={tags}
+                      onSelectTag={(targetCommitId) => {
+                        const node = graphNodes.find((n) => n.commit.oid === targetCommitId);
+                        if (node) {
+                          setSelectedCommit(node.commit);
+                        }
+                        setIsWipSelected(false);
+                        setActiveCenterTab("graph");
+                        setTimeout(() => {
+                          const el = document.getElementById(`commit-row-${targetCommitId}`);
+                          if (el) {
+                            el.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }
+                        }, 50);
+                      }}
+                      onOpenTagDetails={(tag) => {
+                        setTagModalInitialDelete(false);
+                        setSelectedTagForModal(tag);
+                        setTagDetailsModalOpen(true);
+                      }}
+                      onOpenDeleteTag={(tag) => {
+                        setTagModalInitialDelete(true);
+                        setSelectedTagForModal(tag);
+                        setTagDetailsModalOpen(true);
+                      }}
+                      onDeleteTag={async (name, deleteLocal, deleteRemote) => {
+                        await deleteTag(name, deleteLocal, deleteRemote);
+                      }}
+                      onPushTag={handlePushTag}
+                      onFetchTag={async (name) => {
+                        try {
+                          await fetchTag(name);
+                        } catch (err) {
+                          console.error("Error al descargar tag:", err);
+                        }
+                      }}
+                      pushingTag={pushingTag}
+                    />
+                  </AccordionSection>
+                </nav>
+              </aside>
+
+              {/* Flecha 2: Resizable Left Splitter */}
+              <Splitter
+                direction="vertical"
+                title="Arrastra para cambiar el ancho de la barra izquierda"
+                onDrag={(e) => {
+                  const w = Math.min(Math.max(e.clientX, 180), 500);
+                  setLeftWidth(w);
+                  localStorage.setItem("gitmanager_panel_left_width", w.toString());
+                }}
+              />
+            </>
+          )}
 
         {/* Center Canvas: Commit Graph & Central Diff Viewer (Flecha 6 & Flecha 4) */}
         <main className="flex-1 flex flex-col bg-[#010409] overflow-hidden min-w-0">
@@ -1411,91 +1548,135 @@ export const App: React.FC = () => {
           />
         </main>
 
-        {/* Flecha 3: Resizable Right Splitter */}
-        <Splitter
-          direction="vertical"
-          title="Arrastra para cambiar el ancho de la barra derecha"
-          onDrag={(e) =>
-            setRightWidth(Math.min(Math.max(window.innerWidth - e.clientX, 280), 650))
-          }
-        />
+        {/* Right Sidebar: Collapsed 36px rail OR Resizable Staging/Commit Details (Flechas 4 & 5) */}
+        {rightCollapsed ? (
+          <div
+            onClick={handleToggleRightPanel}
+            className="w-9 h-full bg-[#0d1117] border-l border-[#30363d] flex flex-col items-center py-3 gap-3 shrink-0 cursor-pointer select-none hover:bg-[#161b22] transition-colors group z-10"
+            title="Expandir panel derecho (Área de Cambios)"
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleRightPanel();
+              }}
+              className="p-1.5 rounded text-[#8b949e] group-hover:text-white group-hover:bg-[#21262d] transition-colors cursor-pointer"
+              title="Expandir panel lateral derecho"
+            >
+              <ChevronLeft className="w-4 h-4 text-blue-400" />
+            </button>
+            <div className="flex items-center gap-1 mt-1">
+              <Layers className="w-3.5 h-3.5 text-blue-400" />
+              {stagedFiles.length + unstagedFiles.length > 0 && (
+                <span className="text-[10px] font-mono text-amber-300 bg-amber-500/20 px-1 rounded">
+                  {stagedFiles.length + unstagedFiles.length}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <span
+                className="text-[11px] font-semibold text-[#8b949e] group-hover:text-[#c9d1d9] tracking-wider uppercase whitespace-nowrap select-none"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                {selectedCommit ? "Detalles del Commit" : "Área de Cambios (WIP)"}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Flecha 3: Resizable Right Splitter */}
+            <Splitter
+              direction="vertical"
+              title="Arrastra para cambiar el ancho de la barra derecha"
+              onDrag={(e) => {
+                const w = Math.min(Math.max(window.innerWidth - e.clientX, 280), 650);
+                setRightWidth(w);
+                localStorage.setItem("gitmanager_panel_right_width", w.toString());
+              }}
+            />
 
-        {/* Right Sidebar: Dynamic Mode (Flecha 5: CommitDetailsPanel OR StagingArea WIP) */}
-        <div
-          style={{ width: rightWidth }}
-          className="h-full shrink-0 flex flex-col bg-[#0d1117] overflow-hidden select-none"
-        >
-          {selectedCommit ? (
-            <CommitDetailsPanel
-              commit={selectedCommit}
-              files={commitFiles}
-              loading={commitFilesLoading}
-              selectedFilePath={
-                currentActiveTab?.commitOid === selectedCommit.oid ? currentActiveTab.path : null
-              }
-              isHead={selectedCommit?.oid === summary?.head_commit_oid}
-              githubAvatarUrl={githubUser?.avatar_url}
-              githubLogin={githubUser?.login}
-              onSelectFile={(path) => {
-                if (path) {
-                  openFileTab({ path, commitOid: selectedCommit.oid, type: "commit" }, true);
-                } else {
-                  setActiveCenterTab("graph");
-                }
-              }}
-              onUndoCommit={() => handleOpenUndoCommit(selectedCommit)}
-              onClose={() => {
-                setSelectedCommit(null);
-                setIsWipSelected(true);
-              }}
-            />
-          ) : (
-            <StagingArea
-              stagedFiles={stagedFiles}
-              unstagedFiles={unstagedFiles}
-              conflictedFiles={conflictedFiles}
-              selectedFile={
-                currentActiveTab?.type === "staging"
-                  ? { path: currentActiveTab.path, staged: Boolean(currentActiveTab.staged) }
-                  : null
-              }
-              currentBranch={currentBranchName}
-              loading={stagingLoading}
-              aiGenerating={aiGenerating}
-              onRefresh={() => {
-                refreshStatuses();
-                checkConflicts();
-              }}
-              onStageFile={stageFile}
-              onUnstageFile={unstageFile}
-              onStageAll={stageAll}
-              onUnstageAll={unstageAll}
-              onDiscardFile={handleRequestDiscardFile}
-              onDiscardAll={handleRequestDiscardAll}
-              onSelectFile={(path, staged) => {
-                if (path) {
-                  openFileTab({ path, staged, type: "staging" }, true);
-                } else {
-                  setActiveCenterTab("graph");
-                }
-              }}
-              onCommit={async (message, tag, tagMessage) => {
-                const newOid = await commitChanges(message);
-                if (newOid && tag && tag.trim()) {
-                  try {
-                    await createTag(tag.trim(), newOid, tagMessage?.trim() || undefined);
-                  } catch (e) {
-                    console.error("Error al crear etiqueta para commit:", e);
+            {/* Right Sidebar: Dynamic Mode (Flecha 5: CommitDetailsPanel OR StagingArea WIP) */}
+            <div
+              style={{ width: rightWidth }}
+              className="h-full shrink-0 flex flex-col bg-[#0d1117] overflow-hidden select-none"
+            >
+              {selectedCommit ? (
+                <CommitDetailsPanel
+                  commit={selectedCommit}
+                  files={commitFiles}
+                  loading={commitFilesLoading}
+                  selectedFilePath={
+                    currentActiveTab?.commitOid === selectedCommit.oid ? currentActiveTab.path : null
                   }
-                }
-                handleRefreshAll();
-              }}
-              onGenerateAiCommit={() => generateCommit(activeRepoPath)}
-              onOpenAiConfig={openAiConfigModal}
-              onOpenConflictResolver={openConflictModal}
-            />
-          )}
-        </div>
+                  isHead={selectedCommit?.oid === summary?.head_commit_oid}
+                  githubAvatarUrl={githubUser?.avatar_url}
+                  githubLogin={githubUser?.login}
+                  onSelectFile={(path) => {
+                    if (path) {
+                      openFileTab({ path, commitOid: selectedCommit.oid, type: "commit" }, true);
+                    } else {
+                      setActiveCenterTab("graph");
+                    }
+                  }}
+                  onUndoCommit={() => handleOpenUndoCommit(selectedCommit)}
+                  onToggleCollapse={handleToggleRightPanel}
+                  onClose={() => {
+                    setSelectedCommit(null);
+                    setIsWipSelected(true);
+                  }}
+                />
+              ) : (
+                <StagingArea
+                  repoPath={activeRepoPath}
+                  stagedFiles={stagedFiles}
+                  unstagedFiles={unstagedFiles}
+                  conflictedFiles={conflictedFiles}
+                  selectedFile={
+                    currentActiveTab?.type === "staging"
+                      ? { path: currentActiveTab.path, staged: Boolean(currentActiveTab.staged) }
+                      : null
+                  }
+                  currentBranch={currentBranchName}
+                  loading={stagingLoading}
+                  aiGenerating={aiGenerating}
+                  onToggleCollapse={handleToggleRightPanel}
+                  onRefresh={() => {
+                    refreshStatuses();
+                    checkConflicts();
+                  }}
+                  onStageFile={stageFile}
+                  onUnstageFile={unstageFile}
+                  onStageAll={stageAll}
+                  onUnstageAll={unstageAll}
+                  onDiscardFile={handleRequestDiscardFile}
+                  onDiscardAll={handleRequestDiscardAll}
+                  onSelectFile={(path, staged) => {
+                    if (path) {
+                      openFileTab({ path, staged, type: "staging" }, true);
+                    } else {
+                      setActiveCenterTab("graph");
+                    }
+                  }}
+                  onCommit={async (message, tag, tagMessage) => {
+                    const newOid = await commitChanges(message);
+                    if (newOid && tag && tag.trim()) {
+                      try {
+                        await createTag(tag.trim(), newOid, tagMessage?.trim() || undefined);
+                      } catch (e) {
+                        console.error("Error al crear etiqueta para commit:", e);
+                      }
+                    }
+                    handleRefreshAll();
+                  }}
+                  onGenerateAiCommit={() => generateCommit(activeRepoPath)}
+                  onOpenAiConfig={openAiConfigModal}
+                  onOpenConflictResolver={openConflictModal}
+                />
+              )}
+            </div>
+          </>
+        )}
       </div>
       )}
 

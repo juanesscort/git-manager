@@ -10,6 +10,11 @@ export function useConflictResolver(repoPath: string, onResolved?: () => void) {
   const [error, setError] = useState<string | null>(null);
 
   const checkConflicts = useCallback(async () => {
+    if (!repoPath || repoPath === ".") {
+      setConflictedFiles([]);
+      setSelectedConflict(null);
+      return [];
+    }
     try {
       const files = await invoke<string[]>("check_repo_conflicts", { repoPath });
       setConflictedFiles(files);

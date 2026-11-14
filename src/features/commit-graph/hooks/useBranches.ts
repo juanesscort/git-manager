@@ -7,7 +7,16 @@ export function useBranches(repoPath: string) {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setBranches({ local: [], remote: [] });
+  }, [repoPath]);
+
   const refreshBranches = useCallback(async () => {
+    if (!repoPath || repoPath === ".") {
+      setBranches({ local: [], remote: [] });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

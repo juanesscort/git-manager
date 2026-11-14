@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { DiffDelta, FileStatusItem } from "../../../types/git";
 
 export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
+  const [currentRepoPath, setCurrentRepoPath] = useState<string>(repoPath);
   const [files, setFiles] = useState<FileStatusItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -11,16 +12,39 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
   const [diff, setDiff] = useState<DiffDelta | null>(null);
   const [diffLoading, setDiffLoading] = useState<boolean>(false);
 
+  // Synchronously reset state during render on repoPath change to prevent leaking previous repo's files
+  if (currentRepoPath !== repoPath) {
+    setCurrentRepoPath(repoPath);
+    setFiles([]);
+    setLoading(Boolean(repoPath && repoPath !== "."));
+    setSelectedFile(null);
+    setDiff(null);
+  }
+
+  const currentPathRef = useRef(repoPath);
+  currentPathRef.current = repoPath;
+
   const refreshStatuses = useCallback(async () => {
+    if (!repoPath || repoPath === ".") {
+      setFiles([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const items = await invoke<FileStatusItem[]>("get_repo_status", { path: repoPath });
-      setFiles(items);
+      if (currentPathRef.current === repoPath) {
+        setFiles(items);
+      }
     } catch (err: unknown) {
-      setError(typeof err === "string" ? err : JSON.stringify(err));
+      if (currentPathRef.current === repoPath) {
+        setError(typeof err === "string" ? err : JSON.stringify(err));
+      }
     } finally {
-      setLoading(false);
+      if (currentPathRef.current === repoPath) {
+        setLoading(false);
+      }
     }
   }, [repoPath]);
 
@@ -144,16 +168,20 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
     refreshStatuses();
   }, [refreshStatuses]);
 
-  const stagedFiles = files.filter((f) => f.staged_status !== null && f.staged_status !== undefined);
-  const unstagedFiles = files.filter(
+  const isRepoMatch = currentRepoPath === repoPath;
+  const effectiveFiles = isRepoMatch ? files : [];
+  const effectiveLoading = !isRepoMatch || loading;
+
+  const stagedFiles = effectiveFiles.filter((f) => f.staged_status !== null && f.staged_status !== undefined);
+  const unstagedFiles = effectiveFiles.filter(
     (f) => f.unstaged_status !== null && f.unstaged_status !== undefined
   );
 
   return {
-    files,
+    files: effectiveFiles,
     stagedFiles,
     unstagedFiles,
-    loading,
+    loading: effectiveLoading,
     error,
     refreshStatuses,
     stageFile,

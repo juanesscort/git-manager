@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Layers,
   ChevronDown,
+  ChevronRight,
   AlignLeft,
   Undo2,
 } from "lucide-react";
@@ -26,6 +27,7 @@ interface CommitDetailsPanelProps {
   githubLogin?: string | null;
   onSelectFile: (path: string) => void;
   onUndoCommit?: () => void;
+  onToggleCollapse?: () => void;
   onClose: () => void;
 }
 
@@ -58,6 +60,7 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
   githubLogin,
   onSelectFile,
   onUndoCommit,
+  onToggleCollapse,
   onClose,
 }) => {
   const [copiedHash, setCopiedHash] = useState(false);
@@ -124,13 +127,24 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
           <span>Volver a Cambios</span>
         </button>
 
-        <button
-          onClick={onClose}
-          className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"
-          title="Deseleccionar commit"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"
+              title="Minimizar panel derecho"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"
+            title="Deseleccionar commit"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Main Details Body */}

@@ -15,13 +15,6 @@ const STORAGE_TABS_KEY = "git_manager_tabs_v1";
 const STORAGE_ACTIVE_TAB_KEY = "git_manager_active_tab_id_v1";
 const STORAGE_RECENT_KEY = "git_manager_recent_repos_v1";
 
-const DEFAULT_REPO: RepoTab = {
-  id: "repo-default",
-  name: "git-manager",
-  path: "/home/juanesscort/Proyectos/git-manager",
-  currentBranch: "main",
-};
-
 export function useRepoTabs() {
   const [tabs, setTabs] = useState<RepoTab[]>(() => {
     try {
@@ -35,7 +28,7 @@ export function useRepoTabs() {
     } catch {
       // Fallback
     }
-    return [DEFAULT_REPO];
+    return [];
   });
 
   const [activeTabId, setActiveTabId] = useState<string>(() => {
@@ -45,7 +38,7 @@ export function useRepoTabs() {
     } catch {
       // Fallback
     }
-    return DEFAULT_REPO.id;
+    return "";
   });
 
   const [recentRepos, setRecentRepos] = useState<string[]>(() => {
@@ -58,7 +51,7 @@ export function useRepoTabs() {
     } catch {
       // Fallback
     }
-    return [DEFAULT_REPO.path];
+    return [];
   });
 
   // Save tabs and active tab to localStorage
@@ -86,7 +79,7 @@ export function useRepoTabs() {
     pendingChanges: repoPendingChanges[t.path] ?? t.pendingChanges ?? 0,
   }));
 
-  const activeTab = tabsWithCounts.find((t) => t.id === activeTabId) || tabsWithCounts[0];
+  const activeTab = tabsWithCounts.find((t) => t.id === activeTabId) || tabsWithCounts[0] || null;
 
   const addRecentRepo = useCallback((path: string) => {
     setRecentRepos((prev) => {
@@ -122,6 +115,7 @@ export function useRepoTabs() {
           name: derivedName,
           path: canonicalPath,
           currentBranch: summary.current_branch,
+          pendingChanges: 0,
         };
 
         setTabs((prev) => [...prev, newTab]);

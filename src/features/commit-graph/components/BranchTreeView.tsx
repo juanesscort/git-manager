@@ -93,7 +93,7 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
         <div key={`folder-${node.fullPath}`} className="flex flex-col">
           <button
             onClick={() => toggleFolder(node.fullPath)}
-            style={{ paddingLeft: `${depth * 12 + 6}px` }}
+            style={{ paddingLeft: `${depth * 20 + 6}px` }}
             className="flex items-center gap-1.5 py-1 px-1.5 rounded text-xs text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#161b22] transition-colors group select-none text-left w-full"
             title={`Carpeta de ramas: ${node.fullPath}`}
           >
@@ -188,7 +188,7 @@ export const BranchTreeView: React.FC<BranchTreeViewProps> = ({
             );
           }
         }}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        style={{ paddingLeft: `${depth * 20 + 24}px` }}
         className={`flex items-center gap-2 py-1 px-2 rounded text-xs transition-all cursor-pointer group select-none relative ${
           isDragTarget
             ? "bg-blue-600/30 border-2 border-dashed border-blue-400 text-white scale-[1.02]"

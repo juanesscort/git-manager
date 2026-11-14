@@ -7,9 +7,14 @@ export function useTags(repoPath: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setTags([]);
+  }, [repoPath]);
+
   const fetchTags = useCallback(async () => {
-    if (!repoPath) {
+    if (!repoPath || repoPath === ".") {
       setTags([]);
+      setLoading(false);
       return;
     }
     setLoading(true);

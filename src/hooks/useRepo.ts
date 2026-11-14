@@ -2,17 +2,25 @@ import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { RepoSummary } from "../types/git";
 
-export function useRepo(initialPath: string = ".") {
+export function useRepo(initialPath: string = "") {
   const [repoPath, setRepoPath] = useState<string>(initialPath);
   const [summary, setSummary] = useState<RepoSummary | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setRepoPath(initialPath);
+    if (!initialPath || initialPath === ".") {
+      setSummary(null);
+    }
   }, [initialPath]);
 
   const refreshRepo = useCallback(async () => {
+    if (!repoPath || repoPath === ".") {
+      setSummary(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
