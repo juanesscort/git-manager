@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Layers,
   ChevronDown,
+  ChevronRight,
   AlignLeft,
   Undo2,
 } from "lucide-react";
@@ -26,6 +27,8 @@ interface CommitDetailsPanelProps {
   githubLogin?: string | null;
   onSelectFile: (path: string) => void;
   onUndoCommit?: () => void;
+  onToggleCollapse?: () => void;
+  onFileContextMenu?: (e: React.MouseEvent, path: string, commitOid: string) => void;
   onClose: () => void;
 }
 
@@ -58,6 +61,8 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
   githubLogin,
   onSelectFile,
   onUndoCommit,
+  onToggleCollapse,
+  onFileContextMenu,
   onClose,
 }) => {
   const [copiedHash, setCopiedHash] = useState(false);
@@ -113,24 +118,37 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
 
   return (
     <aside className="w-full h-full flex flex-col bg-[#0d1117] overflow-hidden select-none">
-      {/* Header with Back button */}
-      <div className="h-10 border-b border-[#30363d] px-3 flex items-center justify-between text-xs bg-[#161b22] shrink-0">
-        <button
-          onClick={onClose}
-          className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-medium transition-colors cursor-pointer"
-          title="Regresar al Área de Cambios (WIP)"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Volver a Cambios</span>
-        </button>
+      {/* Header with Back button and Collapse */}
+      <div className="h-10 border-b border-[#30363d] px-2.5 flex items-center justify-between text-xs bg-[#161b22] shrink-0">
+        <div className="flex items-center gap-1.5">
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="p-1 -ml-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"
+              title="Minimizar panel derecho"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-medium transition-colors cursor-pointer"
+            title="Regresar al Área de Cambios (WIP)"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Volver a Cambios</span>
+          </button>
+        </div>
 
-        <button
-          onClick={onClose}
-          className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"
-          title="Deseleccionar commit"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onClose}
+            className="p-1 text-[#8b949e] hover:text-white rounded hover:bg-[#30363d] transition-colors cursor-pointer"
+            title="Deseleccionar commit"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Main Details Body */}
@@ -304,12 +322,18 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
                     <div
                       key={file.path}
                       onClick={() => onSelectFile(isSelected ? "" : file.path)}
+                      onContextMenu={(e) => {
+                        if (onFileContextMenu && commit?.oid) {
+                          e.preventDefault();
+                          onFileContextMenu(e, file.path, commit.oid);
+                        }
+                      }}
                       className={`flex items-center justify-between px-2.5 py-1.5 rounded text-xs cursor-pointer transition-colors border group ${
                         isSelected
                           ? "bg-[#1f6feb]/25 border-blue-500 text-white font-medium shadow-sm"
                           : "border-[#30363d]/40 bg-[#161b22]/30 hover:bg-[#161b22] text-[#c9d1d9]"
                       }`}
-                      title={`${file.path} (Click para ver/cerrar diff en el centro)`}
+                      title={`${file.path} (Click para ver diff, clic derecho para opciones)`}
                     >
                       <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                         <span

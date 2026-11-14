@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { DiffDelta, FileStatusItem } from "../../../types/git";
 
 export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
+  const [currentRepoPath, setCurrentRepoPath] = useState<string>(repoPath);
   const [files, setFiles] = useState<FileStatusItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -11,16 +12,39 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
   const [diff, setDiff] = useState<DiffDelta | null>(null);
   const [diffLoading, setDiffLoading] = useState<boolean>(false);
 
+  // Synchronously reset state during render on repoPath change to prevent leaking previous repo's files
+  if (currentRepoPath !== repoPath) {
+    setCurrentRepoPath(repoPath);
+    setFiles([]);
+    setLoading(Boolean(repoPath && repoPath !== "."));
+    setSelectedFile(null);
+    setDiff(null);
+  }
+
+  const currentPathRef = useRef(repoPath);
+  currentPathRef.current = repoPath;
+
   const refreshStatuses = useCallback(async () => {
+    if (!repoPath || repoPath === ".") {
+      setFiles([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const items = await invoke<FileStatusItem[]>("get_repo_status", { path: repoPath });
-      setFiles(items);
+      if (currentPathRef.current === repoPath) {
+        setFiles(items);
+      }
     } catch (err: unknown) {
-      setError(typeof err === "string" ? err : JSON.stringify(err));
+      if (currentPathRef.current === repoPath) {
+        setError(typeof err === "string" ? err : JSON.stringify(err));
+      }
     } finally {
-      setLoading(false);
+      if (currentPathRef.current === repoPath) {
+        setLoading(false);
+      }
     }
   }, [repoPath]);
 
@@ -50,6 +74,22 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
   );
 
   const stageFile = async (relativePath: string) => {
+    // Optimistic instant UI transition
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.path !== relativePath) return f;
+        const newStagedStatus =
+          f.unstaged_status === "Untracked"
+            ? "Added"
+            : (f.staged_status || f.unstaged_status || "Modified");
+        return {
+          ...f,
+          staged_status: newStagedStatus,
+          unstaged_status: undefined,
+        };
+      })
+    );
+
     try {
       await invoke("stage_file_cmd", { path: repoPath, relativePath });
       await refreshStatuses();
@@ -58,10 +98,27 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
       }
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      await refreshStatuses();
     }
   };
 
   const unstageFile = async (relativePath: string) => {
+    // Optimistic instant UI transition
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.path !== relativePath) return f;
+        const newUnstagedStatus =
+          f.staged_status === "Added"
+            ? "Untracked"
+            : (f.unstaged_status || f.staged_status || "Modified");
+        return {
+          ...f,
+          staged_status: undefined,
+          unstaged_status: newUnstagedStatus,
+        };
+      })
+    );
+
     try {
       await invoke("unstage_file_cmd", { path: repoPath, relativePath });
       await refreshStatuses();
@@ -70,24 +127,47 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
       }
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      await refreshStatuses();
     }
   };
 
   const stageAll = async () => {
+    // Optimistic instant UI transition
+    setFiles((prev) =>
+      prev.map((f) => ({
+        ...f,
+        staged_status:
+          f.staged_status || (f.unstaged_status === "Untracked" ? "Added" : "Modified"),
+        unstaged_status: undefined,
+      }))
+    );
+
     try {
       await invoke("stage_all_cmd", { path: repoPath });
       await refreshStatuses();
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      await refreshStatuses();
     }
   };
 
   const unstageAll = async () => {
+    // Optimistic instant UI transition
+    setFiles((prev) =>
+      prev.map((f) => ({
+        ...f,
+        staged_status: undefined,
+        unstaged_status:
+          f.unstaged_status || (f.staged_status === "Added" ? "Untracked" : "Modified"),
+      }))
+    );
+
     try {
       await invoke("unstage_all_cmd", { path: repoPath });
       await refreshStatuses();
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      await refreshStatuses();
     }
   };
 
@@ -144,16 +224,20 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
     refreshStatuses();
   }, [refreshStatuses]);
 
-  const stagedFiles = files.filter((f) => f.staged_status !== null && f.staged_status !== undefined);
-  const unstagedFiles = files.filter(
+  const isRepoMatch = currentRepoPath === repoPath;
+  const effectiveFiles = isRepoMatch ? files : [];
+  const effectiveLoading = !isRepoMatch || loading;
+
+  const stagedFiles = effectiveFiles.filter((f) => f.staged_status !== null && f.staged_status !== undefined);
+  const unstagedFiles = effectiveFiles.filter(
     (f) => f.unstaged_status !== null && f.unstaged_status !== undefined
   );
 
   return {
-    files,
+    files: effectiveFiles,
     stagedFiles,
     unstagedFiles,
-    loading,
+    loading: effectiveLoading,
     error,
     refreshStatuses,
     stageFile,

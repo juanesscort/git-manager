@@ -3,13 +3,22 @@ import { invoke } from "@tauri-apps/api/core";
 import { UnifiedGitTag } from "../../../types/git";
 
 export function useTags(repoPath: string | null) {
+  const [currentRepoPath, setCurrentRepoPath] = useState<string | null>(repoPath);
   const [tags, setTags] = useState<UnifiedGitTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Synchronously reset during render when repoPath changes
+  if (currentRepoPath !== repoPath) {
+    setCurrentRepoPath(repoPath);
+    setTags([]);
+    setLoading(Boolean(repoPath && repoPath !== "."));
+  }
+
   const fetchTags = useCallback(async () => {
-    if (!repoPath) {
+    if (!repoPath || repoPath === ".") {
       setTags([]);
+      setLoading(false);
       return;
     }
     setLoading(true);

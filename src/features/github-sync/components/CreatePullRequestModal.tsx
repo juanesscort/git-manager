@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   GitPullRequest,
   X,
@@ -130,8 +130,10 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     [repoPath]
   );
 
+  const prevIsOpenRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setCreatedPr(null);
       setError(null);
 
@@ -158,6 +160,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
 
       checkBranchDiff(cleanHead, cleanBase);
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, initialHeadBranch, initialBaseBranch, availableBranches, checkBranchDiff]);
 
   // Check diff whenever branches change

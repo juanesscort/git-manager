@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { CommitInfo } from "../../../types/git";
 
@@ -22,13 +22,32 @@ export const LANE_COLORS = [
 ];
 
 export function useCommitGraph(repoPath: string) {
+  const [currentRepoPath, setCurrentRepoPath] = useState<string>(repoPath);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
 
+  if (currentRepoPath !== repoPath) {
+    setCurrentRepoPath(repoPath);
+    setCommits([]);
+    setGraphNodes([]);
+    setSelectedCommit(null);
+    setLoading(Boolean(repoPath && repoPath !== "."));
+  }
+
+  const currentPathRef = useRef(repoPath);
+  currentPathRef.current = repoPath;
+
   const fetchCommits = useCallback(async () => {
+    if (!repoPath || repoPath === ".") {
+      setCommits([]);
+      setGraphNodes([]);
+      setSelectedCommit(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -36,6 +55,7 @@ export function useCommitGraph(repoPath: string) {
         path: repoPath,
         maxCount: 150,
       });
+      if (currentPathRef.current !== repoPath) return;
       setCommits(result);
 
       // Pass 1: Allocate lanes to all commits topologically
@@ -134,11 +154,17 @@ export function useCommitGraph(repoPath: string) {
         }
       }
 
-      setGraphNodes(nodes);
+      if (currentPathRef.current === repoPath) {
+        setGraphNodes(nodes);
+      }
     } catch (err: unknown) {
-      setError(typeof err === "string" ? err : JSON.stringify(err));
+      if (currentPathRef.current === repoPath) {
+        setError(typeof err === "string" ? err : JSON.stringify(err));
+      }
     } finally {
-      setLoading(false);
+      if (currentPathRef.current === repoPath) {
+        setLoading(false);
+      }
     }
   }, [repoPath]);
 
@@ -146,12 +172,17 @@ export function useCommitGraph(repoPath: string) {
     fetchCommits();
   }, [fetchCommits]);
 
+  const isRepoMatch = currentRepoPath === repoPath;
+  const effectiveGraphNodes = isRepoMatch ? graphNodes : [];
+  const effectiveCommits = isRepoMatch ? commits : [];
+  const effectiveLoading = !isRepoMatch || loading;
+
   return {
-    commits,
-    graphNodes,
-    loading,
+    commits: effectiveCommits,
+    graphNodes: effectiveGraphNodes,
+    loading: effectiveLoading,
     error,
-    selectedCommit,
+    selectedCommit: isRepoMatch ? selectedCommit : null,
     setSelectedCommit,
     refreshCommits: fetchCommits,
   };

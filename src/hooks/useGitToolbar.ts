@@ -8,7 +8,7 @@ export interface GitToolbarState {
   error: string | null;
 }
 
-export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void) {
+export function useGitToolbar(repoPath: string, onOperationSuccess?: (opName: string) => void) {
   const [state, setState] = useState<GitToolbarState>({
     operating: false,
     activeOp: null,
@@ -31,6 +31,8 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
 
   const runOperation = useCallback(
     async (opName: string, invokeName: string, args: Record<string, unknown> = {}) => {
+      if (!repoPath || repoPath === ".") return;
+
       setState({
         operating: true,
         activeOp: opName,
@@ -57,7 +59,7 @@ export function useGitToolbar(repoPath: string, onOperationSuccess?: () => void)
         });
 
         if (onOperationSuccess) {
-          onOperationSuccess();
+          onOperationSuccess(opName);
         }
 
         setTimeout(() => {

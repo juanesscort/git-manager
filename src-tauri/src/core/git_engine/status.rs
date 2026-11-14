@@ -3,12 +3,17 @@ use crate::models::git_models::{FileStatusItem, FileStatusKind};
 use git2::{Repository, Status, StatusOptions};
 
 pub fn get_repo_statuses(repo: &Repository) -> Result<Vec<FileStatusItem>, GitEngineError> {
+    if let Ok(mut index) = repo.index() {
+        let _ = index.read(true);
+    }
+
     let mut opts = StatusOptions::new();
     opts.include_untracked(true)
         .recurse_untracked_dirs(true)
         .include_ignored(false)
         .renames_head_to_index(true)
-        .renames_index_to_workdir(true);
+        .renames_index_to_workdir(true)
+        .update_index(true);
 
     let statuses = repo.statuses(Some(&mut opts))?;
     let mut items = Vec::new();

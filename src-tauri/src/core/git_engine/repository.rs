@@ -5,13 +5,22 @@ use std::path::Path;
 
 pub fn open_repository<P: AsRef<Path>>(path: P) -> Result<Repository, GitEngineError> {
     let p = path.as_ref();
-    Repository::discover(p).map_err(|e| {
-        if e.code() == git2::ErrorCode::NotFound {
-            GitEngineError::NotFound(p.to_string_lossy().to_string())
-        } else {
-            GitEngineError::Git(e)
-        }
-    })
+    let s = p.to_string_lossy();
+    if s.trim().is_empty() || s.trim() == "." || !p.is_absolute() {
+        return Err(GitEngineError::InvalidPath(
+            "Ruta de repositorio no válida o no es absoluta".to_string(),
+        ));
+    }
+
+    Repository::open(p)
+        .or_else(|_| Repository::discover(p))
+        .map_err(|e| {
+            if e.code() == git2::ErrorCode::NotFound {
+                GitEngineError::NotFound(s.to_string())
+            } else {
+                GitEngineError::Git(e)
+            }
+        })
 }
 
 pub fn get_repo_summary(repo: &Repository) -> Result<RepoSummary, GitEngineError> {
