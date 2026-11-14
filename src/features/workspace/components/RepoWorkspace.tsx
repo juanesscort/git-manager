@@ -240,6 +240,7 @@ export const RepoWorkspace: React.FC<RepoWorkspaceProps> = ({
 
   const [undoCommitModalOpen, setUndoCommitModalOpen] = useState(false);
   const [commitToUndo, setCommitToUndo] = useState<CommitInfo | null>(null);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
 
   // Check if current repo is Git-Manager
   useEffect(() => {
@@ -468,38 +469,52 @@ export const RepoWorkspace: React.FC<RepoWorkspaceProps> = ({
   }, [refreshPrCount]);
 
   // Comprehensive Refresh for this workspace
-  const handleRefreshAll = useCallback(() => {
-    if (!repoPath) return;
-    refreshRepo();
-    refreshStatuses();
-    refreshCommits();
-    checkConflicts();
-    refreshBranches();
-    refreshTags();
-    refreshPrCount();
+  const handleRefreshAll = useCallback(async () => {
+    if (!repoPath || isSyncingAll) return;
+    setIsSyncingAll(true);
+    try {
+      await Promise.allSettled([
+        refreshRepo(),
+        refreshStatuses(),
+        refreshCommits(),
+        checkConflicts(),
+        refreshBranches(),
+        refreshTags(),
+        refreshPrCount(),
+      ]);
 
-    // Refresh diffs of open tabs
-    openDiffTabs.forEach((tab) => {
-      if (tab.type === "commit" && tab.commitOid) {
-        invoke<DiffDelta>("get_commit_file_diff_cmd", {
-          path: repoPath,
-          commitOid: tab.commitOid,
-          relativePath: tab.path,
+      // Refresh diffs of open tabs
+      await Promise.allSettled(
+        openDiffTabs.map(async (tab) => {
+          try {
+            if (tab.type === "commit" && tab.commitOid) {
+              const delta = await invoke<DiffDelta>("get_commit_file_diff_cmd", {
+                path: repoPath,
+                commitOid: tab.commitOid,
+                relativePath: tab.path,
+              });
+              setDiffCache((prev) => ({ ...prev, [tab.id]: delta }));
+            } else {
+              const delta = await invoke<DiffDelta>("get_diff_cmd", {
+                path: repoPath,
+                relativePath: tab.path,
+                staged: Boolean(tab.staged),
+              });
+              setDiffCache((prev) => ({ ...prev, [tab.id]: delta }));
+            }
+          } catch {
+            // Ignore tab diff error
+          }
         })
-          .then((delta) => setDiffCache((prev) => ({ ...prev, [tab.id]: delta })))
-          .catch(() => {});
-      } else {
-        invoke<DiffDelta>("get_diff_cmd", {
-          path: repoPath,
-          relativePath: tab.path,
-          staged: Boolean(tab.staged),
-        })
-          .then((delta) => setDiffCache((prev) => ({ ...prev, [tab.id]: delta })))
-          .catch(() => {});
-      }
-    });
+      );
+    } finally {
+      setTimeout(() => {
+        setIsSyncingAll(false);
+      }, 350);
+    }
   }, [
     repoPath,
+    isSyncingAll,
     refreshRepo,
     refreshStatuses,
     refreshCommits,
@@ -1048,7 +1063,8 @@ export const RepoWorkspace: React.FC<RepoWorkspaceProps> = ({
           <Button
             size="sm"
             variant="secondary"
-            icon={<RefreshCw className={`w-3.5 h-3.5 ${stagingLoading || commitsLoading ? "animate-pulse text-blue-400" : ""}`} />}
+            disabled={isSyncingAll}
+            icon={<RefreshCw className={`w-3.5 h-3.5 ${isSyncingAll ? "animate-spin text-blue-400" : ""}`} />}
             onClick={handleRefreshAll}
             title="Sincronizar todo el repositorio"
             className="h-8 text-xs font-medium"
@@ -1121,26 +1137,6 @@ export const RepoWorkspace: React.FC<RepoWorkspaceProps> = ({
                   count={branches.remote.length}
                   icon={<Cloud className="w-3.5 h-3.5 text-purple-400" />}
                   defaultOpen={true}
-                  action={
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        fetchRemote();
-                      }}
-                      disabled={toolbarOperating}
-                      className="p-1 rounded text-[#8b949e] hover:text-purple-400 hover:bg-[#161b22] transition-colors cursor-pointer"
-                      title="Sincronizar ramas remotas con GitHub (Fetch & Prune)"
-                    >
-                      <RefreshCw
-                        className={`w-3.5 h-3.5 ${
-                          toolbarOperating && toolbarActiveOp === "fetch"
-                            ? "animate-spin text-purple-400"
-                            : ""
-                        }`}
-                      />
-                    </button>
-                  }
                 >
                   <BranchTreeView
                     key={`remote-${repoPath}`}
@@ -1158,19 +1154,6 @@ export const RepoWorkspace: React.FC<RepoWorkspaceProps> = ({
                   count={tags.length}
                   icon={<Tag className="w-3.5 h-3.5 text-emerald-400" />}
                   defaultOpen={false}
-                  action={
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        refreshTags();
-                      }}
-                      className="p-1 rounded text-[#8b949e] hover:text-emerald-400 hover:bg-[#161b22] transition-colors cursor-pointer"
-                      title="Refrescar lista de etiquetas locales y remotas"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                    </button>
-                  }
                 >
                   <TagListView
                     tags={tags}
