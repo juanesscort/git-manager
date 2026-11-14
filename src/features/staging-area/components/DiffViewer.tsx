@@ -35,6 +35,7 @@ interface DiffViewerProps {
   repoPath?: string;
   commitOid?: string;
   staged?: boolean;
+  onContextMenu?: (e: React.MouseEvent, path: string) => void;
 }
 
 export const DiffViewer: React.FC<DiffViewerProps> = ({
@@ -44,6 +45,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   repoPath,
   commitOid,
   staged,
+  onContextMenu,
 }) => {
   const [mediaPreview, setMediaPreview] = useState<FileMediaPreview | null>(null);
   const [mediaLoading, setMediaLoading] = useState<boolean>(false);
@@ -140,7 +142,16 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0d1117] border-t border-[#30363d] overflow-hidden">
       {/* Diff Header */}
-      <div className="h-9 px-3 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0 select-none">
+      <div
+        onContextMenu={(e) => {
+          if (onContextMenu && diff?.path) {
+            e.preventDefault();
+            onContextMenu(e, diff.path);
+          }
+        }}
+        className="h-9 px-3 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0 select-none cursor-default"
+        title="Clic derecho para opciones de archivo"
+      >
         <div className="flex items-center gap-2 overflow-hidden">
           <FileText className="w-4 h-4 text-blue-400 shrink-0" />
           <span className="text-xs font-mono font-medium text-white truncate">{diff.path}</span>

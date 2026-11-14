@@ -21,6 +21,8 @@ interface ReleaseWizardModalProps {
   currentBranch?: string | null;
   openPrCount?: number;
   activeRunsCount?: number;
+  hasUncommittedChanges?: boolean;
+  uncommittedChangesCount?: number;
   onClose: () => void;
   onReleaseStart?: () => void;
   onReleaseError?: () => void;
@@ -33,6 +35,8 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
   currentBranch,
   openPrCount = 0,
   activeRunsCount = 0,
+  hasUncommittedChanges = false,
+  uncommittedChangesCount = 0,
   onClose,
   onReleaseStart,
   onReleaseError,
@@ -141,6 +145,21 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
             </div>
           )}
 
+          {/* Flecha 2: Dirty Workspace Warning & Lock */}
+          {hasUncommittedChanges && (
+            <div className="p-3 bg-rose-950/40 border border-rose-500/50 text-rose-200 rounded-xl text-xs flex items-start gap-2.5 shadow-inner">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-semibold text-rose-300">
+                  Espacio de trabajo sucio ({uncommittedChangesCount || "con"} cambio(s) pendiente(s))
+                </span>
+                <p className="text-[11px] text-rose-300/80 leading-relaxed">
+                  No es posible publicar una versión mientras existan archivos modificados sin confirmar o preparar. El formulario se ha bloqueado en modo de <strong>solo lectura</strong> para evitar inconsistencias. Haz commit o stash para reactivarlo.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* In-Progress Actions or Pending PRs warning */}
           {(activeRunsCount > 0 || openPrCount > 0) && (
             <div className="space-y-1.5 text-xs">
@@ -183,12 +202,13 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
 
             {isDev && (
               <div className="pt-2 border-t border-[#30363d]/60 text-xs">
-                <label className="flex items-start gap-2 text-white cursor-pointer">
+                <label className={`flex items-start gap-2 ${hasUncommittedChanges ? "opacity-60 cursor-not-allowed" : "text-white cursor-pointer"}`}>
                   <input
                     type="checkbox"
                     checked={mergeFromDev}
+                    disabled={submitting || hasUncommittedChanges}
                     onChange={(e) => setMergeFromDev(e.target.checked)}
-                    className="mt-0.5 rounded border-[#30363d] text-emerald-500 focus:ring-0"
+                    className="mt-0.5 rounded border-[#30363d] text-emerald-500 focus:ring-0 disabled:opacity-50"
                   />
                   <div className="flex flex-col">
                     <span className="font-medium text-emerald-300">
@@ -237,9 +257,10 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
             <input
               type="text"
               value={tagName}
+              disabled={submitting || hasUncommittedChanges}
               onChange={(e) => setTagName(e.target.value)}
               placeholder="ej. v0.4.0"
-              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white font-mono focus:outline-hidden focus:border-purple-500 transition-colors"
+              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white font-mono focus:outline-hidden focus:border-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -251,21 +272,23 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
             </label>
             <textarea
               value={releaseNotes}
+              disabled={submitting || hasUncommittedChanges}
               onChange={(e) => setReleaseNotes(e.target.value)}
               placeholder="Escribe un resumen de novedades o cambios importantes..."
               rows={3}
-              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white placeholder-[#484f58] focus:outline-hidden focus:border-purple-500 transition-colors resize-none"
+              className="w-full px-3 py-2 text-xs bg-[#0d1117] border border-[#30363d] rounded-xl text-white placeholder-[#484f58] focus:outline-hidden focus:border-purple-500 transition-colors resize-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
           {/* GitHub Push Option */}
           <div className="p-3 bg-[#0d1117] border border-[#30363d] rounded-xl text-xs">
-            <label className="flex items-center gap-2 text-white cursor-pointer select-none">
+            <label className={`flex items-center gap-2 select-none ${hasUncommittedChanges ? "opacity-60 cursor-not-allowed" : "text-white cursor-pointer"}`}>
               <input
                 type="checkbox"
                 checked={pushToOrigin}
+                disabled={submitting || hasUncommittedChanges}
                 onChange={(e) => setPushToOrigin(e.target.checked)}
-                className="rounded border-[#30363d] text-purple-500 focus:ring-0"
+                className="rounded border-[#30363d] text-purple-500 focus:ring-0 disabled:opacity-50"
               />
               <div className="flex flex-col">
                 <span className="font-semibold text-white flex items-center gap-1.5">
@@ -295,13 +318,18 @@ export const ReleaseWizardModal: React.FC<ReleaseWizardModalProps> = ({
               size="sm"
               variant="primary"
               type="submit"
-              disabled={submitting || !tagName.trim() || activeRunsCount > 0}
+              disabled={submitting || !tagName.trim() || activeRunsCount > 0 || hasUncommittedChanges}
               className="bg-purple-600 hover:bg-purple-500 text-white font-semibold cursor-pointer shadow-lg shadow-purple-900/30 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Publicando {tagName}...</span>
+                </>
+              ) : hasUncommittedChanges ? (
+                <>
+                  <AlertTriangle className="w-4 h-4 text-rose-300" />
+                  <span>Espacio bloqueado (cambios pendientes)</span>
                 </>
               ) : activeRunsCount > 0 ? (
                 <>

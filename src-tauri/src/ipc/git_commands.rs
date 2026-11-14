@@ -437,3 +437,51 @@ pub async fn watch_repo_path_cmd(
 ) -> Result<(), String> {
     state.watch_path(app, &path)
 }
+
+#[tauri::command]
+pub async fn add_to_gitignore_cmd(repo_path: String, pattern: String) -> Result<(), String> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    use std::path::Path;
+
+    let pattern_trimmed = pattern.trim();
+    if pattern_trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let gitignore_path = Path::new(&repo_path).join(".gitignore");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&gitignore_path)
+        .map_err(|e| format!("No se pudo abrir .gitignore: {}", e))?;
+
+    writeln!(file, "{}", pattern_trimmed)
+        .map_err(|e| format!("No se pudo escribir en .gitignore: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn restore_commit_file_cmd(
+    repo_path: String,
+    commit_oid: String,
+    relative_path: String,
+) -> Result<(), String> {
+    let repo = open_repository(&repo_path).map_err(|e| e.to_string())?;
+    let oid = git2::Oid::from_str(&commit_oid).map_err(|e| e.to_string())?;
+    let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
+    let tree = commit.tree().map_err(|e| e.to_string())?;
+    let entry = tree
+        .get_path(std::path::Path::new(&relative_path))
+        .map_err(|e| e.to_string())?;
+    let blob = repo.find_blob(entry.id()).map_err(|e| e.to_string())?;
+
+    let full_path = std::path::Path::new(&repo_path).join(&relative_path);
+    if let Some(parent) = full_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&full_path, blob.content()).map_err(|e| e.to_string())?;
+
+    Ok(())
+}

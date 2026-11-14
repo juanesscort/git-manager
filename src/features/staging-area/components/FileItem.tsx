@@ -12,6 +12,7 @@ interface FileItemProps {
   onAction: () => void;
   onDiscard?: () => void;
   onResolveConflict?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 export const FileItem: React.FC<FileItemProps> = ({
@@ -24,6 +25,7 @@ export const FileItem: React.FC<FileItemProps> = ({
   onAction,
   onDiscard,
   onResolveConflict,
+  onContextMenu,
 }) => {
   const statusConfig: Record<FileStatusKind, { label: string; color: string; bg: string }> = {
     Added: { label: "A", color: "text-emerald-400", bg: "bg-emerald-950/40 border-emerald-800" },
@@ -50,6 +52,12 @@ export const FileItem: React.FC<FileItemProps> = ({
   return (
     <div
       onClick={onSelect}
+      onContextMenu={(e) => {
+        if (onContextMenu) {
+          e.preventDefault();
+          onContextMenu(e);
+        }
+      }}
       className={`group flex items-center justify-between px-2 py-1.5 rounded text-xs cursor-pointer transition-colors border ${
         isSelected
           ? "bg-[#1f6feb]/20 border-blue-600/50 text-white"

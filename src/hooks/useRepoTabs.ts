@@ -172,6 +172,19 @@ export function useRepoTabs() {
     setRecentRepos([]);
   }, []);
 
+  const reorderTabs = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setTabs((prev) => {
+      const next = [...prev];
+      if (fromIndex < 0 || fromIndex >= next.length || toIndex < 0 || toIndex >= next.length) {
+        return prev;
+      }
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }, []);
+
   return {
     tabs: tabsWithCounts,
     activeTabId,
@@ -180,6 +193,7 @@ export function useRepoTabs() {
     openTab,
     closeTab,
     switchTab,
+    reorderTabs,
     updateTabBranch,
     updateTabPendingChanges,
     setRepoPathChanges,

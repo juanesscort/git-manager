@@ -74,6 +74,22 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
   );
 
   const stageFile = async (relativePath: string) => {
+    // Optimistic instant UI transition
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.path !== relativePath) return f;
+        const newStagedStatus =
+          f.unstaged_status === "Untracked"
+            ? "Added"
+            : (f.staged_status || f.unstaged_status || "Modified");
+        return {
+          ...f,
+          staged_status: newStagedStatus,
+          unstaged_status: undefined,
+        };
+      })
+    );
+
     try {
       await invoke("stage_file_cmd", { path: repoPath, relativePath });
       await refreshStatuses();
@@ -82,10 +98,27 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
       }
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      await refreshStatuses();
     }
   };
 
   const unstageFile = async (relativePath: string) => {
+    // Optimistic instant UI transition
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.path !== relativePath) return f;
+        const newUnstagedStatus =
+          f.staged_status === "Added"
+            ? "Untracked"
+            : (f.unstaged_status || f.staged_status || "Modified");
+        return {
+          ...f,
+          staged_status: undefined,
+          unstaged_status: newUnstagedStatus,
+        };
+      })
+    );
+
     try {
       await invoke("unstage_file_cmd", { path: repoPath, relativePath });
       await refreshStatuses();
@@ -94,24 +127,47 @@ export function useStaging(repoPath: string, onCommitSuccess?: () => void) {
       }
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      await refreshStatuses();
     }
   };
 
   const stageAll = async () => {
+    // Optimistic instant UI transition
+    setFiles((prev) =>
+      prev.map((f) => ({
+        ...f,
+        staged_status:
+          f.staged_status || (f.unstaged_status === "Untracked" ? "Added" : "Modified"),
+        unstaged_status: undefined,
+      }))
+    );
+
     try {
       await invoke("stage_all_cmd", { path: repoPath });
       await refreshStatuses();
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      await refreshStatuses();
     }
   };
 
   const unstageAll = async () => {
+    // Optimistic instant UI transition
+    setFiles((prev) =>
+      prev.map((f) => ({
+        ...f,
+        staged_status: undefined,
+        unstaged_status:
+          f.unstaged_status || (f.staged_status === "Added" ? "Untracked" : "Modified"),
+      }))
+    );
+
     try {
       await invoke("unstage_all_cmd", { path: repoPath });
       await refreshStatuses();
     } catch (err: unknown) {
       setError(typeof err === "string" ? err : JSON.stringify(err));
+      await refreshStatuses();
     }
   };
 

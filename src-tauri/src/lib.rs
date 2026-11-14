@@ -22,7 +22,7 @@ use ipc::git_commands::{
     git_merge_cmd, git_pull_cmd, git_push_cmd, git_rebase_cmd, git_stash_cmd, git_stash_pop_cmd,
     is_git_manager_repo_cmd, list_unified_tags_cmd, pick_folder_dialog_cmd, push_tag_cmd,
     rename_branch_cmd, stage_all_cmd, stage_file_cmd, undo_commit_cmd, unstage_all_cmd,
-    unstage_file_cmd, update_tag_cmd, watch_repo_path_cmd,
+    unstage_file_cmd, update_tag_cmd, watch_repo_path_cmd, add_to_gitignore_cmd, restore_commit_file_cmd,
 };
 use ipc::github_commands::{
     cancel_workflow_run_cmd, check_github_session, create_pull_request_cmd, dispatch_workflow_cmd,
@@ -124,6 +124,8 @@ pub fn run() {
             discard_unstaged_file_cmd,
             discard_all_unstaged_cmd,
             watch_repo_path_cmd,
+            add_to_gitignore_cmd,
+            restore_commit_file_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

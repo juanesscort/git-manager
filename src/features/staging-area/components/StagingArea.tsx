@@ -52,6 +52,13 @@ interface StagingAreaProps {
   onOpenAiConfig?: () => void;
   onOpenConflictResolver?: (path: string) => void;
   onToggleCollapse?: () => void;
+  onFileContextMenu?: (
+    e: React.MouseEvent,
+    path: string,
+    isStaged: boolean,
+    isConflicted?: boolean,
+    isUntracked?: boolean
+  ) => void;
 }
 
 interface StagingTreeNode {
@@ -117,6 +124,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   onOpenAiConfig,
   onOpenConflictResolver,
   onToggleCollapse,
+  onFileContextMenu,
 }) => {
   const draftKey = repoPath ? `gitmanager_draft_commit_${encodeURIComponent(repoPath)}` : null;
 
@@ -372,6 +380,18 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
         key={`file-${file.path}`}
         style={{ paddingLeft: `${depth * 10 + 6}px` }}
         onClick={() => handleToggleFile(file.path, isStaged)}
+        onContextMenu={(e) => {
+          if (onFileContextMenu) {
+            e.preventDefault();
+            onFileContextMenu(
+              e,
+              file.path,
+              isStaged,
+              conflictedFiles.includes(file.path) || file.is_conflicted,
+              file.unstaged_status === "Untracked"
+            );
+          }
+        }}
         className={`flex items-center justify-between py-1 px-2 rounded text-xs cursor-pointer group select-none transition-colors ${isSelected
             ? "bg-[#1f6feb]/20 text-white font-medium border-l-2 border-l-blue-500"
             : "text-[#c9d1d9] hover:bg-[#161b22]"
@@ -556,6 +576,17 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   onResolveConflict={
                     onOpenConflictResolver ? () => onOpenConflictResolver(file.path) : undefined
                   }
+                  onContextMenu={(e) => {
+                    if (onFileContextMenu) {
+                      onFileContextMenu(
+                        e,
+                        file.path,
+                        true,
+                        conflictedFiles.includes(file.path) || file.is_conflicted,
+                        false
+                      );
+                    }
+                  }}
                 />
               ))
             ) : (
@@ -615,6 +646,17 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
                   onResolveConflict={
                     onOpenConflictResolver ? () => onOpenConflictResolver(file.path) : undefined
                   }
+                  onContextMenu={(e) => {
+                    if (onFileContextMenu) {
+                      onFileContextMenu(
+                        e,
+                        file.path,
+                        false,
+                        conflictedFiles.includes(file.path) || file.is_conflicted,
+                        file.unstaged_status === "Untracked"
+                      );
+                    }
+                  }}
                 />
               ))
             ) : (

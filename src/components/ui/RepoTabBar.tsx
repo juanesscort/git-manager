@@ -23,6 +23,7 @@ interface RepoTabBarProps {
   onOpenUpdates?: () => void;
   onSwitchTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
+  onReorderTabs?: (fromIndex: number, toIndex: number) => void;
   onOpenNewTab: () => void;
   onOpenAuth: () => void;
   onLogout: () => void;
@@ -41,6 +42,7 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
   onOpenUpdates,
   onSwitchTab,
   onCloseTab,
+  onReorderTabs,
   onOpenNewTab,
   onOpenAuth,
   onLogout,
@@ -50,6 +52,8 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
 }) => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [draggedTabIndex, setDraggedTabIndex] = useState<number | null>(null);
+  const [dragOverTabIndex, setDragOverTabIndex] = useState<number | null>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -82,20 +86,56 @@ export const RepoTabBar: React.FC<RepoTabBarProps> = ({
     <div className="h-9 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between px-2 select-none shrink-0 gap-2 z-40">
       {/* Left side: List of open project tabs + Add Tab Button */}
       <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0">
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const isActive = tab.id === activeTabId;
           const hasPendingChanges = typeof tab.pendingChanges === "number" && tab.pendingChanges > 0;
+          const isDragging = draggedTabIndex === index;
+          const isOver = dragOverTabIndex === index && draggedTabIndex !== index;
 
           return (
             <div
               key={tab.id}
+              draggable={true}
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("application/git-repo-tab", index.toString());
+                setDraggedTabIndex(index);
+              }}
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes("application/git-repo-tab")) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dragOverTabIndex !== index) {
+                    setDragOverTabIndex(index);
+                  }
+                }
+              }}
+              onDragLeave={() => {
+                if (dragOverTabIndex === index) {
+                  setDragOverTabIndex(null);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (draggedTabIndex !== null && draggedTabIndex !== index && onReorderTabs) {
+                  onReorderTabs(draggedTabIndex, index);
+                }
+                setDraggedTabIndex(null);
+                setDragOverTabIndex(null);
+              }}
+              onDragEnd={() => {
+                setDraggedTabIndex(null);
+                setDragOverTabIndex(null);
+              }}
               onClick={() => onSwitchTab(tab.id)}
               className={`group relative flex items-center gap-2 h-7 px-3 rounded-t text-xs cursor-pointer transition-all max-w-[200px] border-t-2 shrink-0 ${
                 isActive
                   ? "bg-[#0d1117] text-white font-medium border-t-blue-500 border-x border-[#30363d] shadow-sm z-10"
                   : "bg-[#161b22] text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#21262d] border-t-transparent"
+              } ${isDragging ? "opacity-40 scale-95" : ""} ${
+                isOver ? "border-l-2 border-l-blue-400 bg-blue-500/10" : ""
               }`}
-              title={`${tab.name} (${tab.path})`}
+              title={`${tab.name} (${tab.path}) - Arrastra para reordenar`}
             >
               {tab.customIcon ? (
                 <img

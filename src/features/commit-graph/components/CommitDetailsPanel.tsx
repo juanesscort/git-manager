@@ -28,6 +28,7 @@ interface CommitDetailsPanelProps {
   onSelectFile: (path: string) => void;
   onUndoCommit?: () => void;
   onToggleCollapse?: () => void;
+  onFileContextMenu?: (e: React.MouseEvent, path: string, commitOid: string) => void;
   onClose: () => void;
 }
 
@@ -61,6 +62,7 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
   onSelectFile,
   onUndoCommit,
   onToggleCollapse,
+  onFileContextMenu,
   onClose,
 }) => {
   const [copiedHash, setCopiedHash] = useState(false);
@@ -318,12 +320,18 @@ export const CommitDetailsPanel: React.FC<CommitDetailsPanelProps> = ({
                     <div
                       key={file.path}
                       onClick={() => onSelectFile(isSelected ? "" : file.path)}
+                      onContextMenu={(e) => {
+                        if (onFileContextMenu && commit?.oid) {
+                          e.preventDefault();
+                          onFileContextMenu(e, file.path, commit.oid);
+                        }
+                      }}
                       className={`flex items-center justify-between px-2.5 py-1.5 rounded text-xs cursor-pointer transition-colors border group ${
                         isSelected
                           ? "bg-[#1f6feb]/25 border-blue-500 text-white font-medium shadow-sm"
                           : "border-[#30363d]/40 bg-[#161b22]/30 hover:bg-[#161b22] text-[#c9d1d9]"
                       }`}
-                      title={`${file.path} (Click para ver/cerrar diff en el centro)`}
+                      title={`${file.path} (Click para ver diff, clic derecho para opciones)`}
                     >
                       <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                         <span

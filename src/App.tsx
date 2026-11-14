@@ -28,6 +28,7 @@ import { CreateBranchModal } from "./components/ui/CreateBranchModal";
 import { BranchMergeModal } from "./components/ui/BranchMergeModal";
 import { BranchContextMenu, BranchContextMenuState } from "./components/ui/BranchContextMenu";
 import { CommitContextMenu, CommitContextMenuState } from "./components/ui/CommitContextMenu";
+import { FileContextMenu, FileContextMenuState } from "./components/ui/FileContextMenu";
 import { CreatePullRequestModal } from "./features/github-sync/components/CreatePullRequestModal";
 import { PullRequestHubModal } from "./features/github-sync/components/pr-hub/PullRequestHubModal";
 import { ActionsHubModal } from "./features/github-sync/components/actions-hub/ActionsHubModal";
@@ -91,6 +92,7 @@ export const App: React.FC = () => {
     openTab,
     closeTab,
     switchTab,
+    reorderTabs,
     updateTabBranch,
     setRepoPathChanges,
     clearRecentRepos,
@@ -667,6 +669,18 @@ export const App: React.FC = () => {
     };
   }, [refreshStatuses, checkConflicts]);
 
+  // Window focus synchronization when user returns from external editors or terminals
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      refreshStatuses();
+      checkConflicts();
+    };
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [refreshStatuses, checkConflicts]);
+
   const handleSelectWip = () => {
     setSelectedCommit(null);
     setIsWipSelected((prev) => !prev);
@@ -846,6 +860,117 @@ export const App: React.FC = () => {
     });
   };
 
+  // File Context Menu State & Actions (Flechas 2 y 3)
+  const [fileContextMenuState, setFileContextMenuState] = useState<FileContextMenuState>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    relativePath: "",
+    repoPath: "",
+    source: "tab",
+  });
+
+  const handleOpenFileContextMenu = (
+    e: React.MouseEvent,
+    relativePath: string,
+    source: FileContextMenuState["source"],
+    extra?: { tabId?: string; commitOid?: string; isConflicted?: boolean; isUntracked?: boolean }
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFileContextMenuState({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+      relativePath,
+      repoPath: activeRepoPath,
+      source,
+      tabId: extra?.tabId,
+      commitOid: extra?.commitOid,
+      isConflicted: extra?.isConflicted,
+      isUntracked: extra?.isUntracked,
+    });
+  };
+
+  const handleCloseOtherDiffTabs = (keepTabId: string) => {
+    setOpenDiffTabs((prev) => prev.filter((t) => t.id === keepTabId));
+    setActiveCenterTab(keepTabId);
+  };
+
+  const handleCloseDiffTabsToRight = (tabId: string) => {
+    setOpenDiffTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === tabId);
+      if (idx === -1) return prev;
+      const filtered = prev.slice(0, idx + 1);
+      if (!filtered.some((t) => t.id === activeCenterTab)) {
+        setActiveCenterTab(tabId);
+      }
+      return filtered;
+    });
+  };
+
+  const handleAddToGitignore = async (pattern: string) => {
+    if (!activeRepoPath) return;
+    try {
+      await invoke("add_to_gitignore_cmd", {
+        repoPath: activeRepoPath,
+        pattern,
+      });
+      await refreshStatuses();
+    } catch (err) {
+      console.error("Error al agregar a .gitignore:", err);
+    }
+  };
+
+  // Restore Commit File Safety Confirmation Modal State
+  const [restoreFileTarget, setRestoreFileTarget] = useState<{
+    commitOid: string;
+    relativePath: string;
+  } | null>(null);
+
+  const handleRequestRestoreCommitFile = (commitOid: string, relativePath: string) => {
+    setRestoreFileTarget({ commitOid, relativePath });
+  };
+
+  const handleConfirmRestoreCommitFile = async () => {
+    if (!activeRepoPath || !restoreFileTarget) return;
+    try {
+      await invoke("restore_commit_file_cmd", {
+        repoPath: activeRepoPath,
+        commitOid: restoreFileTarget.commitOid,
+        relativePath: restoreFileTarget.relativePath,
+      });
+      await refreshStatuses();
+      openFileTab({ path: restoreFileTarget.relativePath, staged: false, type: "staging" });
+    } catch (err) {
+      console.error("Error al restaurar archivo del commit:", err);
+    } finally {
+      setRestoreFileTarget(null);
+    }
+  };
+
+  const handleFilterHistory = (path: string) => {
+    setActiveCenterTab("graph");
+    setGraphSearchQuery(path);
+  };
+
+  // Center Diff Tabs Drag and Drop Reordering (Flecha 1)
+  const [draggedDiffIndex, setDraggedDiffIndex] = useState<number | null>(null);
+  const [dragOverDiffIndex, setDragOverDiffIndex] = useState<number | null>(null);
+
+  const handleReorderDiffTabs = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setOpenDiffTabs((prev) => {
+      const next = [...prev];
+      if (fromIndex < 0 || fromIndex >= next.length || toIndex < 0 || toIndex >= next.length) {
+        return prev;
+      }
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
   // Pull Request Modal state
   const [pullRequestModalOpen, setPullRequestModalOpen] = useState<boolean>(false);
   const [prInitialHead, setPrInitialHead] = useState<string>("dev");
@@ -941,6 +1066,7 @@ export const App: React.FC = () => {
         onOpenUpdates={() => handleOpenSettings("about")}
         onSwitchTab={switchTab}
         onCloseTab={closeTab}
+        onReorderTabs={reorderTabs}
         onOpenNewTab={() => setOpenRepoModalOpen(true)}
         onOpenAuth={startDeviceAuth}
         onLogout={logoutGitHub}
@@ -1345,20 +1471,64 @@ export const App: React.FC = () => {
               </button>
 
               {/* Dynamic Open Diff Tabs (Up to 5) */}
-              {openDiffTabs.map((tab) => {
+              {openDiffTabs.map((tab, idx) => {
                 const isActive = activeCenterTab === tab.id;
+                const isDragging = draggedDiffIndex === idx;
+                const isOver = dragOverDiffIndex === idx && draggedDiffIndex !== idx;
+
                 return (
                   <div
                     key={tab.id}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border transition-colors shrink-0 ${
+                    draggable={true}
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("application/git-diff-tab", idx.toString());
+                      setDraggedDiffIndex(idx);
+                    }}
+                    onDragOver={(e) => {
+                      if (e.dataTransfer.types.includes("application/git-diff-tab")) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (dragOverDiffIndex !== idx) {
+                          setDragOverDiffIndex(idx);
+                        }
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverDiffIndex === idx) {
+                        setDragOverDiffIndex(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedDiffIndex !== null && draggedDiffIndex !== idx) {
+                        handleReorderDiffTabs(draggedDiffIndex, idx);
+                      }
+                      setDraggedDiffIndex(null);
+                      setDragOverDiffIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedDiffIndex(null);
+                      setDragOverDiffIndex(null);
+                    }}
+                    onContextMenu={(e) =>
+                      handleOpenFileContextMenu(e, tab.path, "tab", {
+                        tabId: tab.id,
+                        commitOid: tab.commitOid,
+                      })
+                    }
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border transition-colors shrink-0 cursor-pointer ${
                       isActive
                         ? "bg-[#1f6feb]/20 border-blue-500/50 text-white shadow-xs"
                         : "bg-[#21262d]/70 border-[#30363d] text-[#8b949e] hover:text-white hover:bg-[#21262d]"
+                    } ${isDragging ? "opacity-40 scale-95" : ""} ${
+                      isOver ? "border-l-2 border-l-blue-400 bg-blue-500/20" : ""
                     }`}
+                    title={`${tab.path} - Arrastra para reordenar, clic derecho para opciones`}
                   >
                     <button
                       onClick={() => setActiveCenterTab(tab.id)}
-                      className="flex items-center gap-1.5 max-w-[170px] truncate"
+                      className="flex items-center gap-1.5 max-w-[170px] truncate cursor-pointer"
                       title={tab.path}
                     >
                       <FileText
@@ -1377,7 +1547,7 @@ export const App: React.FC = () => {
                         e.stopPropagation();
                         closeDiffTab(tab.id);
                       }}
-                      className="ml-1 p-0.5 hover:text-rose-400 rounded text-[#8b949e] hover:bg-[#30363d] transition-colors"
+                      className="ml-1 p-0.5 hover:text-rose-400 rounded text-[#8b949e] hover:bg-[#30363d] transition-colors cursor-pointer"
                       title={`Cerrar ${tab.name}`}
                     >
                       <X className="w-3 h-3" />
@@ -1456,6 +1626,7 @@ export const App: React.FC = () => {
                   commitOid={currentActiveTab.commitOid}
                   staged={currentActiveTab.staged}
                   onClose={() => closeDiffTab(currentActiveTab.id)}
+                  onContextMenu={(e, path) => handleOpenFileContextMenu(e, path, "diff_header")}
                 />
               ) : (
                 <CommitGraph
@@ -1535,6 +1706,7 @@ export const App: React.FC = () => {
                       closeDiffTab(splitActiveTab.id);
                     }
                   }}
+                  onContextMenu={(e, path) => handleOpenFileContextMenu(e, path, "diff_header")}
                 />
               </div>
             </div>
@@ -1621,6 +1793,9 @@ export const App: React.FC = () => {
                   }}
                   onUndoCommit={() => handleOpenUndoCommit(selectedCommit)}
                   onToggleCollapse={handleToggleRightPanel}
+                  onFileContextMenu={(e, path, commitOid) =>
+                    handleOpenFileContextMenu(e, path, "commit_file", { commitOid })
+                  }
                   onClose={() => {
                     setSelectedCommit(null);
                     setIsWipSelected(true);
@@ -1672,6 +1847,12 @@ export const App: React.FC = () => {
                   onGenerateAiCommit={() => generateCommit(activeRepoPath)}
                   onOpenAiConfig={openAiConfigModal}
                   onOpenConflictResolver={openConflictModal}
+                  onFileContextMenu={(e, path, isStaged, isConflicted, isUntracked) =>
+                    handleOpenFileContextMenu(e, path, isStaged ? "wip_staged" : "wip_unstaged", {
+                      isConflicted,
+                      isUntracked,
+                    })
+                  }
                 />
               )}
             </div>
@@ -1837,6 +2018,68 @@ export const App: React.FC = () => {
         onUndoCommit={handleOpenUndoCommit}
       />
 
+      {/* File Right-Click Context Menu (Flechas 2 y 3) */}
+      <FileContextMenu
+        key={`${fileContextMenuState.source}-${fileContextMenuState.relativePath}-${fileContextMenuState.x}-${fileContextMenuState.y}`}
+        state={fileContextMenuState}
+        onClose={() => setFileContextMenuState((prev) => ({ ...prev, isOpen: false }))}
+        onCloseTab={closeDiffTab}
+        onCloseOtherTabs={handleCloseOtherDiffTabs}
+        onCloseTabsToRight={handleCloseDiffTabsToRight}
+        onFilterHistory={handleFilterHistory}
+        onStageFile={stageFile}
+        onUnstageFile={unstageFile}
+        onDiscardFile={handleRequestDiscardFile}
+        onAddToGitignore={handleAddToGitignore}
+        onResolveConflict={(path) => openConflictModal(path)}
+        onRestoreCommitFile={handleRequestRestoreCommitFile}
+      />
+
+      {/* Destructive Action Confirmation: Restore Commit File */}
+      {restoreFileTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 select-none animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">¿Restaurar archivo de esta versión?</h3>
+                <p className="text-xs text-[#8b949e]">Acción destructiva sobre el espacio de trabajo local</p>
+              </div>
+            </div>
+
+            <div className="bg-[#0d1117] border border-[#30363d] rounded-lg p-3 text-xs space-y-1.5 font-mono">
+              <div className="text-white truncate">
+                <span className="text-[#8b949e]">Archivo: </span>
+                <span className="text-amber-300 font-bold">{restoreFileTarget.relativePath}</span>
+              </div>
+              <div className="text-[#8b949e] text-[11px]">
+                Versión origen commit: <span className="text-purple-300">{restoreFileTarget.commitOid.slice(0, 8)}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#8b949e] leading-relaxed">
+              El contenido de este archivo en tu directorio de trabajo será sobrescrito con el contenido exacto de este commit.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#30363d]">
+              <Button size="sm" variant="secondary" onClick={() => setRestoreFileTarget(null)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={handleConfirmRestoreCommitFile}
+                className="bg-amber-600 hover:bg-amber-500 text-white font-semibold cursor-pointer"
+              >
+                Sobrescribir y Restaurar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pull Request Creator Modal with AI Assistance */}
       <CreatePullRequestModal
         isOpen={pullRequestModalOpen}
@@ -1883,6 +2126,8 @@ export const App: React.FC = () => {
         currentBranch={summary?.current_branch}
         openPrCount={openPrCount}
         activeRunsCount={effectiveActiveRunsCount}
+        hasUncommittedChanges={hasUncommittedChanges}
+        uncommittedChangesCount={stagedFiles.length + unstagedFiles.length}
         onClose={() => setReleaseWizardOpen(false)}
         onReleaseStart={() => setIsReleaseTriggered(true)}
         onReleaseError={() => setIsReleaseTriggered(false)}
