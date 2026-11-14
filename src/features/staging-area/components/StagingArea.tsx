@@ -112,6 +112,7 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
   currentBranch,
   loading,
   aiGenerating,
+  onRefresh,
   onStageFile,
   onUnstageAll,
   onStageAll,
@@ -455,9 +456,19 @@ export const StagingArea: React.FC<StagingAreaProps> = ({
           )}
           <Layers className="w-4 h-4 text-blue-400" />
           <span className="font-semibold text-white">Área de Cambios (WIP)</span>
-          {loading && <RefreshCw className="w-3 h-3 text-blue-400 animate-pulse" />}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={loading}
+              className="p-1 rounded text-[#8b949e] hover:text-blue-400 hover:bg-[#21262d] transition-colors cursor-pointer disabled:opacity-50"
+              title="Refrescar solo área de cambios (WIP)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-blue-400" : ""}`} />
+            </button>
+          )}
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/30 font-medium">
             {stagedFiles.length + unstagedFiles.length} cambios
           </span>
